@@ -27,6 +27,36 @@ HungryCall solves a real-world problem in rural and suburban areas: local restau
 4. **Structured Schema Work**:
    - Uses strict CALL-E `result_schema` definitions per mode (`delivers_to_address`, `price_known`, `total_price_eur`, `eta_minutes`, `order_placed`, `callback_number`, `rejection_reason`).
 
+5. **Dynamic Fixture Input Reflection**:
+   - In dry-run mode, actual user parameters (`delivery_address`, `food_prompt`, `customer_name`, `max_budget_eur`) are dynamically interpolated into verification transcripts, activity logs, and summaries to ensure dry-run output matches input exactness.
+
+---
+
+## Real CALL-E Service Dynamics (Measured Findings)
+
+HungryCall incorporates empirical findings measured against the live CALL-E service (`FINDINGS.md`):
+
+1. **`status` vs. `activity` Progress Tracking**:
+   - `status` remains on `PREPARING` throughout active conversation and only updates to `COMPLETED` when the call ends.
+   - HungryCall relies exclusively on `activity` events to monitor real-time progress and display active conversation turns.
+
+2. **Live Speech & STT Deduplication**:
+   - `activity` emits real-time events (`Bot is speaking: ...` and `Callee said: ...`).
+   - The STT engine streams an initial raw draft followed immediately by a refined/corrected version. HungryCall automatically deduplicates streaming STT drafts.
+
+3. **Transcript as Order Proof**:
+   - Transcripts reside in `result.transcript` as a single formatted string (`[mm:ss] BOT: ...` / `[mm:ss] USER: ...`). Because phone orders form an oral contract, HungryCall displays the full formatted transcript as verification proof.
+
+4. **Call Setup Overhead**:
+   - Each call incurs a ~40-second setup latency (bot initialization + ringing + connection) prior to conversation start. HungryCall displays this latency notice in the live activity stream.
+
+5. **REST API vs. MCP Architecture**:
+   - Schema-validated call results (`result_schema`) are supported **only via the REST API** (`POST /v1/calls`, Header `Authorization: Bearer $CALLE_API_KEY`). MCP (`plan_call`) does not support result schemas and operates in a separate ID space.
+   - API keys must be loaded strictly from environment variables (`CALLE_API_KEY` or `IAM_API_KEY`), never hardcoded in code, logs, or commits.
+
+6. **Serial Execution Safety**:
+   - Concurrency limits remain unverified; HungryCall strictly uses serial cascade ordering (stopping immediately on first success) to avoid duplicate food orders or extra call costs.
+
 ---
 
 ## Data Flow & Privacy Disclosure
@@ -83,9 +113,9 @@ pip install -e .
 
 ## Usage
 
-### 1. Delivery Mode (Dry-Run Scenario)
+### 1. Delivery Mode (Dry-Run Scenario with Custom Address & Prompt)
 ```bash
-hungrycall delivery --food "Burger" --address "Hauptstraße 12, 12345 Dorfstadt" --budget 35.0 --scenario success_direct
+hungrycall delivery --food "2x Döner Kebab" --address "Dorfstrasse 1, 16321 Bernau" --budget 30.0 --scenario success_direct
 ```
 
 ### 2. Table Reservation Mode
@@ -104,13 +134,20 @@ hungrycall delivery --food "Burger" --address "Hauptstraße 12, 12345 Dorfstadt"
 ```
 *Output excerpt:*
 ```text
-Attempt History:
-  Attempt #1: Burger House Dorfstadt (+49 ••• ••••111) -> ❌ REJECTED
+Attempt History & Activity Stream:
+  Attempt #1: Burger House Dorfstadt (+491 ••• ••••111) -> ❌ REJECTED
     Reason: Total price 42.00 EUR exceeds maximum budget limit of 35.00 EUR
-  Attempt #2: Trattoria Bella Luigi (+49 ••• ••••222) -> ✅ PASSED
+    Live Activity Progress:
+      • 17:37:05.100 | Bot initialized.
+      • 17:37:44.200 | Call is ringing (~40s setup latency).
+      • 17:37:49.500 | Call connected.
+      • 17:37:50.700 | Bot is speaking: Hello, calling on behalf of Lukas...
+      • 17:37:52.200 | Callee said: 42 Euro.
+      • 17:38:00.100 | Call ended; syncing final Calling result.
+  Attempt #2: Trattoria Bella Luigi (+491 ••• ••••222) -> ✅ PASSED
 
 RESULT: SUCCESS
-SUMMARY: Ordered from Trattoria Bella Luigi: delivers in 40 minutes, items 'Burger', total 31.50 EUR. Callback at +49 ••• ••••222.
+SUMMARY: Ordered from Trattoria Bella Luigi: delivers in 40 minutes, items 'Burger', total 31.50 EUR. Callback at +491 ••• ••••222.
 ```
 
 ### 5. Simulating Vague Price Rejection
@@ -122,7 +159,7 @@ hungrycall delivery --food "Burger" --address "Hauptstraße 12, 12345 Dorfstadt"
 
 ## Running Tests
 
-Run the full pytest suite (25 tests covering ranking, schemas, phone masking, safety, budget rejection, vague price rejection, and CLI execution):
+Run the full pytest suite (29 tests covering ranking, schemas, phone masking, safety, budget rejection, vague price rejection, dynamic fixture rendering, STT deduplication, and CLI execution):
 
 ```bash
 pytest -v

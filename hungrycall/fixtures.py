@@ -1,7 +1,7 @@
 """Fixtures and mock responses for dry-run execution without network or account."""
 
 from typing import Dict, List, Any
-from hungrycall.models import Restaurant, OpeningHours, CallResult, CallStatus, Mode
+from hungrycall.models import Restaurant, OpeningHours, CallResult, CallStatus, Mode, UserRequest
 
 
 SAMPLE_RESTAURANTS: List[Restaurant] = [
@@ -74,7 +74,102 @@ SAMPLE_RESTAURANTS: List[Restaurant] = [
 ]
 
 
-# Mock responses mapped by (restaurant_id, mode) or fixture scenario preset name
+def format_transcript_text(transcript_list: List[Dict[str, str]]) -> str:
+    """Format transcript list into standard CALL-E string format: [mm:ss] SPRECHER: Text"""
+    lines = []
+    for turn in transcript_list:
+        ts = turn.get("ts", "00:00")
+        if len(ts) == 8 and ts.startswith("00:"):
+            ts_short = ts[3:]  # '00:00:05' -> '00:05'
+        else:
+            ts_short = ts
+        speaker = turn.get("speaker", "BOT")
+        if speaker in ["Agent", "BOT"]:
+            speaker_norm = "BOT"
+        elif speaker in ["Restaurant", "USER", "Callee"]:
+            speaker_norm = "USER"
+        else:
+            speaker_norm = speaker
+        lines.append(f"[{ts_short}] {speaker_norm}: {turn.get('text', '')}")
+    return "\n".join(lines)
+
+
+def deduplicate_activity(activity_events: List[str]) -> List[str]:
+    """
+    Deduplicate real-time STT streaming drafts in activity log.
+    Speech recognition initially emits raw draft ('Callee said: hallo')
+    followed immediately by corrected version ('Callee said: Hallo.').
+    This helper filters out intermediate drafts when followed by a refined version.
+    """
+    if not activity_events:
+        return []
+    
+    deduped = []
+    for i, event in enumerate(activity_events):
+        if "Callee said:" in event and i < len(activity_events) - 1:
+            next_event = activity_events[i + 1]
+            if "Callee said:" in next_event:
+                curr_text = event.split("Callee said:", 1)[1].strip()
+                next_text = next_event.split("Callee said:", 1)[1].strip()
+                if next_text.lower().startswith(curr_text.lower()) or curr_text.lower() in next_text.lower():
+                    continue
+        deduped.append(event)
+    return deduped
+
+
+def render_fixture_data(mock_entry: Dict[str, Any], req: UserRequest, restaurant: Restaurant) -> Dict[str, Any]:
+    """Interpolate actual user request inputs into fixture data templates."""
+    fmt_kwargs = {
+        "customer_name": req.customer_name,
+        "delivery_address": req.delivery_address or "Specified Address",
+        "food_prompt": req.food_prompt,
+        "max_budget_eur": f"{req.max_budget_eur:.2f}" if req.max_budget_eur is not None else "35.00",
+        "reservation_date": req.reservation_date or "2026-08-05",
+        "reservation_time": req.reservation_time or "19:00",
+        "party_size": str(req.party_size) if req.party_size is not None else "4",
+        "pickup_time": req.pickup_time or "19:30",
+        "restaurant_name": restaurant.name
+    }
+
+    # Render post_summary
+    post_summary = mock_entry.get("post_summary", "")
+    if isinstance(post_summary, str):
+        for k, v in fmt_kwargs.items():
+            post_summary = post_summary.replace(f"{{{k}}}", str(v))
+
+    # Render transcript
+    raw_transcript = mock_entry.get("transcript", [])
+    rendered_transcript = []
+    for turn in raw_transcript:
+        turn_copy = dict(turn)
+        text = turn_copy.get("text", "")
+        for k, v in fmt_kwargs.items():
+            text = text.replace(f"{{{k}}}", str(v))
+        turn_copy["text"] = text
+        rendered_transcript.append(turn_copy)
+
+    # Render activity
+    raw_activity = mock_entry.get("activity", [])
+    rendered_activity = []
+    for act in raw_activity:
+        act_text = act
+        for k, v in fmt_kwargs.items():
+            act_text = act_text.replace(f"{{{k}}}", str(v))
+        rendered_activity.append(act_text)
+
+    transcript_text = format_transcript_text(rendered_transcript)
+
+    return {
+        "status": mock_entry.get("status", CallStatus.COMPLETED),
+        "structured_result": mock_entry.get("structured_result", {}),
+        "post_summary": post_summary,
+        "transcript": rendered_transcript,
+        "activity": rendered_activity,
+        "raw_transcript_text": transcript_text
+    }
+
+
+# Mock responses mapped by scenario preset name and restaurant ID
 SCENARIO_FIXTURES: Dict[str, Dict[str, Any]] = {
     # Scenario 1: Immediate success
     "success_direct": {
@@ -91,13 +186,24 @@ SCENARIO_FIXTURES: Dict[str, Dict[str, Any]] = {
             },
             "post_summary": "Order placed successfully. Total: 28.50 EUR, ETA: 35 minutes.",
             "transcript": [
-                {"ts": "00:00:05", "speaker": "Agent", "text": "Hello, I am an automated assistant calling on behalf of Lukas. Do you deliver to Hauptstraße 12?"},
-                {"ts": "00:00:10", "speaker": "Restaurant", "text": "Yes, we deliver to Hauptstraße 12."},
-                {"ts": "00:00:15", "speaker": "Agent", "text": "Great! What is the exact total price including delivery fee for 2 Cheeseburgers and 2 Fries?"},
-                {"ts": "00:00:22", "speaker": "Restaurant", "text": "The total end price at your door is exactly 28 Euros and 50 Cents."},
-                {"ts": "00:00:28", "speaker": "Agent", "text": "Perfect, that is within our 35 Euro limit. Please place the order. How long will it take?"},
-                {"ts": "00:00:35", "speaker": "Restaurant", "text": "Order is confirmed! Delivery will take about 35 minutes."},
-                {"ts": "00:00:40", "speaker": "Agent", "text": "Thank you very much. Goodbye!"}
+                {"ts": "00:00:05", "speaker": "BOT", "text": "Hello, I am an automated assistant calling on behalf of {customer_name}. Do you deliver to {delivery_address}?"},
+                {"ts": "00:00:10", "speaker": "USER", "text": "Yes, we deliver to {delivery_address}."},
+                {"ts": "00:00:15", "speaker": "BOT", "text": "Great! What is the exact total price including delivery fee for {food_prompt}?"},
+                {"ts": "00:00:22", "speaker": "USER", "text": "The total end price at your door is exactly 28 Euros and 50 Cents."},
+                {"ts": "00:00:28", "speaker": "BOT", "text": "Perfect, that is within our {max_budget_eur} Euro limit. Please place the order. How long will it take?"},
+                {"ts": "00:00:35", "speaker": "USER", "text": "Order is confirmed! Delivery will take about 35 minutes."},
+                {"ts": "00:00:40", "speaker": "BOT", "text": "Thank you very much. Goodbye!"}
+            ],
+            "activity": [
+                "17:37:05.100 | Bot initialized.",
+                "17:37:44.200 | Call is ringing (~40s setup latency).",
+                "17:37:49.500 | Call connected.",
+                "17:37:50.700 | Bot is speaking: Hello, I am an automated assistant calling on behalf of {customer_name}. Do you deliver to {delivery_address}?",
+                "17:37:51.500 | Callee said: ja",
+                "17:37:52.200 | Callee said: Ja, wir liefern nach {delivery_address}.",
+                "17:38:15.800 | Bot is speaking: Great! What is the exact total price including delivery fee for {food_prompt}?",
+                "17:38:21.300 | Callee said: 28.50 Euro.",
+                "17:38:40.100 | Call ended; syncing final Calling result."
             ]
         }
     },
@@ -117,9 +223,19 @@ SCENARIO_FIXTURES: Dict[str, Dict[str, Any]] = {
             },
             "post_summary": "Declined order due to unconfirmed vague price quote.",
             "transcript": [
-                {"ts": "00:00:05", "speaker": "Agent", "text": "Hello, calling on behalf of Lukas. What is the total price for the burger menu?"},
-                {"ts": "00:00:12", "speaker": "Restaurant", "text": "Well, it's so roughly around 30 Euros, depends a bit on the delivery driver fee today."},
-                {"ts": "00:00:20", "speaker": "Agent", "text": "I am sorry, I need an exact total price to proceed. Since it is unconfirmed, I cannot place the order. Have a nice evening."}
+                {"ts": "00:00:05", "speaker": "BOT", "text": "Hello, calling on behalf of {customer_name}. What is the total price for {food_prompt}?"},
+                {"ts": "00:00:12", "speaker": "USER", "text": "Well, it's so roughly around 30 Euros, depends a bit on the delivery driver fee today."},
+                {"ts": "00:00:20", "speaker": "BOT", "text": "I am sorry, I need an exact total price to proceed. Since it is unconfirmed, I cannot place the order. Have a nice evening."}
+            ],
+            "activity": [
+                "17:37:05.100 | Bot initialized.",
+                "17:37:44.200 | Call is ringing (~40s setup latency).",
+                "17:37:49.500 | Call connected.",
+                "17:37:50.700 | Bot is speaking: Hello, calling on behalf of {customer_name}. What is the total price for {food_prompt}?",
+                "17:37:51.500 | Callee said: ca 30 euro",
+                "17:37:52.200 | Callee said: Well, it's so roughly around 30 Euros, depends a bit on the delivery driver fee today.",
+                "17:38:15.800 | Bot is speaking: I am sorry, I need an exact total price to proceed.",
+                "17:38:20.100 | Call ended; syncing final Calling result."
             ]
         },
         "rest_trattoria_luigi": {
@@ -135,10 +251,18 @@ SCENARIO_FIXTURES: Dict[str, Dict[str, Any]] = {
             },
             "post_summary": "Order placed successfully at Trattoria Bella Luigi. Total 29.00 EUR.",
             "transcript": [
-                {"ts": "00:00:05", "speaker": "Agent", "text": "Hello, calling on behalf of Lukas. Can you deliver to Hauptstraße 12?"},
-                {"ts": "00:00:10", "speaker": "Restaurant", "text": "Yes, we deliver there. The total price is exactly 29.00 Euros."},
-                {"ts": "00:00:18", "speaker": "Agent", "text": "29.00 EUR is within the 35 EUR limit. Please place the order."},
-                {"ts": "00:00:25", "speaker": "Restaurant", "text": "Order received! Delivery in 45 minutes."}
+                {"ts": "00:00:05", "speaker": "BOT", "text": "Hello, calling on behalf of {customer_name}. Can you deliver to {delivery_address}?"},
+                {"ts": "00:00:10", "speaker": "USER", "text": "Yes, we deliver there. The total price is exactly 29.00 Euros."},
+                {"ts": "00:00:18", "speaker": "BOT", "text": "29.00 EUR is within the {max_budget_eur} EUR limit. Please place the order for {food_prompt}."},
+                {"ts": "00:00:25", "speaker": "USER", "text": "Order received! Delivery in 45 minutes."}
+            ],
+            "activity": [
+                "17:38:30.100 | Bot initialized.",
+                "17:39:10.200 | Call is ringing (~40s setup latency).",
+                "17:39:15.500 | Call connected.",
+                "17:39:16.700 | Bot is speaking: Hello, calling on behalf of {customer_name}. Can you deliver to {delivery_address}?",
+                "17:39:18.200 | Callee said: Ja, liefern wir.",
+                "17:39:25.800 | Call ended; syncing final Calling result."
             ]
         }
     },
@@ -150,17 +274,25 @@ SCENARIO_FIXTURES: Dict[str, Dict[str, Any]] = {
             "structured_result": {
                 "delivers_to_address": True,
                 "price_known": True,
-                "total_price_eur": 42.00,  # Exceeds 35.00 limit!
+                "total_price_eur": 42.00,  # Exceeds limit!
                 "eta_minutes": 30,
                 "order_placed": False,
                 "callback_number": "+491701111111",
-                "rejection_reason": "Total price 42.00 EUR exceeds budget limit of 35.00 EUR"
+                "rejection_reason": "Total price 42.00 EUR exceeds budget limit of {max_budget_eur} EUR"
             },
-            "post_summary": "Declined order: total 42.00 EUR exceeds limit of 35.00 EUR.",
+            "post_summary": "Declined order: total 42.00 EUR exceeds limit of {max_budget_eur} EUR.",
             "transcript": [
-                {"ts": "00:00:05", "speaker": "Agent", "text": "Hello, calling on behalf of Lukas. What is the total price for delivery?"},
-                {"ts": "00:00:12", "speaker": "Restaurant", "text": "With delivery charge and minimum order, the total is exactly 42 Euros."},
-                {"ts": "00:00:20", "speaker": "Agent", "text": "That exceeds our maximum budget limit of 35 Euros. I must politely decline. Goodbye!"}
+                {"ts": "00:00:05", "speaker": "BOT", "text": "Hello, calling on behalf of {customer_name}. What is the total price for delivery of {food_prompt} to {delivery_address}?"},
+                {"ts": "00:00:12", "speaker": "USER", "text": "With delivery charge and minimum order, the total is exactly 42 Euros."},
+                {"ts": "00:00:20", "speaker": "BOT", "text": "That exceeds our maximum budget limit of {max_budget_eur} Euros. I must politely decline. Goodbye!"}
+            ],
+            "activity": [
+                "17:37:05.100 | Bot initialized.",
+                "17:37:44.200 | Call is ringing (~40s setup latency).",
+                "17:37:49.500 | Call connected.",
+                "17:37:50.700 | Bot is speaking: Hello, calling on behalf of {customer_name}. What is the total price for delivery of {food_prompt}?",
+                "17:37:52.200 | Callee said: 42 Euro.",
+                "17:38:00.100 | Call ended; syncing final Calling result."
             ]
         },
         "rest_trattoria_luigi": {
@@ -176,8 +308,16 @@ SCENARIO_FIXTURES: Dict[str, Dict[str, Any]] = {
             },
             "post_summary": "Order placed successfully at Trattoria Bella Luigi. Total 31.50 EUR.",
             "transcript": [
-                {"ts": "00:00:05", "speaker": "Agent", "text": "Hello, calling on behalf of Lukas. Can you deliver for 31.50 EUR total?"},
-                {"ts": "00:00:12", "speaker": "Restaurant", "text": "Yes, total is 31.50 Euros. Order placed!"}
+                {"ts": "00:00:05", "speaker": "BOT", "text": "Hello, calling on behalf of {customer_name}. Can you deliver {food_prompt} to {delivery_address} for 31.50 EUR total?"},
+                {"ts": "00:00:12", "speaker": "USER", "text": "Yes, total is 31.50 Euros. Order placed!"}
+            ],
+            "activity": [
+                "17:38:10.100 | Bot initialized.",
+                "17:38:50.200 | Call is ringing (~40s setup latency).",
+                "17:38:55.500 | Call connected.",
+                "17:38:56.700 | Bot is speaking: Hello, calling on behalf of {customer_name}.",
+                "17:39:02.200 | Callee said: Ja, geht klar.",
+                "17:39:10.100 | Call ended; syncing final Calling result."
             ]
         }
     },
@@ -192,12 +332,20 @@ SCENARIO_FIXTURES: Dict[str, Dict[str, Any]] = {
                 "callback_number": "+491702222222",
                 "rejection_reason": None
             },
-            "post_summary": "Table reserved for 4 people on 2026-08-05 at 19:00.",
+            "post_summary": "Table reserved for {party_size} people on {reservation_date} at {reservation_time}.",
             "transcript": [
-                {"ts": "00:00:05", "speaker": "Agent", "text": "Hello, calling on behalf of Lukas. Do you have a table for 4 people on 2026-08-05 at 19:00?"},
-                {"ts": "00:00:12", "speaker": "Restaurant", "text": "Yes, we have a table available at 19:00."},
-                {"ts": "00:00:18", "speaker": "Agent", "text": "Please reserve it under the name Lukas. What is your callback number in case we need to cancel?"},
-                {"ts": "00:00:25", "speaker": "Restaurant", "text": "Reserved! Our callback number is +49 170 2222222. See you then!"}
+                {"ts": "00:00:05", "speaker": "BOT", "text": "Hello, calling on behalf of {customer_name}. Do you have a table for {party_size} people on {reservation_date} at {reservation_time}?"},
+                {"ts": "00:00:12", "speaker": "USER", "text": "Yes, we have a table available at {reservation_time}."},
+                {"ts": "00:00:18", "speaker": "BOT", "text": "Please reserve it under the name {customer_name}. What is your callback number in case we need to cancel?"},
+                {"ts": "00:00:25", "speaker": "USER", "text": "Reserved! Our callback number is +49 170 2222222. See you then!"}
+            ],
+            "activity": [
+                "17:37:05.100 | Bot initialized.",
+                "17:37:44.200 | Call is ringing (~40s setup latency).",
+                "17:37:49.500 | Call connected.",
+                "17:37:50.700 | Bot is speaking: Hello, calling on behalf of {customer_name}. Do you have a table for {party_size} people?",
+                "17:37:52.200 | Callee said: Ja, haben wir.",
+                "17:38:00.100 | Call ended; syncing final Calling result."
             ]
         }
     },
@@ -217,10 +365,18 @@ SCENARIO_FIXTURES: Dict[str, Dict[str, Any]] = {
             },
             "post_summary": "Pickup order placed. Total 22.00 EUR, ready in 20 minutes.",
             "transcript": [
-                {"ts": "00:00:05", "speaker": "Agent", "text": "Hello, calling on behalf of Lukas. Can we place a pickup order for 2 Burgers?"},
-                {"ts": "00:00:10", "speaker": "Restaurant", "text": "Yes, pickup is available. Total price is 22 Euros."},
-                {"ts": "00:00:16", "speaker": "Agent", "text": "22 Euros is within our 25 Euro limit. Please place the order. When will it be ready?"},
-                {"ts": "00:00:22", "speaker": "Restaurant", "text": "It will be ready in 20 minutes."}
+                {"ts": "00:00:05", "speaker": "BOT", "text": "Hello, calling on behalf of {customer_name}. Can we place a pickup order for {food_prompt}?"},
+                {"ts": "00:00:10", "speaker": "USER", "text": "Yes, pickup is available. Total price is 22 Euros."},
+                {"ts": "00:00:16", "speaker": "BOT", "text": "22 Euros is within our {max_budget_eur} Euro limit. Please place the order. When will it be ready?"},
+                {"ts": "00:00:22", "speaker": "USER", "text": "It will be ready in 20 minutes."}
+            ],
+            "activity": [
+                "17:37:05.100 | Bot initialized.",
+                "17:37:44.200 | Call is ringing (~40s setup latency).",
+                "17:37:49.500 | Call connected.",
+                "17:37:50.700 | Bot is speaking: Hello, calling on behalf of {customer_name}.",
+                "17:37:52.200 | Callee said: Ja, in 20 Minuten fertig.",
+                "17:38:00.100 | Call ended; syncing final Calling result."
             ]
         }
     }

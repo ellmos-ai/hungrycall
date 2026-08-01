@@ -1,10 +1,11 @@
 """CALL-E Client abstraction supporting Dry-Run fixture mode and optional Live mode."""
 
+import os
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from hungrycall.models import CallResult, CallStatus, Mode, Restaurant, UserRequest
 from hungrycall.schemas import get_result_schema
-from hungrycall.fixtures import SCENARIO_FIXTURES
+from hungrycall.fixtures import SCENARIO_FIXTURES, render_fixture_data, deduplicate_activity
 from hungrycall.safety import SafetyError, generate_idempotency_key, verify_phone_safety
 
 
@@ -37,11 +38,11 @@ class DryRunCallClient(CallClient):
         verify_phone_safety(restaurant.phone)
 
         # Retrieve fixture data for this restaurant ID if available
-        mock_entry = self.scenario_data.get(restaurant.id)
+        raw_mock_entry = self.scenario_data.get(restaurant.id)
         
-        if not mock_entry:
+        if not raw_mock_entry:
             # Fallback default mock result
-            mock_entry = {
+            raw_mock_entry = {
                 "status": CallStatus.FAILED,
                 "structured_result": {
                     "delivers_to_address": False,
@@ -50,13 +51,20 @@ class DryRunCallClient(CallClient):
                     "rejection_reason": "No response / busy line"
                 },
                 "post_summary": "Call failed to connect.",
-                "transcript": []
+                "transcript": [],
+                "activity": ["Call initiated", "No response"]
             }
 
-        status = mock_entry.get("status", CallStatus.COMPLETED)
-        structured = mock_entry.get("structured_result", {})
-        post_summary = mock_entry.get("post_summary", "")
-        transcript = mock_entry.get("transcript", [])
+        # Render dynamic fixture interpolated with actual user inputs (address, food, budget, name)
+        rendered = render_fixture_data(raw_mock_entry, user_request, restaurant)
+
+        status = rendered.get("status", CallStatus.COMPLETED)
+        structured = rendered.get("structured_result", {})
+        post_summary = rendered.get("post_summary", "")
+        transcript = rendered.get("transcript", [])
+        raw_activity = rendered.get("activity", [])
+        activity = deduplicate_activity(raw_activity)
+        raw_transcript_text = rendered.get("raw_transcript_text", "")
         rejection_reason = structured.get("rejection_reason")
 
         return CallResult(
@@ -68,17 +76,27 @@ class DryRunCallClient(CallClient):
             structured_result=structured,
             transcript=transcript,
             post_summary=post_summary,
-            rejection_reason=rejection_reason
+            rejection_reason=rejection_reason,
+            activity=activity,
+            raw_transcript_text=raw_transcript_text
         )
 
 
 class LiveCallClient(CallClient):
-    """Live CALL-E client. Requires account and --live confirmation."""
+    """
+    Live CALL-E client via REST API (POST /v1/calls).
+    Requires explicit --confirm-live flag and CALLE_API_KEY environment variable.
+    Note: Schema-validated results require the REST API, not MCP/CLI (Finding 5).
+    """
+
+    REST_ENDPOINT = "https://seleven-mcp-sg.airudder.com/v1/calls"
 
     def __init__(self, confirmed: bool = False):
         if not confirmed:
             raise SafetyError("Live calls strictly require explicit user confirmation!")
         self.confirmed = confirmed
+        # Read API key strictly from environment variable, never hardcoded
+        self.api_key = os.getenv("CALLE_API_KEY") or os.getenv("IAM_API_KEY")
 
     def execute_candidate_call(
         self,
@@ -87,6 +105,10 @@ class LiveCallClient(CallClient):
         idempotency_key: str
     ) -> CallResult:
         verify_phone_safety(restaurant.phone)
+        if not self.api_key:
+            raise SafetyError("CALLE_API_KEY environment variable is not set!")
+            
         raise NotImplementedError(
-            "Live CALL-E API execution is intentionally disabled in this environment per AGENTS.md rules."
+            "Live CALL-E REST API execution is intentionally disabled in this environment per AGENTS.md rules. "
+            "To run live calls in production: POST /v1/calls with Bearer $CALLE_API_KEY and result_schema."
         )
