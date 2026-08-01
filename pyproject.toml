@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hungrycall"
+version = "0.1.0"
+description = "HungryCall — Automated voice cascade agent for food delivery, reservations, and pickup."
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "HungryCall Hackathon Team"}
+]
+dependencies = []
+
+[project.scripts]
+hungrycall = "hungrycall.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
