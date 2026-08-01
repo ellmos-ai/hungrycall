@@ -47,6 +47,8 @@ class Restaurant:
     supports_reservation: bool = True
     address: str = ""
     email: Optional[str] = None
+    lat: float = 52.5200
+    lon: float = 13.4050
 
 
 @dataclass

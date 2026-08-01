@@ -220,12 +220,49 @@ Verification Transcript (Order Proof):
 
 ---
 
-## 4. What Was NOT Executed (Explicit Exclusions)
+---
 
-Per `AGENTS.md` boundaries:
+## 5. Web UI Implementation & Test Execution Log (FastAPI + HTMX + SQLite + Leaflet)
 
-1. **Real Phone Calls**: NOT EXECUTED. No phone numbers were dialed. All runs executed via `DryRunCallClient` against local scenario fixtures.
-2. **CALL-E Account Registration / Login**: NOT EXECUTED. Development was completed entirely without a CALL-E account or live access tokens.
-3. **Remote Git Push / Pull Request**: NOT EXECUTED. The repository remains local and private.
-4. **Video Recording**: NOT EXECUTED.
-5. **Background Daemons / Cron Jobs**: NOT EXECUTED.
+- **Date & Time**: 2026-08-01T22:22:30+02:00
+- **Modules Built**: `hungrycall/db.py`, `hungrycall/location.py`, `hungrycall/templates.py`, `hungrycall/web.py`, `run_web.py`, `tests/test_web.py`.
+
+### Command 5: Pytest Suite Run (Full 32 tests passing)
+```powershell
+python -m pytest -v
+```
+
+**Literal Output**:
+```text
+============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-9.1.0, pluggy-1.6.0
+rootdir: C:\_Local_DEV\repos\hungrycall
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.13.0, asyncio-1.4.0, timeout-2.4.0
+asyncio: mode=Mode.STRICT, debug=False
+collected 32 items
+
+tests\test_budget_and_price_rejection.py ...                             [  9%]
+tests\test_cascade.py ...                                                [ 18%]
+tests\test_cli.py ......                                                 [ 37%]
+tests\test_findings_and_dynamic_fixtures.py ....                         [ 50%]
+tests\test_phone_utils.py ....                                           [ 62%]
+tests\test_ranking.py ...                                                [ 71%]
+tests\test_safety.py .....                                               [ 87%]
+tests\test_schemas.py .                                                  [ 90%]
+tests\test_web.py ...                                                    [100%]
+
+======================== 32 passed, 1 warning in 1.95s ========================
+```
+
+### Verification of Web UI Features Built:
+1. **Location & Address Input**: International PLZ, Ort, and Country geocoding with radius search (`geocode_location()`).
+2. **Search State**: Pulsing search animation with text *"Wir suchen für Sie die besten Essenspunkte..."*.
+3. **Always-Visible Map**: Leaflet OpenStreetMap view featuring glowing user location pulse marker and restaurant markers.
+4. **Restaurant Selection & Priority**: Checkable cards, closed restaurant toggle, drag-and-drop / priority reordering.
+5. **Mode & Food Request**: Delivery, Pickup, Table Reservation with free-text prompt and maximum doorstep budget limit.
+6. **Prompt Preview**: Transparency box displaying exact CALL-E goal text before sending.
+7. **Live SSE Cascade**: Stationary restaurant list with moving 📞 telephone handset icon (gray preparing, green connected, red rejected, green checkmark success).
+8. **Result Card**: Prominent summary sentence, total price, ETA, **prominently highlighted restaurant callback phone number**, expandable transcript, and SQLite database persistence.
+9. **100% Offline Capability**: Local static assets (`htmx.min.js`, `htmx-sse.js`, `leaflet.js`, `leaflet.css`) allow offline showcase without internet.
