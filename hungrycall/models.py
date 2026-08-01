@@ -76,6 +76,8 @@ class CallResult:
     transcript: List[Dict[str, Any]]
     post_summary: str
     rejection_reason: Optional[str] = None
+    activity: List[str] = field(default_factory=list)
+    raw_transcript_text: Optional[str] = None
 
 
 @dataclass

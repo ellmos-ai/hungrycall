@@ -122,7 +122,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                     "restaurant": att.restaurant.name,
                     "phone": mask_phone(att.restaurant.phone),
                     "passed": att.passed_criteria,
-                    "rejection_reason": att.rejection_reason
+                    "rejection_reason": att.rejection_reason,
+                    "activity": att.call_result.activity if att.call_result else [],
+                    "raw_transcript": att.call_result.raw_transcript_text if att.call_result else ""
                 }
                 for att in summary.attempts
             ]
@@ -141,22 +143,31 @@ def main(argv: Optional[List[str]] = None) -> int:
     print(SINGAPORE_ENDPOINT_NOTICE)
     print("-" * 60)
 
-    print("\nAttempt History:")
+    print("\nAttempt History & Activity Stream:")
     for idx, att in enumerate(summary.attempts, start=1):
-        status_symbol = "✅ PASSED" if att.passed_criteria else "❌ REJECTED"
+        status_symbol = "[PASSED]" if att.passed_criteria else "[REJECTED]"
         masked_num = mask_phone(att.restaurant.phone)
-        print(f"  Attempt #{idx}: {att.restaurant.name} ({masked_num}) -> {status_symbol}")
+        print(f"\n  Attempt #{idx}: {att.restaurant.name} ({masked_num}) -> {status_symbol}")
         if not att.passed_criteria and att.rejection_reason:
             print(f"    Reason: {att.rejection_reason}")
+        if att.call_result and att.call_result.activity:
+            print("    Live Activity Progress:")
+            for act in att.call_result.activity:
+                print(f"      * {act}")
 
     print("\n" + "=" * 60)
     if summary.success:
         print(f"RESULT: SUCCESS")
         print(f"SUMMARY: {summary.message}")
-        if summary.final_result and summary.final_result.transcript:
-            print("\nVerification Transcript:")
-            for turn in summary.final_result.transcript:
-                print(f"  [{turn.get('ts', '')}] {turn.get('speaker', '')}: {turn.get('text', '')}")
+        if summary.final_result:
+            if summary.final_result.raw_transcript_text:
+                print("\nVerification Transcript (Order Proof):")
+                for line in summary.final_result.raw_transcript_text.splitlines():
+                    print(f"  {line}")
+            elif summary.final_result.transcript:
+                print("\nVerification Transcript (Order Proof):")
+                for turn in summary.final_result.transcript:
+                    print(f"  [{turn.get('ts', '')}] {turn.get('speaker', '')}: {turn.get('text', '')}")
     else:
         print("RESULT: FAILED")
         print(f"SUMMARY: {summary.message}")
