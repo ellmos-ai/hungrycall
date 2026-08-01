@@ -6,19 +6,29 @@ import os
 import time
 from typing import Dict, Any, List, Optional
 
-DB_PATH = os.environ.get("HUNGRYCALL_DB_PATH", "hungrycall.db")
+DEFAULT_DB_PATH = "hungrycall.db"
+
+
+def db_path() -> str:
+    """Resolve the database path at call time.
+
+    Read on every call, never frozen at import time: a module-level constant
+    would ignore any HUNGRYCALL_DB_PATH set after the import — which silently
+    sends every write to the default file instead of the configured one.
+    """
+    return os.environ.get("HUNGRYCALL_DB_PATH", DEFAULT_DB_PATH)
 
 
 def get_db_connection() -> sqlite3.Connection:
     """Get sqlite3 connection with Row factory."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(db_path())
     conn.row_factory = sqlite3.Row
     return conn
 
 
-def init_db(db_path: Optional[str] = None) -> None:
+def init_db(db_path_override: Optional[str] = None) -> None:
     """Initialize database tables for orders and saved results."""
-    target_path = db_path or DB_PATH
+    target_path = db_path_override or db_path()
     conn = sqlite3.connect(target_path)
     cursor = conn.cursor()
 
