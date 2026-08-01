@@ -93,6 +93,33 @@ In the official CALL-E repository, `apps/typescript/call-on-behalf` constrains a
 
 ---
 
+## Web Interface (FastAPI + HTMX + SQLite + Leaflet)
+
+HungryCall includes a lightweight, zero-build Web UI based on **FastAPI, HTMX, SQLite, and Leaflet**:
+
+### Key Web Features:
+- **1. Location & Address**: International PLZ, Ort, and Country geocoding with radius search.
+- **2. Search State**: Smooth search animation with *"Wir suchen für Sie die besten Essenspunkte..."*.
+- **3. Always-Visible Map**: OpenStreetMap Leaflet map displaying the user's location as a glowing pulse marker surrounded by candidate restaurants.
+- **4. Restaurant Selection & Drag-and-Drop Prioritization**: Includes UI-SPEC guidance text, checkable cards, closed restaurant toggle, and priority ordering.
+- **5. Mode & Food Request**: Delivery, Pickup, and Table Reservation with free-text food prompt and maximum doorstep budget input.
+- **6. Prompt Transparency Preview**: Displays the exact CALL-E goal prompt text before starting calls.
+- **7. Live SSE Cascade**: Stationary restaurant list with moving 📞 telephone handset icon (gray preparing, green connected, red rejected, green checkmark success).
+- **8. Result Card**: Prominent summary sentence, total price, ETA, **prominently highlighted restaurant callback phone number**, expandable transcript, and SQLite persistence.
+- **9. 100% Offline Showcase**: Bundled local HTMX & Leaflet assets allow full offline demonstrations without internet or CALL-E accounts.
+
+### Launching the Web UI
+```bash
+# Option 1: Using the runner script
+python run_web.py
+
+# Option 2: Using the CLI entry point
+hungrycall-web
+```
+Access the interface in your browser at `http://127.0.0.1:8000`.
+
+---
+
 ## Setup & Installation
 
 ### Requirements

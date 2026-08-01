@@ -16,6 +16,7 @@ dependencies = []
 
 [project.scripts]
 hungrycall = "hungrycall.cli:main"
+hungrycall-web = "hungrycall.web:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
