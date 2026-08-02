@@ -377,3 +377,98 @@ def test_the_browser_half_is_shipped_and_never_prints_the_key():
         assert needed in script
     # No console output at all: the one thing that would casually leak a key.
     assert "console." not in script
+
+
+# ------------------------------------ what the audit of 2026-08-02 found
+
+def cascade_form(**overrides):
+    form = {
+        "branch": "food",
+        "mode": "delivery",
+        "customer_name": "Ada",
+        "food_prompt": "Pizza",
+        "city": "Dorfstadt",
+        "postcode": "12345",
+        "radius_km": "3",
+        "test_mode": "yes",
+        "transport": "dry_run",
+        "scenario": "jury_30s_demo",
+    }
+    form.update(overrides)
+    return form
+
+
+def start_a_cascade(client, token):
+    """Start one cascade as the given browser session; returns its order id."""
+    from hungrycall.location import search_overpass_restaurants
+
+    pool = search_overpass_restaurants(52.52, 13.405, test_mode=True, city="Dorfstadt")
+    form = cascade_form()
+    form["candidate_order"] = ",".join(r.id for r in pool)
+    form["selected_restaurants"] = [r.id for r in pool]
+    response = client.post(
+        "/api/start-cascade?lang=de", data=form, headers={SESSION_HEADER: token}
+    )
+    assert response.status_code == 200, response.text
+    return response.text.split('HC.startStream("')[1].split('"')[0]
+
+
+def test_a_cascade_belongs_to_the_browser_that_started_it(monkeypatch, client):
+    """The finding of 2026-08-02: an order id is an identifier, not a permission."""
+    use_mode(monkeypatch, "huckepack-gift")
+    monkeypatch.setattr(web, "DRY_RUN_DIAL_SECONDS", 0)
+    monkeypatch.setattr(web, "DRY_RUN_TURN_SECONDS", 0)
+
+    order_id = start_a_cascade(client, TOKEN)
+
+    # The stranger knows the id and asks for the stream, the result and the
+    # cancel button. All three answer as if the cascade did not exist.
+    stranger = client.get(
+        f"/api/cascade-stream?order_id={order_id}", headers={SESSION_HEADER: OTHER_TOKEN}
+    )
+    owner = client.get(
+        f"/api/cascade-stream?order_id={order_id}", headers={SESSION_HEADER: TOKEN}
+    )
+    # The comparison is the test: the owner's stream narrates the calls, the
+    # stranger's says the cascade is over before it began.
+    assert "restaurant" in owner.text or "call" in owner.text
+    assert len(stranger.text) < len(owner.text) / 2
+    assert "phone" not in stranger.text
+
+    saved = client.post(
+        "/api/save-result",
+        data={"order_id": order_id},
+        headers={SESSION_HEADER: OTHER_TOKEN},
+    )
+    assert "huckepack-receipt" not in saved.text
+
+    canceled = client.post(
+        "/api/cancel-cascade",
+        data={"order_id": order_id},
+        headers={SESSION_HEADER: OTHER_TOKEN},
+    )
+    assert order_id not in web.CANCELED_ORDERS, "a stranger must not stop your calls"
+    assert canceled.status_code == 200
+
+
+def test_the_owner_still_reaches_their_own_cascade(monkeypatch, client):
+    use_mode(monkeypatch, "huckepack-gift")
+    monkeypatch.setattr(web, "DRY_RUN_DIAL_SECONDS", 0)
+    monkeypatch.setattr(web, "DRY_RUN_TURN_SECONDS", 0)
+
+    order_id = start_a_cascade(client, TOKEN)
+    client.post(
+        "/api/cancel-cascade", data={"order_id": order_id}, headers={SESSION_HEADER: TOKEN}
+    )
+    assert order_id in web.CANCELED_ORDERS
+    web.CANCELED_ORDERS.discard(order_id)
+
+
+def test_local_mode_keeps_todays_behaviour(monkeypatch, client):
+    """No session binding where there is one user and one machine."""
+    use_mode(monkeypatch, "local")
+    monkeypatch.setattr(web, "DRY_RUN_DIAL_SECONDS", 0)
+    monkeypatch.setattr(web, "DRY_RUN_TURN_SECONDS", 0)
+
+    order_id = start_a_cascade(client, TOKEN)
+    assert web.active_order(order_id) is not None
