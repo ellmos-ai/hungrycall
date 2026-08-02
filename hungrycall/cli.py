@@ -9,7 +9,13 @@ from hungrycall.models import Mode, Seating, UserRequest
 from hungrycall.templates import TABLE_CONCESSIONS
 from hungrycall.fixtures import SAMPLE_RESTAURANTS, SCENARIO_FIXTURES
 from hungrycall.geo import weekday_key
-from hungrycall.call_client import DryRunCallClient, LiveCallClient
+from hungrycall.call_client import (
+    CalleAPIError,
+    DryRunCallClient,
+    LiveCallClient,
+    load_calle_settings,
+    probe_calle_connection,
+)
 from hungrycall.engine import CascadeEngine
 from hungrycall.phone_utils import mask_phone
 from hungrycall.safety import SafetyError, SINGAPORE_ENDPOINT_NOTICE
@@ -20,6 +26,7 @@ def build_parser() -> argparse.ArgumentParser:
     common_parser = argparse.ArgumentParser(add_help=False)
     common_parser.add_argument("--live", action="store_true", help="Execute live call via CALL-E (default: False / Dry-run)")
     common_parser.add_argument("--confirm-live", action="store_true", help="Explicit user confirmation required for live execution")
+    common_parser.add_argument("--env-file", help="External CALL-E .env path (default: operator credential path)")
     common_parser.add_argument("--json-output", action="store_true", help="Print output in JSON format")
 
     parser = argparse.ArgumentParser(
@@ -65,6 +72,15 @@ def build_parser() -> argparse.ArgumentParser:
     demo_parser = subparsers.add_parser("demo", parents=[common_parser], help="Run 30-second reproducible core cascade demo for jurors (no account required)")
     demo_parser.add_argument("--customer-name", default="Alex", help="Name of person placing demo order")
 
+    # Authenticated, read-only network check. This subcommand has no phone
+    # number argument and its implementation never calls POST /v1/calls.
+    probe_parser = subparsers.add_parser(
+        "preflight",
+        parents=[common_parser],
+        help="Check CALL-E credentials with a read-only GET; never place a call",
+    )
+    probe_parser.add_argument("--timeout", type=float, default=10.0, help="Network timeout in seconds")
+
     return parser
 
 
@@ -76,12 +92,35 @@ def main(argv: Optional[List[str]] = None) -> int:
         parser.print_help()
         return 1
 
+    if args.subcommand == "preflight":
+        print("CALL-E PREFLIGHT — read-only; no call will be placed")
+        try:
+            settings = load_calle_settings(env_file=args.env_file)
+            result = probe_calle_connection(settings, timeout_seconds=args.timeout)
+        except SafetyError as err:
+            print(f"PREFLIGHT ERROR: {err}", file=sys.stderr)
+            return 3
+        source = str(settings.env_file) if settings.env_file else "process environment"
+        print(f"Credentials: {source}")
+        print(f"Endpoint: {result.base_url}")
+        print(f"HTTP: {result.status_code}")
+        print(f"Result: {result.detail}")
+        print("Confirmed: no POST /v1/calls was sent.")
+        return 0 if result.authenticated else 4
+
     # Safety live check
     if args.live:
         if not args.confirm_live:
             print("ERROR: Live execution requires explicit confirmation via --confirm-live flag.", file=sys.stderr)
             return 2
-        call_client = LiveCallClient(confirmed=args.confirm_live)
+        print("WARNING: Echte Anrufe — kostet Geld / Real calls — cost money.", file=sys.stderr)
+        try:
+            call_client = LiveCallClient.from_environment(
+                confirmed=True, env_file=args.env_file
+            )
+        except SafetyError as err:
+            print(f"SAFETY ERROR: {err}", file=sys.stderr)
+            return 3
     else:
         if args.subcommand == "demo":
             scenario = "jury_30s_demo"
@@ -137,6 +176,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     except SafetyError as err:
         print(f"SAFETY ERROR: {err}", file=sys.stderr)
         return 3
+    except (CalleAPIError, RuntimeError, TimeoutError) as err:
+        print(f"CALL-E ERROR: {err} Cascade stopped.", file=sys.stderr)
+        return 4
 
     if args.json_output:
         out = {

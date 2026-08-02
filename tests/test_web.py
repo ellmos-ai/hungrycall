@@ -12,6 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from hungrycall import web
+from hungrycall.call_client import DryRunCallClient
 from hungrycall.db import (
     create_order_record, init_db, list_saved_results, save_cascade_result
 )
@@ -162,6 +163,19 @@ def test_no_external_font_or_script_is_loaded(client):
         assert "cdn." not in page
 
 
+def test_light_theme_is_default_and_dark_is_an_explicit_saved_mode(client):
+    page = client.get("/").text
+    script = client.get("/static/app.js").text
+    assert "--ink:          #F7F9FF" in page
+    assert 'html[data-theme="dark"]' in page
+    assert '<html lang="de">' in page
+    assert 'id="theme-toggle"' in page
+    assert 'localStorage.getItem("hc-theme")' in page
+    assert 'localStorage.setItem("hc-theme"' in script
+    for color in ("#2563EB", "#7C3AED", "#EC4899", "#82F21B"):
+        assert color in page
+
+
 @pytest.mark.parametrize("path", ["/", "/order", "/reserve", "/history"])
 def test_pages_render_in_both_languages(client, path):
     german = client.get(path + "?lang=de")
@@ -188,6 +202,38 @@ def test_food_branch_has_a_real_mode_switch(client):
     assert 'id="pickup-time-field" hidden' in page  # appears only on pickup
     assert 'id="maxdist-field" hidden' in page
     assert "HC.onModeChange()" in page
+
+
+def test_live_transport_is_visible_but_dry_run_stays_selected(client):
+    page = client.get("/order?lang=de").text
+    assert 'name="transport" value="dry_run" checked' in page
+    assert 'name="transport" value="live"' in page
+    assert "Echte Anrufe — kostet Geld" in page
+    assert 'id="confirm-live"' in page
+    assert 'id="live-confirm-panel" hidden' in page
+
+
+def test_live_transport_needs_the_second_confirmation(client):
+    response = client.post(
+        "/api/search?lang=de", data=search_form(transport="live")
+    )
+    assert response.status_code == 400
+    assert "nicht ausdrücklich bestätigt" in response.text
+
+
+def test_confirmed_live_transport_reaches_the_real_client_seam(client, monkeypatch):
+    monkeypatch.setattr(
+        web.LiveCallClient,
+        "from_environment",
+        classmethod(lambda cls, **kwargs: DryRunCallClient("jury_30s_demo")),
+    )
+    form = cascade_form(transport="live", confirm_live="yes")
+    started = client.post("/api/start-cascade?lang=de", data=form)
+    assert started.status_code == 200
+    assert "Echte Anrufe — kostet Geld" in started.text
+    order_id = started.text.split('HC.startStream("')[1].split('"')[0]
+    assert web.ACTIVE_ORDERS[order_id]["live_mode"] is True
+    assert isinstance(web.ACTIVE_ORDERS[order_id]["call_client"], DryRunCallClient)
 
 
 def test_table_branch_asks_its_own_questions(client):

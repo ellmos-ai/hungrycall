@@ -1,6 +1,11 @@
 """Unit tests for phone number validation and masking."""
 
-from hungrycall.phone_utils import validate_e164, normalize_e164, mask_phone
+from hungrycall.phone_utils import (
+    mask_phone,
+    mask_phones_in_text,
+    normalize_e164,
+    validate_e164,
+)
 
 
 def test_validate_e164_valid():
@@ -28,3 +33,11 @@ def test_mask_phone():
     assert "1234" not in masked  # Middle numbers masked
     assert "567" in masked       # Suffix kept for callback reference
     assert "•••" in masked
+
+
+def test_mask_phone_inside_api_text():
+    text = "Callback +441632960090; second +44 20 79460090."
+    masked = mask_phones_in_text(text)
+    assert "+441632960090" not in masked
+    assert "+44 20 79460090" not in masked
+    assert masked.endswith("••• ••••567; second +493 ••• ••••567.")
