@@ -16,6 +16,8 @@ _data/
 *.local.db
 
 # Laufzeit / Zustand
+# Sperren sind Laufzeitzustand, kein Repo-Inhalt
+LOCK*.txt
 *.db
 *.sqlite
 *.sqlite3
