@@ -13,6 +13,20 @@ from hungrycall.location import (
 )
 
 
+@pytest.fixture(autouse=True)
+def fixed_clock(monkeypatch):
+    """Freeze 'now' at Friday 19:00 — the same fixture ``test_web.py`` uses.
+
+    A search without a stated time is about *now*, and a closed restaurant is
+    filtered out before it is called. That is correct, and it made these two
+    tests depend on the hour they ran in: green over dinner, red late at night,
+    when every example restaurant is shut. Freezing the clock keeps the
+    correctness and drops the coin toss.
+    """
+    monkeypatch.setattr(web, "current_clock", lambda: "19:00")
+    monkeypatch.setattr(web, "current_day", lambda: "Fri")
+
+
 class StubResponse:
     def __init__(self, payload, status_code=200):
         self.payload = payload
