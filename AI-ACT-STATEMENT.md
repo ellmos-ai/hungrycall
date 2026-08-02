@@ -69,7 +69,7 @@ The roles of AI Act provider and deployer and GDPR controller or processor follo
 | `huckepack-only-host` | A visitor-owned key does not automatically neutralise the host's legal role. Data and the key transit the host for the call; role allocation, security, and onward disclosure must be documented. |
 | `pay-membership` | The concept is a stub only. Accounts, tenant isolation, billing, object authorisation, secret management, deletion, export, incident handling, and full compliance operations are prerequisites. It must not be represented as ready. |
 
-`DATA-FLOW.md:22-33, 37-65` evidences the transfer of the destination and task to CALL-E, missing contractual evidence about provider retention and transfers, and continued transit processing in huckepack modes. `PRIVACY-TEMPLATE.md:25-71` deliberately leaves operator facts open; completing a template does not implement them.
+`DATA-FLOW.md:22-33, 37-65` evidences the transfer of the destination and task to CALL-E, missing contractual evidence about provider retention and transfers, and continued transit processing in piggyback modes. `PRIVACY-TEMPLATE.md:25-71` deliberately leaves operator facts open; completing a template does not implement them.
 
 ### Release criteria before live hosting
 

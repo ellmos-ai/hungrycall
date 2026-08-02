@@ -36,6 +36,12 @@ See `HOST-READINESS.md` for the multi-user gap and `PRIVACY-TEMPLATE.md` for an 
 
 ## Server modes (added 2026-08-02)
 
+> **On the name.** In English this hosting pattern is called *piggyback*:
+> the application rides on infrastructure it does not own. The literal mode
+> values are still spelled `huckepack-gift` and `huckepack-only-host` — that is
+> the German working title the code was built under, and it is what an operator
+> actually types. Prose says piggyback; configuration says huckepack.
+
 The table above describes `local`, which is what an unconfigured installation is. `HUNGRYCALL_SERVER_MODE` selects one of four modes (`hungrycall/server_mode.py:25-76`); an unknown value is refused by name rather than silently ignored (`hungrycall/server_mode.py:78-90`), and the resolved mode is held for the process, so no request can switch it (`hungrycall/server_mode.py:98-113`).
 
 | Mode | Where the database is | Whose key pays | Accounts |
@@ -45,7 +51,7 @@ The table above describes `local`, which is what an unconfigured installation is
 | `huckepack-only-host` | the visitor's browser | the visitor's, per request | none |
 | `pay-membership` | — | — | would be required; **not built**, every page answers 503 (`hungrycall/huckepack_web.py:47-50, 145-155`) |
 
-### What changes in a huckepack mode
+### What changes in a piggyback mode
 
 | Data | Collection and use | Storage | Retention implemented in code | Who can see it | Leaves the computer? | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -58,7 +64,7 @@ The table above describes `local`, which is what an unconfigured installation is
 
 ### Boundaries that remain
 
-- **A huckepack mode does not make the call private.** The destination number and the call task still go to CALL-E, and a third party is still called. Where the data are *stored* changes; what is *transmitted* does not. The live-call row in the table above stays valid word for word.
+- **A piggyback mode does not make the call private.** The destination number and the call task still go to CALL-E, and a third party is still called. Where the data are *stored* changes; what is *transmitted* does not. The live-call row in the table above stays valid word for word.
 - **The host still sees the data in transit.** Form submissions, the in-memory database and the call payload pass through the host's process. "The host stores nothing" is a statement about persistence, and is meant as one.
 - **A cleared browser is a total loss.** There is no copy at the host to fall back on. Export is therefore a condition of the pattern, not a convenience — and the interface says so on the bar.
 - **The exported file is unprotected.** It is the plain database, including the callback number. That is deliberate — a passphrase the visitor forgets would destroy the backup — but it belongs in the privacy notice.
