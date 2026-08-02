@@ -29,14 +29,37 @@ def esc(value: Any) -> str:
     return html.escape(str(value), quote=True)
 
 
-# A brass jack plug, inline. Keeps the tab icon from being a 404 without
-# adding a binary to a repo that is meant to run with no external fetches.
+# The brand mark: a pie with one slice taken out — many candidates were
+# called, exactly one was ordered from. Same shape as logo.svg, banner.png and
+# the video thumbnail; generated from
+# _calle-videos/_assets/logos/logos.py, so the app icon cannot drift away from
+# the artwork.
+BRAND_MARK = (
+    '<svg class="brand-mark" xmlns="http://www.w3.org/2000/svg" '
+    'viewBox="0 0 100 100" aria-hidden="true" focusable="false">'
+    '<defs><linearGradient id="hc-mark" x1="0.1" y1="1" x2="0.9" y2="0.1">'
+    '<stop offset="0" stop-color="#EA580C"/>'
+    '<stop offset="1" stop-color="#F97316"/></linearGradient></defs>'
+    '<path d="M50 50 L91.9 40.33 A43 43 0 1 1 62.57 8.88 Z" fill="url(#hc-mark)"/>'
+    '<path d="M55.85 44.54 L68.42 3.42 A43 43 0 0 1 97.75 34.87 Z" fill="#FBBF24"/>'
+    "</svg>"
+)
+
+# The same mark on the brand plate, inline. Keeps the tab icon from being a 404
+# without adding a binary to a repo that is meant to run with no external
+# fetches.
 FAVICON = (
     "data:image/svg+xml,"
-    "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E"
-    "%3Ccircle cx='16' cy='16' r='15' fill='%2314110E'/%3E"
-    "%3Ccircle cx='16' cy='16' r='11' fill='%23C9A227'/%3E"
-    "%3Ccircle cx='16' cy='16' r='5' fill='%2314110E'/%3E%3C/svg%3E"
+    "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E"
+    "%3Crect width='512' height='512' rx='106' fill='%2314110E'/%3E"
+    "%3Cdefs%3E%3ClinearGradient id='f' x1='0.1' y1='1' x2='0.9' y2='0.1'%3E"
+    "%3Cstop offset='0' stop-color='%23EA580C'/%3E"
+    "%3Cstop offset='1' stop-color='%23F97316'/%3E"
+    "%3C/linearGradient%3E%3C/defs%3E"
+    "%3Cg transform='translate(97.28 97.28) scale(3.17)'%3E"
+    "%3Cpath d='M50 50 L91.9 40.33 A43 43 0 1 1 62.57 8.88 Z' fill='url(%23f)'/%3E"
+    "%3Cpath d='M55.85 44.54 L68.42 3.42 A43 43 0 0 1 97.75 34.87 Z' fill='%23FBBF24'/%3E"
+    "%3C/g%3E%3C/svg%3E"
 )
 
 
@@ -118,12 +141,7 @@ header {
   display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;
 }
 .brand { display: flex; align-items: center; gap: 0.7rem; text-decoration: none; color: inherit; }
-.jack {
-  width: 26px; height: 26px; border-radius: 50%;
-  background: radial-gradient(circle at 32% 30%, #F0D98A 0%, var(--brass) 45%, var(--brass-lo) 100%);
-  box-shadow: inset 0 0 0 3px var(--ink), 0 0 0 1px var(--brass-lo);
-  flex: none;
-}
+.brand-mark { width: 30px; height: 30px; flex: none; display: block; }
 .brand-name { font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.14em; font-weight: 700; font-size: 1.05rem; }
 .brand-sub { font-size: 0.7rem; color: var(--dim); letter-spacing: 0.04em; text-transform: none; }
 .header-spacer { flex: 1 1 auto; }
@@ -473,7 +491,7 @@ def render_page(
 <header>
   <div class="header-inner">
     <a class="brand" href="/?lang={lang}">
-      <span class="jack" aria-hidden="true"></span>
+      {BRAND_MARK}
       <span>
         <span class="brand-name">{esc(t("app.name", lang))}</span>
         <span class="brand-sub">{esc(t("app.subtitle", lang))}</span>
