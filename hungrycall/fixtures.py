@@ -379,5 +379,121 @@ SCENARIO_FIXTURES: Dict[str, Dict[str, Any]] = {
                 "17:38:00.100 | Call ended; syncing final Calling result."
             ]
         }
+    },
+
+    # Scenario 6: Reproducible 30-Second Core Jury Demo
+    # Demonstrates: Budget Rejection -> Vague Price Rejection -> Direct Success -> Early Exit
+    "jury_30s_demo": {
+        "rest_burger_house": {
+            "status": CallStatus.COMPLETED,
+            "structured_result": {
+                "delivers_to_address": True,
+                "price_known": True,
+                "total_price_eur": 42.00,
+                "eta_minutes": 30,
+                "order_placed": False,
+                "callback_number": "+441632960000",
+                "rejection_reason": "Total price 42.00 EUR exceeds maximum budget limit of {max_budget_eur} EUR"
+            },
+            "post_summary": "Declined order: total price 42.00 EUR exceeds doorstep budget limit of {max_budget_eur} EUR.",
+            "transcript": [
+                {"ts": "00:00:05", "speaker": "BOT", "text": "Hello, calling on behalf of {customer_name}. What is the total price for delivery of {food_prompt} to {delivery_address}?"},
+                {"ts": "00:00:12", "speaker": "USER", "text": "With delivery charge and minimum order, the total is exactly 42 Euros."},
+                {"ts": "00:00:20", "speaker": "BOT", "text": "That exceeds our maximum budget limit of {max_budget_eur} Euros. I must politely decline. Goodbye!"}
+            ],
+            "activity": [
+                "17:37:05.100 | Bot initialized.",
+                "17:37:44.200 | Call ringing (~40s setup latency).",
+                "17:37:49.500 | Call connected.",
+                "17:37:50.700 | Bot is speaking: Hello, calling on behalf of {customer_name}. What is the total price for delivery of {food_prompt}?",
+                "17:37:52.200 | Callee said: 42 Euro.",
+                "17:38:00.100 | Call ended; syncing final Calling result."
+            ]
+        },
+        "rest_trattoria_luigi": {
+            "status": CallStatus.COMPLETED,
+            "structured_result": {
+                "delivers_to_address": True,
+                "price_known": False,
+                "total_price_eur": 30.00,
+                "eta_minutes": 40,
+                "order_placed": False,
+                "callback_number": "+441632960001",
+                "rejection_reason": "Unclear price statement: Restaurant stated 'roughly around 30 Euros depending on driver'"
+            },
+            "post_summary": "Declined order due to unconfirmed vague price quote.",
+            "transcript": [
+                {"ts": "00:00:05", "speaker": "BOT", "text": "Hello, calling on behalf of {customer_name}. What is the total price for delivery of {food_prompt}?"},
+                {"ts": "00:00:12", "speaker": "USER", "text": "Roughly around 30 Euros, depends on the driver fee today."},
+                {"ts": "00:00:20", "speaker": "BOT", "text": "I need an exact total price to proceed. Since it is unconfirmed, I cannot place the order. Goodbye!"}
+            ],
+            "activity": [
+                "17:38:10.100 | Bot initialized.",
+                "17:38:49.200 | Call ringing (~40s setup latency).",
+                "17:38:54.500 | Call connected.",
+                "17:38:55.700 | Bot is speaking: Hello, calling on behalf of {customer_name}. What is the total price for delivery of {food_prompt}?",
+                "17:38:57.200 | Callee said: Roughly 30 Euro.",
+                "17:39:05.100 | Call ended; syncing final Calling result."
+            ]
+        },
+        "rest_asian_wok": {
+            "status": CallStatus.COMPLETED,
+            "structured_result": {
+                "delivers_to_address": True,
+                "price_known": True,
+                "total_price_eur": 28.50,
+                "eta_minutes": 35,
+                "order_placed": True,
+                "callback_number": "+441632960002",
+                "rejection_reason": None
+            },
+            "post_summary": "Order placed successfully at Asia Wok Express. Total 28.50 EUR, ETA 35 minutes.",
+            "transcript": [
+                {"ts": "00:00:05", "speaker": "BOT", "text": "Hello, calling on behalf of {customer_name}. Do you deliver to {delivery_address}?"},
+                {"ts": "00:00:10", "speaker": "USER", "text": "Yes, we deliver to {delivery_address}."},
+                {"ts": "00:00:15", "speaker": "BOT", "text": "What is the exact total price for {food_prompt}?"},
+                {"ts": "00:00:22", "speaker": "USER", "text": "The exact total price at your door is 28.50 Euros."},
+                {"ts": "00:00:28", "speaker": "BOT", "text": "28.50 EUR is within our {max_budget_eur} EUR limit. Please confirm the order."},
+                {"ts": "00:00:35", "speaker": "USER", "text": "Order confirmed! Delivery will take 35 minutes."},
+                {"ts": "00:00:40", "speaker": "BOT", "text": "Thank you. Callback at +44 7700 900002."}
+            ],
+            "activity": [
+                "17:39:15.100 | Bot initialized.",
+                "17:39:54.200 | Call ringing (~40s setup latency).",
+                "17:39:59.500 | Call connected.",
+                "17:40:00.700 | Bot is speaking: Hello, calling on behalf of {customer_name}. Do you deliver to {delivery_address}?",
+                "17:40:02.200 | Callee said: Ja, 28.50 Euro.",
+                "17:40:20.100 | Call ended; syncing final Calling result."
+            ]
+        }
+    },
+
+    # Scenario 7: Tiered Concessions Negotiation Cascade (MUSTER.md)
+    "tiered_concessions_cascade": {
+        "rest_trattoria_luigi": {
+            "status": CallStatus.COMPLETED,
+            "structured_result": {
+                "table_available": True,
+                "reservation_confirmed": True,
+                "tier_applied": "tier_2_concession_fee",
+                "callback_number": "+441632960001",
+                "rejection_reason": None
+            },
+            "post_summary": "Table reserved at Trattoria Bella Luigi via Tier 2 concession agreement.",
+            "transcript": [
+                {"ts": "00:00:05", "speaker": "BOT", "text": "Hello, calling on behalf of {customer_name}. Do you have a regular table for {party_size} people on {reservation_date} at {reservation_time}?"},
+                {"ts": "00:00:12", "speaker": "USER", "text": "Regular tables are fully booked, but we have a private dining room table available with a 15 Euro booking deposit."},
+                {"ts": "00:00:20", "speaker": "BOT", "text": "Under our Tier 2 guidelines, a 15 Euro deposit is acceptable. Please confirm the reservation for {party_size} guests under {customer_name}."},
+                {"ts": "00:00:28", "speaker": "USER", "text": "Confirmed! Private table reserved under {customer_name}."}
+            ],
+            "activity": [
+                "17:37:05.100 | Bot initialized.",
+                "17:37:44.200 | Call ringing (~40s setup latency).",
+                "17:37:49.500 | Call connected.",
+                "17:37:50.700 | Bot is speaking: Hello, calling on behalf of {customer_name}.",
+                "17:37:52.200 | Callee said: Regular booked, private room +15 deposit.",
+                "17:38:00.100 | Call ended; syncing final Calling result."
+            ]
+        }
     }
 }

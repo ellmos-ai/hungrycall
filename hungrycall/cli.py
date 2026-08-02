@@ -53,6 +53,10 @@ def build_parser() -> argparse.ArgumentParser:
     pickup_parser.add_argument("--customer-name", default="Alex", help="Name of person picking up")
     pickup_parser.add_argument("--scenario", default="pickup_cascade", choices=list(SCENARIO_FIXTURES.keys()), help="Dry-run scenario preset")
 
+    # Demo subcommand (30-second reproducible core dry-run demo for jurors without accounts)
+    demo_parser = subparsers.add_parser("demo", parents=[common_parser], help="Run 30-second reproducible core cascade demo for jurors (no account required)")
+    demo_parser.add_argument("--customer-name", default="Alex", help="Name of person placing demo order")
+
     return parser
 
 
@@ -71,11 +75,22 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 2
         call_client = LiveCallClient(confirmed=args.confirm_live)
     else:
-        scenario = getattr(args, "scenario", "success_direct")
+        if args.subcommand == "demo":
+            scenario = "jury_30s_demo"
+        else:
+            scenario = getattr(args, "scenario", "success_direct")
         call_client = DryRunCallClient(scenario_name=scenario)
 
     # Build UserRequest
-    if args.subcommand == "delivery":
+    if args.subcommand == "demo":
+        req = UserRequest(
+            mode=Mode.DELIVERY,
+            customer_name=getattr(args, "customer_name", "Alex"),
+            food_prompt="2x Döner Kebab & Drinks",
+            max_budget_eur=35.0,
+            delivery_address="Dorfstrasse 1, 16321 Bernau"
+        )
+    elif args.subcommand == "delivery":
         req = UserRequest(
             mode=Mode.DELIVERY,
             customer_name=args.customer_name,
