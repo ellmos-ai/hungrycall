@@ -604,11 +604,12 @@ def render_base_page() -> str:
         // Global Map State
         let map = null;
         let userMarker = null;
+        let radiusCircle = null;
         let restaurantMarkers = [];
         let callCount = 0;
 
         // Initialize Leaflet Map
-        function initLeafletMap(lat, lon, zoom = 14) {
+        function initLeafletMap(lat, lon, zoom = 14, radiusKm = 3.0) {
             if (map) {
                 map.remove();
             }
@@ -629,6 +630,18 @@ def render_base_page() -> str:
             });
             userMarker = L.marker([lat, lon], { icon: userIcon }).addTo(map)
                 .bindPopup("<b>Ihr Standort</b><br>Lieferadresse");
+
+            // Candidate Search Radius Circle (Backflow from Video)
+            if (radiusKm && radiusKm > 0) {
+                radiusCircle = L.circle([lat, lon], {
+                    radius: radiusKm * 1000,
+                    color: '#f59e0b',
+                    fillColor: '#f59e0b',
+                    fillOpacity: 0.08,
+                    weight: 2,
+                    dashArray: '6, 6'
+                }).addTo(map).bindPopup(`<b>Kandidatenradius</b><br>${radiusKm} km Umkreis`);
+            }
         }
 
         // Add Restaurant Markers to Map
@@ -679,7 +692,8 @@ def render_restaurant_selection_step(
     lat: float,
     lon: float,
     city: str,
-    delivery_address: str
+    delivery_address: str,
+    radius_km: float = 3.0
 ) -> str:
     """Render Step 2: Map markers script + Restaurant Selection + Mode & Food form."""
     
@@ -711,16 +725,20 @@ def render_restaurant_selection_step(
         
         open_items_html += f"""
         <div class="restaurant-card {class_disabled}" id="rest-card-{r.id}" style="{display_style}">
-            <div style="display: flex; align-items: center; gap: 0.75rem;">
-                <div class="reorder-btns">
-                    <button type="button" class="btn-mini" onclick="moveCardUp('{r.id}')">▲</button>
-                    <button type="button" class="btn-mini" onclick="moveCardDown('{r.id}')">▼</button>
+            <div style="display: flex; flex-direction: column; gap: 0.25rem; flex: 1;">
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div class="reorder-btns">
+                        <button type="button" class="btn-mini" onclick="moveCardUp('{r.id}')">▲</button>
+                        <button type="button" class="btn-mini" onclick="moveCardDown('{r.id}')">▼</button>
+                    </div>
+                    <input type="checkbox" name="selected_restaurants" value="{r.id}" {checked} onchange="toggleRestCard('{r.id}', this.checked)">
+                    <div class="restaurant-info">
+                        <div class="restaurant-name">{r.name}</div>
+                        <div class="restaurant-details">{', '.join(r.cuisines)} • {mask_phone(r.phone)}</div>
+                    </div>
                 </div>
-                <input type="checkbox" name="selected_restaurants" value="{r.id}" {checked} onchange="toggleRestCard('{r.id}', this.checked)">
-                <div class="restaurant-info">
-                    <div class="restaurant-name">{r.name}</div>
-                    <div class="restaurant-details">{', '.join(r.cuisines)} • {mask_phone(r.phone)}</div>
-                </div>
+                <!-- Inline Rejection Reason Badge Container (Backflow from Video) -->
+                <div id="rejection-{r.id}" style="padding-left: 2.4rem;"></div>
             </div>
             <div id="handset-{r.id}">
                 <span class="handset-status" title="Wartezustand">📞</span>
@@ -732,8 +750,8 @@ def render_restaurant_selection_step(
 
     return f"""
     <script>
-        // Update Leaflet map with searched restaurants
-        initLeafletMap({lat}, {lon}, 13);
+        // Update Leaflet map with searched restaurants & candidate radius circle
+        initLeafletMap({lat}, {lon}, 13, {radius_km});
         updateMapMarkers({restaurants_json});
 
         function moveCardUp(id) {{
@@ -856,12 +874,23 @@ Click "Auftragstext prüfen" below to preview exact call goal sent to CALL-E.
     """
 
 
-def render_cascade_monitor(order_id: str, dry_run: bool) -> str:
-    """Render SSE streaming cascade monitor container with cancel button."""
+def render_cascade_monitor(order_id: str, dry_run: bool, max_budget_eur: Optional[float] = 35.00) -> str:
+    """Render SSE streaming cascade monitor container with cancel button and active budget band."""
+    budget_str = f"{max_budget_eur:.2f} €" if max_budget_eur is not None else "Kein Limit"
     return f"""
     <div style="background: #090d16; border: 1px solid #334155; border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem;"
          hx-ext="sse" sse-connect="/api/cascade-stream?order_id={order_id}&dry_run={str(dry_run).lower()}" sse-swap="message">
         
+        <!-- Active Budget Band Header Banner (Backflow from Video) -->
+        <div style="background: linear-gradient(90deg, rgba(245, 158, 11, 0.15), rgba(15, 23, 42, 0.8)); border: 1px solid #f59e0b; border-radius: 8px; padding: 0.6rem 1rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.88rem;">
+            <span style="color: #fef08a; font-weight: 600; display: flex; align-items: center; gap: 0.4rem;">
+                <span>🛡️</span> FINANCIAL AUTHORITY CAP (Harte Grenze)
+            </span>
+            <span style="color: #ffffff; font-weight: 700; font-family: monospace; font-size: 0.95rem;">
+                Höchstbetrag: {budget_str}
+            </span>
+        </div>
+
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div style="font-weight: 600; color: #f59e0b; display: flex; align-items: center; gap: 0.5rem;">
                 <span class="spin-loader">⚡</span> Anruf-Kaskade läuft live...
@@ -930,7 +959,12 @@ def render_result_card(
 
         <details style="background: rgba(15, 23, 42, 0.8); border: 1px solid #334155; border-radius: 8px; padding: 0.75rem;">
             <summary style="cursor: pointer; font-weight: 600; color: #cbd5e1;">📜 Vollständiges Gesprächsprotokoll (Transkript)</summary>
-            <pre style="margin-top: 0.75rem; font-family: monospace; font-size: 0.8rem; color: #a1a1aa; white-space: pre-wrap;">{raw_transcript_text}</pre>
+            <!-- Highlighted Price Verification Banner (Backflow from Video) -->
+            <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid #10b981; padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.85rem; color: #a7f3d0; margin-top: 0.75rem; display: flex; align-items: center; justify-content: space-between;">
+                <span>🏷️ <strong>Bestätigter Transkript-Endpreis:</strong> {total_price_eur:.2f} €</span>
+                <span style="color: #34d399; font-weight: 600;">✓ In Budget</span>
+            </div>
+            <pre style="margin-top: 0.5rem; font-family: monospace; font-size: 0.8rem; color: #a1a1aa; white-space: pre-wrap;">{raw_transcript_text}</pre>
         </details>
 
         <form hx-post="/api/save-result" hx-target="#save-status">

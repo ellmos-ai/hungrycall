@@ -135,3 +135,57 @@ def test_fastapi_web_routes():
     assert get_saved_resp.status_code == 200
     results_json = get_saved_resp.json()
     assert isinstance(results_json, list)
+
+
+def test_video_backflow_radius_and_budget_band():
+    """Test video backflow features: radius circle, budget band banner, and transcript price badge."""
+    client = TestClient(app)
+
+    # 1. Search with radius_km
+    search_resp = client.post(
+        "/api/search",
+        data={
+            "postcode": "12345",
+            "city": "Dorfstadt",
+            "country": "Deutschland",
+            "delivery_address": "Hauptstr. 1",
+            "radius_km": "5.0",
+            "dry_run": "true"
+        }
+    )
+    assert search_resp.status_code == 200
+    assert "initLeafletMap(52.52, 13.405, 13, 5.0)" in search_resp.text
+    assert "rejection-rest_burger_house" in search_resp.text
+
+    # 2. Start Cascade with Financial Authority Cap Band
+    cascade_resp = client.post(
+        "/api/start-cascade",
+        data={
+            "mode": "delivery",
+            "customer_name": "Alex Backflow",
+            "food_prompt": "Burger",
+            "max_budget_eur": "35.00",
+            "city": "Dorfstadt",
+            "delivery_address": "Hauptstr. 1",
+            "selected_restaurants": ["rest_burger_house"]
+        }
+    )
+    assert cascade_resp.status_code == 200
+    assert "FINANCIAL AUTHORITY CAP" in cascade_resp.text
+    assert "Höchstbetrag: 35.00 €" in cascade_resp.text
+
+    # 3. Render Result Card with Transcript Price Badge
+    from hungrycall.templates import render_result_card
+    card_html = render_result_card(
+        restaurant_name="Burger House",
+        callback_number="+441632960000",
+        total_price_eur=28.50,
+        eta_minutes=30,
+        post_summary="Ordered",
+        raw_transcript_text="[00:05] BOT: Hi\n[00:10] USER: 28.50 EUR",
+        order_id="test_ord_bf"
+    )
+    assert "Bestätigter Transkript-Endpreis:" in card_html
+    assert "28.50 €" in card_html
+    assert "In Budget" in card_html
+

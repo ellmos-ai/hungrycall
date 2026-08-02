@@ -1,0 +1,20 @@
+HUNGRYCALL AUFGABEN-LOG (RÜCKFLUSS VIDEO -> SOFTWARE)
+=====================================================
+Datum: 2026-08-02
+Regel: "Erfundene Dinge können auch Ideen sein, wenn sie gut sind." (LEARNINGS.md)
+
+1. [ERLEDIGT] Kandidatenradius auf der Karte
+   - Grund: Macht die räumliche Suchgrenze (z. B. 3.0 km) für den Nutzer direkt auf der Karte sichtbar.
+   - Datei: hungrycall/templates.py (initLeafletMap draw circle)
+
+2. [ERLEDIGT] Ablehnungsgründe auf Restaurant-Karten
+   - Grund: Zeigt im Live-Kaskaden-Stream sofort an der Karte, WARUM ein Kandidat abgelehnt wurde (z. B. "🔴 Abgelehnt: 42.00 € > 35.00 € Budget").
+   - Datei: hungrycall/templates.py & hungrycall/web.py (SSE call_failed event DOM update)
+
+3. [ERLEDIGT] Budget-Band mit Höchstbetrag
+   - Grund: Hebt die finanzielle Grenze (Financial Authority Cap) während der Kaskadenausführung permanent als Shield-Banner hervor.
+   - Datei: hungrycall/templates.py (render_cascade_monitor banner)
+
+4. [ERLEDIGT] Transkriptansicht mit Preis-Highlight
+   - Grund: Setzt die verifizierte Preisaussage aus dem Transkript als visuellen Beleg für die Jury in den Vordergrund.
+   - Datei: hungrycall/templates.py (render_result_card price badge)
