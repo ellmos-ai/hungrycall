@@ -23,7 +23,7 @@ from fastapi import FastAPI, Form, Query, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from hungrycall import huckepack_web
+from hungrycall import huckepack_storage, huckepack_web
 from hungrycall.call_client import CalleAPIError, DryRunCallClient, LiveCallClient
 from hungrycall.calle_key import resolve_call_settings
 from hungrycall.db import (
@@ -472,6 +472,10 @@ async def start_cascade(request: Request):
         "branch": branch,
         "call_client": call_client,
         "live_mode": live_mode,
+        # Which browser session this cascade belongs to. An order id is an
+        # identifier, not a permission: this dictionary lives in one process
+        # that, hosted, several visitors share. See active_order().
+        "session": huckepack_storage.current_session(),
     }
 
     return HTMLResponse(render_cascade_monitor(
@@ -483,6 +487,22 @@ async def start_cascade(request: Request):
         concession_keys=[c.key for c in user_request.concessions],
         live_mode=live_mode,
     ))
+
+
+def active_order(order_id: str) -> Optional[Dict[str, Any]]:
+    """The running cascade with this id — if it belongs to this browser.
+
+    In ``local`` nothing changes: one installation, one user. In a huckepack
+    mode the process is shared by strangers, and an eight-character order id
+    is not a password. A cascade is therefore handed back only to the session
+    that started it; to anyone else the order simply does not exist.
+    """
+    order = ACTIVE_ORDERS.get(order_id)
+    if order is None:
+        return None
+    if not current_mode().stores_in_browser:
+        return order
+    return order if order.get("session") == huckepack_storage.current_session() else None
 
 
 def live_call_client() -> LiveCallClient:
@@ -509,7 +529,7 @@ async def cascade_stream(request: Request, order_id: str = Query(...)):
     like. That keeps the wire format testable without a browser.
     """
     lang = lang_of(request)
-    order = ACTIVE_ORDERS.get(order_id)
+    order = active_order(order_id)
 
     if not order:
         async def gone():
@@ -649,9 +669,11 @@ async def cascade_stream(request: Request, order_id: str = Query(...)):
 
 @app.post("/api/cancel-cascade", response_class=HTMLResponse)
 async def cancel_cascade(request: Request, order_id: str = Form(...)):
-    """Stop before the next number is dialled."""
-    CANCELED_ORDERS.add(order_id)
+    """Stop before the next number is dialled — your own cascade, not a stranger's."""
     lang = lang_of(request)
+    if active_order(order_id) is None:
+        return HTMLResponse(f'<span class="mono">{t("history.empty", lang)}</span>')
+    CANCELED_ORDERS.add(order_id)
     return HTMLResponse(f'<span class="mono">{t("cascade.canceled", lang)}</span>')
 
 
@@ -672,7 +694,7 @@ async def api_save_result(
     what had actually happened, so a booked table was filed as a food order.
     """
     lang = lang_of(request)
-    order = ACTIVE_ORDERS.get(order_id) or {}
+    order = active_order(order_id) or {}
     finished = order.get("result")
 
     if not finished:
