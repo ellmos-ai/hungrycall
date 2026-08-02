@@ -97,6 +97,61 @@ Complaint authority: `[REPLACE: competent supervisory authority, address and URL
 
 We will update this notice when purposes, data, providers, retention or deployment architecture change. Previous versions: `[REPLACE: location]`.
 
+## Annex A — Server modes (huckepack)
+
+> **Still a template.** Pick the one block that matches `HUNGRYCALL_SERVER_MODE` on the deployed installation, delete the others, and keep replacing every marker. Choosing a mode changes what has to be written here; it does not remove the need to write it.
+
+**Which mode is deployed:** `[REPLACE: local | huckepack-gift | huckepack-only-host]` — verifiable at `[REPLACE: deployment URL]/huckepack/mode`.
+
+### A.1 If the mode is `local`
+
+Sections 1–11 above apply unchanged. The database is a file on the host; the operator is the controller for everything in it.
+
+### A.2 If the mode is `huckepack-gift` or `huckepack-only-host`
+
+**Replace section 6 (Storage and deletion) with:**
+
+> This installation keeps no database of your requests. Orders, results, transcripts, templates and tags are stored by your browser on your device. While you are using the service, a copy is held in this server's working memory so that the same queries can run; it is discarded at the latest `[REPLACE: confirm the value of SESSION_TTL_SECONDS in hungrycall/huckepack_storage.py]` after your last request, when you press "delete data", and whenever the server process restarts. Nothing is written to a file on the server.
+>
+> Because of that, deleting your browser data deletes everything, and we cannot restore it. Use "back up data" to keep a copy; that file is the plain database and is not encrypted — store it where you would store an unlocked address book.
+>
+> `[REPLACE: this says nothing about server, proxy and infrastructure logs — those exist regardless of where the database is, and must be described here after verification]`
+
+**Replace section 7 (Browser storage) with:**
+
+| Name | Purpose | Lifetime |
+| --- | --- | --- |
+| Language cookie `[REPLACE: name]` | Interface language | One year |
+| `hc-theme` (local storage) | Light/dark theme | Until removed |
+| `huckepack.session` (local storage) | Identifies your working copy on the server while you use it | Until you delete your data |
+| `huckepack` database (IndexedDB) | **Your data**: orders, results, transcripts, plus the receipt folder you chose | Until you delete it |
+| `huckepack.calle-key` (local storage) | *Only in `huckepack-only-host`:* your own CALL-E key | Until you press "forget" |
+
+Under `[REPLACE: applicable national implementation of Article 5(3) ePrivacy Directive — in Germany § 25 TDDDG]`, storage on the user's device needs consent unless it is strictly necessary for a service the user explicitly requested. `[REPLACE: assess each row. The working position that these entries carry the user's own data for the function the user asked for, and that no entry is used for analytics or advertising, must be reviewed — it is an argument, not a finding.]`
+
+**Add to section 5 (Recipients):** nothing is added by the mode. The call still goes to CALL-E, the search still goes to Nominatim/Overpass, and the tile requests still leave the browser.
+
+**Keep in full:** sections 8 (contact data and information during the call), 9 (automated decisions) and 10 (rights). They concern the **called party**, whose data are processed no matter where the caller's records are stored. This is the point most easily lost: storing nothing does not make the operator a bystander to the call.
+
+### A.3 Only in `huckepack-only-host` — the visitor's own key
+
+> You enter your own CALL-E key. It is stored by your browser, shown only by its last four characters, and sent to this server with a call request so the call can be placed in your name. This server does not store it, does not write it to a log and does not keep it after the request. Calls you place are billed to your own account with `[REPLACE: CALL-E contracting entity]`, under the contract between you and them.
+
+`[REPLACE: state who is controller for those calls under the deployed setup. Passing a key through does not by itself settle the role question, and the operator still decides how the call is composed.]`
+
+### A.4 Receipts
+
+> After a call you can save a receipt as a file. It is written by your browser, into a folder you chose or your download folder. It contains the business, the time, the outcome, the price and the conversation — with phone numbers masked — and it notes that the conversation contains statements by the person who was called. It is not sent anywhere.
+
+`[REPLACE: if the deployment disables the receipt, remove this section]`
+
+### A.5 What the modes do not change
+
+- The call reaches a real person at the other end.
+- The transcript contains that person's words.
+- The operator chose to run this service and to compose the call.
+- Server, reverse-proxy and infrastructure logs are a fact of the deployment, not of the mode.
+
 ## Pre-publication checklist
 
 - [ ] Every placeholder is replaced or removed.
@@ -107,3 +162,7 @@ We will update this notice when purposes, data, providers, retention or deployme
 - [ ] The deployed routes require authentication and tenant authorization.
 - [ ] Call-layer Articles 13/14 information and withdrawal/objection handling are tested.
 - [ ] A qualified lawyer has reviewed the completed deployment-specific notice and call workflow.
+- [ ] The deployed `HUNGRYCALL_SERVER_MODE` is stated, and only the matching block of Annex A remains.
+- [ ] In a huckepack mode: it has been checked on the running installation that no database file appears (the promise, not the intention).
+- [ ] In `huckepack-only-host`: the key is nowhere in logs, in the database or in a response.
+- [ ] Device-storage consent has been assessed for each browser entry in Annex A.2.

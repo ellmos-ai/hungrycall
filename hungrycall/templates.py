@@ -612,6 +612,7 @@ try {{
 </script>
 <script src="/static/htmx.min.js" defer></script>
 <script src="/static/app.js" defer></script>
+<script src="/static/huckepack.js" defer></script>
 {leaflet}
 <style>{STYLESHEET}</style>
 </head>

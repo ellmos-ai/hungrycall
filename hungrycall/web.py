@@ -23,9 +23,13 @@ from fastapi import FastAPI, Form, Query, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from hungrycall import huckepack_web
 from hungrycall.call_client import CalleAPIError, DryRunCallClient, LiveCallClient
+from hungrycall.calle_key import resolve_call_settings
 from hungrycall.db import (
-    create_order_record, init_db, list_saved_results, save_cascade_result
+    create_order_record, get_order_record, get_order_template, init_db,
+    list_order_records, list_order_templates, list_saved_results, list_tags,
+    save_cascade_result, save_order_template, save_tags,
 )
 from hungrycall.engine import CascadeEngine, build_call_goal
 from hungrycall.fixtures import SCENARIO_FIXTURES
@@ -37,7 +41,11 @@ from hungrycall.location import (
 from hungrycall.models import (
     Branch, Concession, Mode, Restaurant, Seating, UserRequest
 )
-from hungrycall.phone_utils import mask_phone
+from hungrycall.order_chains import (
+    default_order_chain, evaluate_order_chain, order_chain_json, parse_order_chain
+)
+from hungrycall.phone_utils import mask_phone, mask_phones_in_text
+from hungrycall.server_mode import current_mode
 from hungrycall.ranking import filter_and_rank_restaurants, filter_candidate
 from hungrycall.safety import SafetyError, generate_idempotency_key, verify_content_safety
 from hungrycall.templates import (
@@ -52,6 +60,8 @@ app = FastAPI(
     title="I am hungry — hungrycall",
     description="Sequential voice-agent cascade on CALL-E: order food or book a table.",
 )
+
+huckepack_web.install(app)
 
 init_db()
 
@@ -392,7 +402,7 @@ async def start_cascade(request: Request):
     scenario = fields.get("scenario") or DEFAULT_SCENARIOS[user_request.mode]
     if live_mode:
         try:
-            call_client = LiveCallClient.from_environment(confirmed=True)
+            call_client = live_call_client()
         except SafetyError as exc:
             return HTMLResponse(
                 '<div class="notice warn" style="margin-top:1rem;">'
@@ -436,6 +446,18 @@ async def start_cascade(request: Request):
         concession_keys=[c.key for c in user_request.concessions],
         live_mode=live_mode,
     ))
+
+
+def live_call_client() -> LiveCallClient:
+    """The single seam where a live client is built.
+
+    Whose key it uses depends on the server mode: the host's own credential in
+    ``local`` and ``huckepack-gift``, the visitor's borrowed one in
+    ``huckepack-only-host`` — where it lives for this request and is written
+    nowhere. Keeping this in one function means there is exactly one place to
+    read when asking "could this call be charged to the wrong account?".
+    """
+    return LiveCallClient(resolve_call_settings(), confirmed=True)
 
 
 def sse(payload: Dict[str, Any]) -> str:
@@ -632,7 +654,56 @@ async def api_save_result(
         raw_transcript_text=call_result.raw_transcript_text,
         structured_result=structured,
     )
-    return HTMLResponse(f'<span class="mono">{t("result.saved", lang)}</span>')
+    return HTMLResponse(
+        f'<span class="mono">{t("result.saved", lang)}</span>'
+        + huckepack_web.receipt_script_tag(
+            build_receipt_payload(
+                order_id=order_id,
+                mode=user_request.mode.value,
+                restaurant=restaurant,
+                structured=structured,
+                call_result=call_result,
+                customer_name=user_request.customer_name,
+            )
+        )
+    )
+
+
+def build_receipt_payload(
+    *,
+    order_id: str,
+    mode: str,
+    restaurant: Restaurant,
+    structured: Dict[str, Any],
+    call_result: Any,
+    customer_name: str,
+) -> Dict[str, Any]:
+    """What the browser needs to write a receipt file — with numbers masked.
+
+    Masked here rather than in the browser, so a payload that ends up in a
+    developer console or a page cache carries no dialable number either. The
+    transcript goes through the same masking as the stored one.
+    """
+    return {
+        "kind": "call-receipt",
+        "app": "hungrycall",
+        "order_id": order_id,
+        "mode": mode,
+        "created_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+        "business": restaurant.name,
+        "business_phone_masked": mask_phone(restaurant.phone),
+        "callback_number_masked": mask_phone(
+            structured.get("callback_number") or restaurant.phone
+        ),
+        "customer_name": customer_name,
+        "total_price_eur": structured.get("total_price_eur"),
+        "eta_minutes": structured.get("eta_minutes") or structured.get("prep_time_minutes"),
+        "summary": call_result.post_summary,
+        "transcript": mask_phones_in_text(call_result.raw_transcript_text or ""),
+        "third_party_notice": (
+            "This transcript contains statements by the person who was called."
+        ),
+    }
 
 
 @app.get("/api/saved-results", response_class=JSONResponse)
