@@ -273,11 +273,9 @@ def test_live_transport_needs_the_second_confirmation(client):
 
 
 def test_confirmed_live_transport_reaches_the_real_client_seam(client, monkeypatch):
-    monkeypatch.setattr(
-        web.LiveCallClient,
-        "from_environment",
-        classmethod(lambda cls, **kwargs: DryRunCallClient("jury_30s_demo")),
-    )
+    # The seam is web.live_call_client(): one function decides whose key pays
+    # for a live call, so this is where a test stands in for the real client.
+    monkeypatch.setattr(web, "live_call_client", lambda: DryRunCallClient("jury_30s_demo"))
     pool = search_overpass_restaurants(
         52.52, 13.405, test_mode=True, city="Dorfstadt"
     )

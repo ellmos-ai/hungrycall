@@ -33,3 +33,33 @@ For server-side rows, “leaves the computer” means leaving the machine that r
 - Browser, reverse-proxy, operating-system and infrastructure logs are deployment facts and cannot be derived from this repository. They must be added to the final privacy notice and retention schedule.
 
 See `HOST-READINESS.md` for the multi-user gap and `PRIVACY-TEMPLATE.md` for an operator-owned notice template.
+
+## Server modes (added 2026-08-02)
+
+The table above describes `local`, which is what an unconfigured installation is. `HUNGRYCALL_SERVER_MODE` selects one of four modes (`hungrycall/server_mode.py:25-76`); an unknown value is refused by name rather than silently ignored (`hungrycall/server_mode.py:78-90`), and the resolved mode is held for the process, so no request can switch it (`hungrycall/server_mode.py:98-113`).
+
+| Mode | Where the database is | Whose key pays | Accounts |
+| --- | --- | --- | --- |
+| `local` (default) | SQLite file on the host, as before | host environment or credential file | none |
+| `huckepack-gift` | the visitor's browser | the host's | none |
+| `huckepack-only-host` | the visitor's browser | the visitor's, per request | none |
+| `pay-membership` | — | — | would be required; **not built**, every page answers 503 (`hungrycall/huckepack_web.py:47-50, 145-155`) |
+
+### What changes in a huckepack mode
+
+| Data | Collection and use | Storage | Retention implemented in code | Who can see it | Leaves the computer? | Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| Orders, saved results, templates, tags — the whole database | Unchanged in purpose; the same schema and the same SQL | **Not on the host.** The durable copy is a SQLite file in the visitor's browser (IndexedDB); the host holds a copy in memory for the length of a browser session | Memory only: dropped after two hours without use, on session delete, and on process exit; no file is created | The one browser session that supplied the session token | The database bytes travel between browser and host on load and after each change; they are never written to the host's disk | `hungrycall/huckepack_storage.py:58-72, 74-163, 191-202`; `hungrycall/db.py:25-40`; test `tests/test_huckepack.py::test_a_huckepack_mode_never_creates_the_database_file` |
+| Session token | Addresses the in-memory database of one browser | Browser `localStorage`, sent as `X-Huckepack-Session` | Until the visitor deletes the data | Browser and host process | Sent with every request | `hungrycall/huckepack_web.py:27-40`; `hungrycall/static/huckepack.js` (`sessionToken`, `headers`) |
+| Visitor's CALL-E key (`huckepack-only-host` only) | Authenticates that visitor's own live calls | **Browser `localStorage`**, displayed masked to the last four characters | Until the visitor presses "forget"; on the host only for the duration of one request (`ContextVar`) | The visitor's browser; the host process while the call runs; CALL-E | Sent as the `X-Calle-Key` request header, never as a query parameter, and on to CALL-E | `hungrycall/calle_key.py:30-38, 43-70, 90-116`; `hungrycall/web.py:476-486`; tests `test_the_visitors_key_reaches_no_store_and_no_log`, `test_only_host_never_falls_back_to_the_hosts_key` |
+| Receipt file | Written after a saved result: business, time, price, outcome, transcript | The visitor's file system — a folder chosen once via `showDirectoryPicker`, otherwise the ordinary download folder | The visitor's own file; nothing on the host | Whoever can read that folder | No transfer: the file is built in the browser from a payload the host already sent | `hungrycall/web.py:686-731`; `hungrycall/static/huckepack.js` (`saveReceipt`, `writeFile`, `receiptText`) |
+| Chosen receipt folder | Lets later receipts be written without a dialog | A directory handle in the browser's IndexedDB | Until the visitor deletes the data or revokes the permission | The visitor's browser | No transfer | `hungrycall/static/huckepack.js` (`chooseFolder`, `FOLDER_RECORD`) |
+| Export / import file | The visitor's own backup and their way to another device | A `.sqlite` file wherever the visitor puts it | The visitor decides | Whoever can read that file — **it is the unmasked database** | Leaves only on the visitor's own instruction | `hungrycall/static/huckepack.js` (`exportData`, `importData`) |
+
+### Boundaries that remain
+
+- **A huckepack mode does not make the call private.** The destination number and the call task still go to CALL-E, and a third party is still called. Where the data are *stored* changes; what is *transmitted* does not. The live-call row in the table above stays valid word for word.
+- **The host still sees the data in transit.** Form submissions, the in-memory database and the call payload pass through the host's process. "The host stores nothing" is a statement about persistence, and is meant as one.
+- **A cleared browser is a total loss.** There is no copy at the host to fall back on. Export is therefore a condition of the pattern, not a convenience — and the interface says so on the bar.
+- **The exported file is unprotected.** It is the plain database, including the callback number. That is deliberate — a passphrase the visitor forgets would destroy the backup — but it belongs in the privacy notice.
+- **`local` is unchanged.** No new storage, no new transfer, one additional script tag in the page (`hungrycall/templates.py:647`) that fetches `/huckepack/mode` and then, in `local`, does nothing but offer the receipt download.

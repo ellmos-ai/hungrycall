@@ -6,6 +6,8 @@ import os
 import time
 from typing import Dict, Any, List, Optional
 
+from hungrycall.huckepack_storage import open_connection
+
 DEFAULT_DB_PATH = "hungrycall.db"
 
 
@@ -20,8 +22,12 @@ def db_path() -> str:
 
 
 def get_db_connection() -> sqlite3.Connection:
-    """Get sqlite3 connection with Row factory."""
-    conn = sqlite3.connect(db_path())
+    """Get sqlite3 connection with Row factory.
+
+    Which database that is depends on the server mode: the file above, or the
+    in-memory copy the browser sent along. See ``huckepack_storage``.
+    """
+    conn = open_connection(db_path())
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -29,7 +35,7 @@ def get_db_connection() -> sqlite3.Connection:
 def init_db(db_path_override: Optional[str] = None) -> None:
     """Initialize database tables for orders and saved results."""
     target_path = db_path_override or db_path()
-    conn = sqlite3.connect(target_path)
+    conn = open_connection(target_path)
     cursor = conn.cursor()
 
     # Create orders table
