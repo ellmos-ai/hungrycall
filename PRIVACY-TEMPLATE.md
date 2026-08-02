@@ -97,7 +97,7 @@ Complaint authority: `[REPLACE: competent supervisory authority, address and URL
 
 We will update this notice when purposes, data, providers, retention or deployment architecture change. Previous versions: `[REPLACE: location]`.
 
-## Annex A — Server modes (huckepack)
+## Annex A — Server modes (piggyback)
 
 > **Still a template.** Pick the one block that matches `HUNGRYCALL_SERVER_MODE` on the deployed installation, delete the others, and keep replacing every marker. Choosing a mode changes what has to be written here; it does not remove the need to write it.
 
@@ -163,6 +163,6 @@ Under `[REPLACE: applicable national implementation of Article 5(3) ePrivacy Dir
 - [ ] Call-layer Articles 13/14 information and withdrawal/objection handling are tested.
 - [ ] A qualified lawyer has reviewed the completed deployment-specific notice and call workflow.
 - [ ] The deployed `HUNGRYCALL_SERVER_MODE` is stated, and only the matching block of Annex A remains.
-- [ ] In a huckepack mode: it has been checked on the running installation that no database file appears (the promise, not the intention).
+- [ ] In a piggyback mode: it has been checked on the running installation that no database file appears (the promise, not the intention).
 - [ ] In `huckepack-only-host`: the key is nowhere in logs, in the database or in a response.
 - [ ] Device-storage consent has been assessed for each browser entry in Annex A.2.
