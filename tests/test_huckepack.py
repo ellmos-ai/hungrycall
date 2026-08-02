@@ -37,6 +37,11 @@ def clean_slate(tmp_path, monkeypatch):
     """Every test picks its own mode; nothing leaks into the next one."""
     monkeypatch.setenv("HUNGRYCALL_DB_PATH", str(tmp_path / "hungrycall.db"))
     monkeypatch.delenv(server_mode.ENV_VAR, raising=False)
+    # Friday 19:00, as in the other suites: a search run at midnight finds every
+    # example restaurant closed and renders a notice instead of the candidate
+    # list, which would quietly test less than these tests claim to test.
+    monkeypatch.setattr(web, "current_clock", lambda: "19:00")
+    monkeypatch.setattr(web, "current_day", lambda: "Fri")
     server_mode.reset_mode_cache()
     SESSIONS.clear()
     yield
