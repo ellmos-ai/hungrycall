@@ -56,19 +56,26 @@ Starlette-Abkündigungswarnung für `TestClient` und `httpx`.
 - Kein echter Anruf und kein `POST /v1/calls`.
 - Kein `git push`, keine Veröffentlichung und kein Upload.
 
-## Lokaler Commit — durch Repository-Rechte blockiert
+## Lokaler Commit — abschließender Readback
 
 Der ausdrücklich verlangte lokale Commit wurde als eigener enger Git-Schreibversuch
 gestartet. Bereits das Staging einer einzigen ausschließlich zu diesem Auftrag gehörenden
-Datei scheiterte vor jeder Indexänderung:
+Datei scheiterte zunächst vor jeder Indexänderung:
 
 ```text
 git add -- README.md
 fatal: Unable to create 'C:/_Local_DEV/repos/hungrycall/.git/index.lock': Permission denied
 ```
 
-Damit wurde keine Datei gestagt und kein Commit erzeugt. Es gab keinen zweiten
-Schreibversuch ohne wiederhergestellten Git-Zugriff. Die fremden Änderungen in
-`AUFGABEN.txt`, `hungrycall/location.py`, `hungrycall/web.py`, den gemeinsamen
-Template-/Übersetzungs-/Testdateien, `_CODEX-FALLBACK-REPORT.md` und
-`tests/test_location_fallback.py` wurden nicht in einen Commit aufgenommen.
+Dieser Agent führte keinen zweiten Schreibversuch aus. Danach erstellte der parallel
+arbeitende Lock-Owner den lokalen Commit `8f4899a` (`fix: say when there are no
+restaurants instead of inventing some`). Der anschließende `git show`-Readback bestätigt,
+dass sämtliche Logo-Dateien, Brand-Assets, README-Änderungen, Übersetzungen, Tests und
+dieser Report in `8f4899a` enthalten sind.
+
+Der Commit ist nicht sauber auf diesen Auftrag begrenzt: Er enthält zugleich den
+parallelen Fallback-Fix und die schon vorher fremd geänderte `AUFGABEN.txt`. Dieser Agent
+hat den fremden Commit weder umgeschrieben noch geteilt. Die nachträgliche Klarstellung
+dieses erst nach dem ersten Commitversuch eingetretenen Zustands ist wegen der weiterhin
+geltenden Git-Schreibsperre dieses Agenten nicht mehr Teil von `8f4899a`. Es wurde nichts
+gepusht.

@@ -45,6 +45,30 @@ class CallStatus(str, Enum):
     EXPIRED = "EXPIRED"
 
 
+class ProductKind(str, Enum):
+    """The two product kinds named by the approved order-chain blueprint."""
+
+    FOOD = "essen"
+    DRINK = "getraenk"
+
+
+class CriterionKind(str, Enum):
+    MAX_PRICE = "hoechstpreis"
+    SPECIAL_REQUEST = "sonderwunsch"
+    QUESTION = "rueckfrage"
+
+
+class CriterionReaction(str, Enum):
+    ACCEPT = "annehmen"
+    NEXT_REPLACEMENT = "naechster_ersatz"
+    REJECT = "ablehnen"
+
+
+class NothingAvailableRule(str, Enum):
+    SKIP_ITEM = "posten_weglassen"
+    ABORT_ORDER = "bestellung_abbrechen"
+
+
 @dataclass
 class OpeningHours:
     days: List[str]  # e.g. ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -74,6 +98,148 @@ class Concession:
     key: str        # machine key, e.g. "outdoor_ok" — must match tier_applied
     label: str      # sentence handed to the voice agent
     tier: int = 1   # 1 is played first, 2 only after 1 failed
+
+
+@dataclass
+class OrderCriterion:
+    """One condition attached to one possible product cell.
+
+    All criterion kinds use the same two reaction slots. For a price or a
+    special request, ``on_yes`` means the limit/request was met and ``on_no``
+    means it was not. For a question they map literally to yes and no.
+    """
+
+    kind: CriterionKind
+    value: Any
+    on_yes: CriterionReaction = CriterionReaction.ACCEPT
+    on_no: CriterionReaction = CriterionReaction.NEXT_REPLACEMENT
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "art": self.kind.value,
+            "wert": self.value,
+            "reaktion_ja": self.on_yes.value,
+            "reaktion_nein": self.on_no.value,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "OrderCriterion":
+        kind = CriterionKind(data.get("art"))
+        value = data.get("wert")
+        if kind is CriterionKind.MAX_PRICE:
+            try:
+                value = float(value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("hoechstpreis requires a numeric wert") from exc
+            if value < 0:
+                raise ValueError("hoechstpreis cannot be negative")
+        elif not isinstance(value, str) or not value.strip():
+            raise ValueError(f"{kind.value} requires non-empty text")
+        return cls(
+            kind=kind,
+            value=value,
+            on_yes=CriterionReaction(data.get("reaktion_ja", "annehmen")),
+            on_no=CriterionReaction(data.get("reaktion_nein", "naechster_ersatz")),
+        )
+
+
+@dataclass
+class OrderCell:
+    quantity: int
+    product: str
+    kind: ProductKind = ProductKind.FOOD
+    criteria: List[OrderCriterion] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "menge": self.quantity,
+            "produkt": self.product,
+            "art": self.kind.value,
+            "kriterien": [criterion.to_dict() for criterion in self.criteria],
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "OrderCell":
+        try:
+            quantity = int(data.get("menge", 1))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("menge must be an integer") from exc
+        if quantity < 1:
+            raise ValueError("menge must be at least 1")
+        product = str(data.get("produkt") or "").strip()
+        if not product:
+            raise ValueError("produkt is required")
+        return cls(
+            quantity=quantity,
+            product=product,
+            kind=ProductKind(data.get("art", "essen")),
+            criteria=[OrderCriterion.from_dict(item) for item in data.get("kriterien", [])],
+        )
+
+
+@dataclass
+class OrderPosition:
+    cells: List[OrderCell]
+    tags: List[str] = field(default_factory=list)
+    if_nothing_available: NothingAvailableRule = NothingAvailableRule.SKIP_ITEM
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "zellen": [cell.to_dict() for cell in self.cells],
+            "tags": self.tags,
+            "wenn_nichts_verfuegbar": self.if_nothing_available.value,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "OrderPosition":
+        cells = [OrderCell.from_dict(item) for item in data.get("zellen", [])]
+        if not cells:
+            raise ValueError("each posten requires at least one zelle")
+        tags: List[str] = []
+        for raw in data.get("tags", []):
+            tag = str(raw).strip()
+            if tag and tag not in tags:
+                tags.append(tag)
+        return cls(
+            cells=cells,
+            tags=tags,
+            if_nothing_available=NothingAvailableRule(
+                data.get("wenn_nichts_verfuegbar", "posten_weglassen")
+            ),
+        )
+
+
+@dataclass
+class OrderChain:
+    """The single config shared by the UI, call goal and result evaluator."""
+
+    positions: List[OrderPosition]
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"version": 1, "posten": [position.to_dict() for position in self.positions]}
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "OrderChain":
+        if not isinstance(data, dict):
+            raise ValueError("order chain must be an object")
+        positions = [OrderPosition.from_dict(item) for item in data.get("posten", [])]
+        if not positions:
+            raise ValueError("an order requires at least one posten")
+        return cls(positions=positions)
+
+    def summary(self) -> str:
+        return ", ".join(
+            f"{position.cells[0].quantity}x {position.cells[0].product}"
+            for position in self.positions
+        )
+
+    def all_tags(self) -> List[str]:
+        seen: List[str] = []
+        for position in self.positions:
+            for tag in position.tags:
+                if tag not in seen:
+                    seen.append(tag)
+        return seen
 
 
 @dataclass
@@ -113,6 +279,7 @@ class UserRequest:
     time_of_request: str = "19:00"
     favorite_restaurant_ids: List[str] = field(default_factory=list)
     concessions: List[Concession] = field(default_factory=list)
+    order_chain: Optional[OrderChain] = None
 
     def granted_concession_keys(self) -> List[str]:
         return [c.key for c in self.concessions]

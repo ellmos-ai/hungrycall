@@ -20,13 +20,21 @@ import json
 from typing import Any, Dict, List, Optional
 
 from hungrycall.i18n import SUPPORTED, t
-from hungrycall.models import Branch, Concession, Mode, Restaurant, Seating
+from hungrycall.models import Branch, Concession, Mode, OrderChain, Restaurant, Seating
+from hungrycall.order_chains import (
+    OrderChainEvaluation, default_order_chain, order_chain_json, selections_by_tag,
+)
 from hungrycall.phone_utils import mask_phone
 
 
 def esc(value: Any) -> str:
     """Escape anything that came from a form before it goes into HTML."""
     return html.escape(str(value), quote=True)
+
+
+def script_json(value: Any) -> str:
+    """JSON safe to embed in a script element, including user-authored products."""
+    return json.dumps(value, ensure_ascii=False).replace("<", "\\u003c").replace("&", "\\u0026")
 
 
 # The approved empty-fridge motif is the product mark across the web UI. The
@@ -564,6 +572,30 @@ th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(
 th { font-size: 0.7rem; letter-spacing: 0.12em; color: var(--dim); }
 td.num { font-family: var(--font-mono); }
 
+/* ---------- order wish chains ---------- */
+.order-chain { display: grid; gap: 0.9rem; margin-top: 0.85rem; }
+.order-position { border: 1px solid var(--line); border-radius: var(--radius); padding: 0.85rem; background: var(--panel-2); }
+.order-position-head, .order-position-foot, .template-bar { display: flex; align-items: end; gap: 0.7rem; flex-wrap: wrap; }
+.order-position-head { justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+.order-cells { display: flex; gap: 0.55rem; align-items: stretch; overflow-x: auto; padding-bottom: 0.3rem; }
+.order-cell { min-width: 230px; border: 1px solid var(--line); border-radius: var(--radius); padding: 0.65rem; background: var(--panel); position: relative; }
+.order-cell-grid { display: grid; grid-template-columns: 65px minmax(110px,1fr); gap: 0.45rem; }
+.order-cell-tools { display:flex; justify-content:space-between; align-items:center; gap:0.4rem; margin-top:0.55rem; }
+.order-arrow { color: var(--dim); display:flex; align-items:center; font-family:var(--font-mono); }
+.criteria-count { font-size:0.72rem; color:var(--dim); }
+.order-position-foot { margin-top:0.7rem; }
+.order-position-foot .field { min-width: 190px; flex: 1; }
+.order-actions { margin-top:0.65rem; }
+.template-bar { border:1px dashed var(--line); border-radius:var(--radius); padding:0.7rem; margin-top:0.85rem; }
+.template-bar .field { min-width:170px; }
+.criteria-dialog { width:min(760px, calc(100vw - 2rem)); color:var(--paper); background:var(--panel); border:1px solid var(--brass); border-radius:var(--radius); padding:1rem; }
+.criteria-dialog::backdrop { background:rgba(5,8,20,0.72); }
+.criteria-current { display:grid; gap:0.45rem; margin:0.8rem 0; }
+.criterion-row { display:flex; justify-content:space-between; gap:0.7rem; align-items:center; border:1px solid var(--line); border-radius:var(--radius); padding:0.55rem; }
+.criteria-new { border-top:1px solid var(--line); padding-top:0.8rem; }
+.tag-summary { display:grid; gap:0.45rem; }
+.tag-summary-row { display:grid; grid-template-columns:minmax(90px,0.35fr) 1fr; gap:0.7rem; border-bottom:1px solid var(--line); padding:0.35rem 0; }
+
 footer { border-top: 1px solid var(--line); padding: 1.5rem; color: var(--dim); font-size: 0.8rem; }
 footer .footer-inner { max-width: 1180px; margin: 0 auto; display: flex; gap: 1.5rem; flex-wrap: wrap; justify-content: space-between; }
 .skip { position: absolute; left: -9999px; }
@@ -760,13 +792,25 @@ def render_branch_page(
     lang: str,
     scenarios: List[str],
     default_scenario: str,
+    order_chain: Optional[OrderChain] = None,
+    tags: Optional[List[str]] = None,
+    order_templates: Optional[List[Dict[str, Any]]] = None,
+    defaults: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Step 1 of a branch: where you are, plus the branch's own questions."""
     is_food = branch is Branch.FOOD
     title_key = "food.title" if is_food else "table.title"
     address_label = t("form.address", lang) if is_food else t("form.address.pickup", lang)
 
-    detail = render_food_fields(lang) if is_food else render_table_fields(lang)
+    defaults = defaults or {}
+    detail = (
+        render_food_fields(
+            lang, order_chain=order_chain, tags=tags or [],
+            order_templates=order_templates or [], defaults=defaults,
+        ) if is_food else render_table_fields(lang)
+    )
+    city_value = defaults.get("location_info") or "Dorfstadt"
+    address_value = defaults.get("delivery_address") or "Dorfstraße 10, 12345 Dorfstadt"
 
     return f"""
 <div class="split">
@@ -788,7 +832,7 @@ def render_branch_page(
           </div>
           <div class="field">
             <label for="city">{esc(t("form.city", lang))}</label>
-            <input type="text" id="city" name="city" value="Dorfstadt" required>
+            <input type="text" id="city" name="city" value="{esc(city_value)}" required>
           </div>
           <div class="field">
             <label for="radius_km">{esc(t("form.radius", lang))}</label>
@@ -797,7 +841,7 @@ def render_branch_page(
           <div class="field wide">
             <label for="delivery_address">{esc(address_label)}</label>
             <input type="text" id="delivery_address" name="delivery_address"
-                   value="Dorfstraße 10, 12345 Dorfstadt" required>
+                   value="{esc(address_value)}" required>
           </div>
           <div class="field wide">
             <label for="scenario">{esc(t("form.scenario", lang))}</label>
@@ -853,46 +897,172 @@ HC.text = {json.dumps({
     "dryExplain": t("safety.mode.dry.explain", lang),
     "liveMode": t("safety.mode.live", lang),
     "liveWarning": t("safety.live.warning", lang),
+    "position": t("order.position", lang),
+    "wish": t("order.wish", lang),
+    "replacement": t("order.replacement", lang),
+    "quantity": t("order.quantity", lang),
+    "product": t("order.product", lang),
+    "kind": t("order.kind", lang),
+    "food": t("order.kind.food", lang),
+    "drink": t("order.kind.drink", lang),
+    "tags": t("order.tags", lang),
+    "criteria": t("order.criteria", lang),
+    "remove": t("order.remove", lang),
+    "templateSaved": t("order.template.saved", lang),
+    "templateError": t("order.template.error", lang),
+    "criterionPrice": t("order.criterion.hoechstpreis", lang),
+    "criterionSpecial": t("order.criterion.sonderwunsch", lang),
+    "criterionQuestion": t("order.criterion.rueckfrage", lang),
+    "reactionAccept": t("order.reaction.annehmen", lang),
+    "reactionNext": t("order.reaction.naechster_ersatz", lang),
+    "reactionReject": t("order.reaction.ablehnen", lang),
+    "ruleSkip": t("order.rule.posten_weglassen", lang),
+    "ruleAbort": t("order.rule.bestellung_abbrechen", lang),
+    "addReplacement": t("order.add.replacement", lang),
+    "criterionValuePrice": t("order.criterion.value.price", lang),
+    "criterionValueSpecial": t("order.criterion.value.special", lang),
+    "criterionValueQuestion": t("order.criterion.value.question", lang),
 }, ensure_ascii=False)};
 </script>
 """
 
 
-def render_food_fields(lang: str) -> str:
-    """Delivery is the default; pickup is a real switch, not a label change."""
+def render_food_fields(
+    lang: str,
+    order_chain: Optional[OrderChain] = None,
+    tags: Optional[List[str]] = None,
+    order_templates: Optional[List[Dict[str, Any]]] = None,
+    defaults: Optional[Dict[str, Any]] = None,
+) -> str:
+    """The approved position -> cell -> criterion editor, plus food mode gates."""
+    chain = order_chain or default_order_chain()
+    defaults = defaults or {}
+    tags = tags or []
+    order_templates = order_templates or []
+    mode = defaults.get("mode") if defaults.get("mode") in ("delivery", "pickup") else "delivery"
+    delivery_checked = " checked" if mode == "delivery" else ""
+    pickup_checked = " checked" if mode == "pickup" else ""
+    pickup_hidden = "" if mode == "pickup" else " hidden"
+    template_options = "".join(
+        f'<option value="{esc(item["id"])}">{esc(item["name"])}</option>'
+        for item in order_templates
+    )
+    tag_options = "".join(f'<option value="{esc(tag)}"></option>' for tag in tags)
+    initial_json = order_chain_json(chain)
+    food_prompt = chain.summary()
+    customer_name = defaults.get("customer_name") or "Alex"
+    max_budget = defaults.get("max_budget_eur") or 35.0
+    pickup_time = defaults.get("pickup_time") or "19:30"
+
     return f"""
 <hr class="hr" style="margin:1.2rem 0;">
 <h3 class="eyebrow">{esc(t("food.mode.title", lang))}</h3>
 <div class="switch" style="margin-top:0.6rem;">
-  <input type="radio" id="mode-delivery" name="mode" value="delivery" checked onchange="HC.onModeChange()">
+  <input type="radio" id="mode-delivery" name="mode" value="delivery"{delivery_checked} onchange="HC.onModeChange()">
   <label for="mode-delivery">
     <span class="t">{esc(t("food.mode.delivery", lang))}</span>
     <span class="n">{esc(t("food.mode.delivery.note", lang))}</span>
   </label>
-  <input type="radio" id="mode-pickup" name="mode" value="pickup" onchange="HC.onModeChange()">
+  <input type="radio" id="mode-pickup" name="mode" value="pickup"{pickup_checked} onchange="HC.onModeChange()">
   <label for="mode-pickup">
     <span class="t">{esc(t("food.mode.pickup", lang))}</span>
     <span class="n">{esc(t("food.mode.pickup.note", lang))}</span>
   </label>
 </div>
 
-<div class="grid3" style="margin-top:1rem;">
-  <div class="field wide">
-    <label for="food_prompt">{esc(t("food.prompt", lang))}</label>
-    <textarea id="food_prompt" name="food_prompt" rows="2" required>2x Cheeseburger, 1x große Pommes, 1x Cola Zero</textarea>
-    <span class="help">{esc(t("food.prompt.help", lang))}</span>
+<hr class="hr" style="margin:1.2rem 0;">
+<div class="panel-head" style="padding:0;border:0;">
+  <div>
+    <h3 class="eyebrow">{esc(t("order.title", lang))}</h3>
+    <p class="help" style="margin-top:0.45rem;max-width:75ch;">{esc(t("order.help", lang))}</p>
   </div>
+</div>
+<input type="hidden" id="order_chain_json" name="order_chain_json" value="{esc(initial_json)}">
+<input type="hidden" id="food_prompt" name="food_prompt" value="{esc(food_prompt)}">
+<datalist id="saved-tags">{tag_options}</datalist>
+<div id="order-chain-builder" class="order-chain" aria-live="polite"></div>
+<div class="btn-row order-actions">
+  <button type="button" class="mini" onclick="HC.addPosition()">＋ {esc(t("order.add.position", lang))}</button>
+</div>
+
+<div class="template-bar">
+  <div class="field">
+    <label for="order-template-select">{esc(t("order.template.load", lang))}</label>
+    <select id="order-template-select">
+      <option value="">—</option>{template_options}
+    </select>
+  </div>
+  <button type="button" class="mini" onclick="HC.loadOrderTemplate()">{esc(t("order.template.load.button", lang))}</button>
+  <div class="field">
+    <label for="order-template-name">{esc(t("order.template.name", lang))}</label>
+    <input type="text" id="order-template-name" maxlength="80">
+  </div>
+  <button type="button" class="mini" onclick="HC.saveOrderTemplate()">{esc(t("order.template.save", lang))}</button>
+  <span id="order-template-status" class="small mono" aria-live="polite"></span>
+</div>
+
+<dialog id="criteria-dialog" class="criteria-dialog">
+  <div class="panel-head">
+    <h3>{esc(t("order.criteria.dialog", lang))}</h3>
+    <button type="button" class="mini" onclick="HC.closeCriteria()" aria-label="{esc(t("order.close", lang))}">×</button>
+  </div>
+  <div id="criteria-current" class="criteria-current"></div>
+  <div class="grid3 criteria-new">
+    <div class="field">
+      <label for="criterion-kind">{esc(t("order.criterion.kind", lang))}</label>
+      <select id="criterion-kind" onchange="HC.onCriterionKindChange()">
+        <option value="hoechstpreis">{esc(t("order.criterion.hoechstpreis", lang))}</option>
+        <option value="sonderwunsch">{esc(t("order.criterion.sonderwunsch", lang))}</option>
+        <option value="rueckfrage">{esc(t("order.criterion.rueckfrage", lang))}</option>
+      </select>
+    </div>
+    <div class="field wide">
+      <label id="criterion-value-label" for="criterion-value">{esc(t("order.criterion.value.price", lang))}</label>
+      <input id="criterion-value" type="number" min="0" step="0.01">
+    </div>
+    <div class="field" id="criterion-single-reaction">
+      <label for="criterion-no-reaction">{esc(t("order.criterion.if.not.met", lang))}</label>
+      <select id="criterion-no-reaction">
+        <option value="naechster_ersatz">{esc(t("order.reaction.naechster_ersatz", lang))}</option>
+        <option value="ablehnen">{esc(t("order.reaction.ablehnen", lang))}</option>
+        <option value="annehmen">{esc(t("order.reaction.annehmen", lang))}</option>
+      </select>
+    </div>
+    <div class="field" id="criterion-yes-reaction" hidden>
+      <label for="criterion-on-yes">{esc(t("order.criterion.if.yes", lang))}</label>
+      <select id="criterion-on-yes">
+        <option value="annehmen">{esc(t("order.reaction.annehmen", lang))}</option>
+        <option value="naechster_ersatz">{esc(t("order.reaction.naechster_ersatz", lang))}</option>
+        <option value="ablehnen">{esc(t("order.reaction.ablehnen", lang))}</option>
+      </select>
+    </div>
+    <div class="field" id="criterion-no-reaction-question" hidden>
+      <label for="criterion-on-no">{esc(t("order.criterion.if.no", lang))}</label>
+      <select id="criterion-on-no">
+        <option value="naechster_ersatz">{esc(t("order.reaction.naechster_ersatz", lang))}</option>
+        <option value="annehmen">{esc(t("order.reaction.annehmen", lang))}</option>
+        <option value="ablehnen">{esc(t("order.reaction.ablehnen", lang))}</option>
+      </select>
+    </div>
+  </div>
+  <div class="btn-row">
+    <button type="button" class="btn" onclick="HC.addCriterion()">{esc(t("order.criterion.add", lang))}</button>
+    <button type="button" class="mini" onclick="HC.closeCriteria()">{esc(t("order.close", lang))}</button>
+  </div>
+</dialog>
+
+<div class="grid3" style="margin-top:1rem;">
   <div class="field">
     <label for="customer_name">{esc(t("form.name", lang))}</label>
-    <input type="text" id="customer_name" name="customer_name" value="Alex" required>
+    <input type="text" id="customer_name" name="customer_name" value="{esc(customer_name)}" required>
   </div>
   <div class="field">
     <label for="max_budget_eur" id="budget-label">{esc(t("food.budget.delivery", lang))}</label>
-    <input type="number" id="max_budget_eur" name="max_budget_eur" value="35.00" step="0.50" min="1" required>
+    <input type="number" id="max_budget_eur" name="max_budget_eur" value="{esc(max_budget)}" step="0.50" min="1" required>
   </div>
-  <div class="field" id="pickup-time-field" hidden>
+  <div class="field" id="pickup-time-field"{pickup_hidden}>
     <label for="pickup_time">{esc(t("food.pickup.time", lang))}</label>
-    <input type="time" id="pickup_time" name="pickup_time" value="19:30">
+    <input type="time" id="pickup_time" name="pickup_time" value="{esc(pickup_time)}">
   </div>
   <div class="field wide">
     <span class="help">{esc(t("food.budget.help", lang))}</span>
@@ -903,6 +1073,10 @@ def render_food_fields(lang: str) -> str:
     <span class="help">{esc(t("food.maxdistance.help", lang))}</span>
   </div>
 </div>
+<script>
+HC.orderChainInitial = {script_json(chain.to_dict())};
+HC.orderTemplates = {script_json(order_templates)};
+</script>
 """
 
 
@@ -1300,6 +1474,36 @@ def render_result_sentence(
     )
 
 
+def render_tag_summary(lang: str, evaluation: Optional[OrderChainEvaluation]) -> str:
+    if not evaluation or not evaluation.accepted:
+        return ""
+    rows = ""
+    for tag, selections in selections_by_tag(evaluation).items():
+        label = tag or t("order.tags.none", lang)
+        item_labels = []
+        for selection in selections:
+            confirmed_specials = [
+                str(criterion.value)
+                for index, criterion in enumerate(selection.cell.criteria)
+                if criterion.kind.value == "sonderwunsch"
+                and selection.criterion_results.get(index, {}).get("bestaetigt") is True
+            ]
+            suffix = f' ({", ".join(confirmed_specials)})' if confirmed_specials else ""
+            item_labels.append(
+                f"{selection.cell.quantity}× {selection.cell.product}{suffix}"
+            )
+        items = ", ".join(item_labels)
+        rows += (
+            '<div class="tag-summary-row">'
+            f'<strong>{esc(label)}</strong><span>{esc(items)}</span></div>'
+        )
+    return f"""
+  <section>
+    <h3>{esc(t("order.summary.by.tags", lang))}</h3>
+    <div class="tag-summary">{rows}</div>
+  </section>"""
+
+
 def render_result_card(
     lang: str,
     mode: Mode,
@@ -1311,6 +1515,8 @@ def render_result_card(
     order_id: str,
     calls_made: int,
     concession_used: Optional[str] = None,
+    order_chain: Optional[OrderChain] = None,
+    chain_evaluation: Optional[OrderChainEvaluation] = None,
 ) -> str:
     """What came back, in the user's terms — and what it commits them to."""
     title = t(f"result.title.{mode.value}", lang)
@@ -1344,6 +1550,7 @@ def render_result_card(
     {esc(t("table.concession." + concession_used, lang))}<br>
     <span class="small">{esc(t("result.concession.note", lang))}</span>
   </div>"""
+    tag_summary = render_tag_summary(lang, chain_evaluation if order_chain else None)
 
     return f"""
 <div class="result" style="margin-top:1.1rem;">
@@ -1354,6 +1561,7 @@ def render_result_card(
 
   <p class="result-sentence">{esc(message)}</p>
   <div class="facts">{facts_html}</div>
+  {tag_summary}
   {concession_html}
 
   <div class="callback">
@@ -1399,7 +1607,11 @@ def render_failure(lang: str, calls_made: int) -> str:
 # History
 # --------------------------------------------------------------------------
 
-def render_history(lang: str, rows: List[Dict[str, Any]]) -> str:
+def render_history(
+    lang: str,
+    rows: List[Dict[str, Any]],
+    orders: Optional[List[Dict[str, Any]]] = None,
+) -> str:
     if not rows:
         body = f'<p class="muted">{esc(t("history.empty", lang))}</p>'
     else:
@@ -1427,11 +1639,40 @@ def render_history(lang: str, rows: List[Dict[str, Any]]) -> str:
 </table>
 <p class="small muted" style="margin-top:0.8rem;">{esc(t("history.masked.note", lang))}</p>"""
 
+    order_rows = ""
+    for order in orders or []:
+        chain = order.get("order_chain") or {}
+        products = ", ".join(
+            f'{(position.get("zellen") or [{}])[0].get("menge", 1)}× '
+            f'{(position.get("zellen") or [{}])[0].get("produkt", "")}'
+            for position in chain.get("posten", [])
+        ) or order.get("food_prompt", "")
+        order_rows += (
+            "<tr>"
+            f'<td class="num">{esc(order.get("created_at", ""))}</td>'
+            f'<td>{esc(products)}</td>'
+            f'<td class="num">{esc(order.get("mode", ""))}</td>'
+            f'<td><a class="mini" href="/order?history={esc(order.get("id", ""))}&lang={lang}">'
+            f'{esc(t("history.load.edit", lang))}</a></td>'
+            "</tr>"
+        )
+    orders_html = ""
+    if order_rows:
+        orders_html = f"""
+<h3 style="margin-top:1.2rem;">{esc(t("history.orders.title", lang))}</h3>
+<p class="help">{esc(t("history.orders.help", lang))}</p>
+<table>
+  <thead><tr><th>{esc(t("result.when", lang))}</th><th>{esc(t("order.title", lang))}</th>
+  <th>{esc(t("food.mode.title", lang))}</th><th></th></tr></thead>
+  <tbody>{order_rows}</tbody>
+</table>"""
+
     return f"""
 <div class="panel">
   <div class="panel-head">
     <h2>{esc(t("history.title", lang))}</h2>
     <a class="small" href="/?lang={lang}">← {esc(t("nav.back", lang))}</a>
   </div>
+  {orders_html}
   {body}
 </div>"""

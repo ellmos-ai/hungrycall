@@ -83,6 +83,22 @@ Der Unterschied ist die Menge, nicht der Anruf:
 * **Beleg** — Transkript mit Zeitmarken (`[mm:ss] BOT: …`) als Nachweis der mündlichen
   Abrede, dazu die maskierte Rückrufnummer.
 
+## Bestellwunschketten
+
+Eine Bestellung ist keine unstrukturierte Wunschliste. Sie besteht aus **Posten**, deren
+Zellen von links nach rechts Wunsch und Ersatzwünsche bilden. Jede Zelle trägt Menge,
+Produkt, die Art Essen/Getränk und beliebig viele Zusatzkriterien:
+
+- `hoechstpreis`, `sonderwunsch` oder `rueckfrage`
+- Reaktion `annehmen`, weich zum `naechster_ersatz` wechseln oder den Posten hart
+  `ablehnen`
+- Zeilenregel: den Posten weglassen oder die gesamte Bestellung abbrechen
+
+Dieselbe JSON-Definition zeichnet den Editor, erzeugt die Gesprächsanweisung und prüft die
+strukturierte Agentenantwort. Frei angelegte Tags gruppieren die Abschlussübersicht. Ganze
+Ketten lassen sich als Vorlagen speichern; jede abgeschickte Bestellung kann aus dem Verlauf
+geladen, geändert und erneut durch den Trockenlauf geschickt werden.
+
 ---
 
 ## Kernprobe für Juroren — 30 Sekunden, ohne Zugang

@@ -162,6 +162,298 @@
     btn.textContent = box.hidden ? btn.dataset.show : btn.dataset.hide;
   };
 
+  // ------------------------------------------------------ order wish chains
+  HC.orderChain = null;
+  HC.criteriaPosition = null;
+  HC.criteriaCell = null;
+
+  function clone(value) { return JSON.parse(JSON.stringify(value)); }
+
+  function make(tag, className, text) {
+    var el = document.createElement(tag);
+    if (className) el.className = className;
+    if (text !== undefined) el.textContent = text;
+    return el;
+  }
+
+  function option(value, text, selected) {
+    var el = document.createElement("option");
+    el.value = value;
+    el.textContent = text;
+    el.selected = value === selected;
+    return el;
+  }
+
+  function syncOrderChain() {
+    if (!HC.orderChain) return;
+    var field = $("order_chain_json");
+    if (field) field.value = JSON.stringify(HC.orderChain);
+    var prompt = $("food_prompt");
+    if (prompt) {
+      prompt.value = HC.orderChain.posten.map(function (position) {
+        var first = position.zellen[0] || { menge: 1, produkt: "" };
+        return first.menge + "x " + first.produkt;
+      }).join(", ");
+    }
+  }
+
+  function field(labelText, control) {
+    var wrap = make("div", "field");
+    var label = make("label", "", labelText);
+    wrap.appendChild(label);
+    wrap.appendChild(control);
+    return wrap;
+  }
+
+  function reactionText(value) {
+    if (value === "annehmen") return HC.text.reactionAccept;
+    if (value === "ablehnen") return HC.text.reactionReject;
+    return HC.text.reactionNext;
+  }
+
+  function criterionText(criterion) {
+    var kind = criterion.art === "hoechstpreis" ? HC.text.criterionPrice :
+      (criterion.art === "sonderwunsch" ? HC.text.criterionSpecial : HC.text.criterionQuestion);
+    return kind + ": " + criterion.wert + " — " + reactionText(criterion.reaktion_nein);
+  }
+
+  function renderCell(positionIndex, cellIndex, cell) {
+    var card = make("div", "order-cell");
+    var label = cellIndex === 0 ? HC.text.wish : HC.text.replacement + " " + cellIndex;
+    card.appendChild(make("div", "eyebrow", label));
+
+    var grid = make("div", "order-cell-grid");
+    var quantity = document.createElement("input");
+    quantity.type = "number"; quantity.min = "1"; quantity.step = "1";
+    quantity.value = cell.menge;
+    quantity.addEventListener("input", function () {
+      cell.menge = Math.max(1, parseInt(quantity.value || "1", 10)); syncOrderChain();
+    });
+    grid.appendChild(field(HC.text.quantity, quantity));
+
+    var product = document.createElement("input");
+    product.type = "text"; product.required = true; product.value = cell.produkt || "";
+    product.addEventListener("input", function () { cell.produkt = product.value; syncOrderChain(); });
+    grid.appendChild(field(HC.text.product, product));
+
+    var kind = document.createElement("select");
+    kind.appendChild(option("essen", HC.text.food, cell.art));
+    kind.appendChild(option("getraenk", HC.text.drink, cell.art));
+    kind.addEventListener("change", function () { cell.art = kind.value; syncOrderChain(); });
+    var kindField = field(HC.text.kind, kind);
+    kindField.style.gridColumn = "1 / -1";
+    grid.appendChild(kindField);
+    card.appendChild(grid);
+
+    var tools = make("div", "order-cell-tools");
+    var gear = make("button", "mini", "⚙ " + HC.text.criteria);
+    gear.type = "button";
+    gear.addEventListener("click", function () { HC.openCriteria(positionIndex, cellIndex); });
+    card.addEventListener("contextmenu", function (event) {
+      event.preventDefault(); HC.openCriteria(positionIndex, cellIndex);
+    });
+    tools.appendChild(gear);
+    tools.appendChild(make("span", "criteria-count", String((cell.kriterien || []).length)));
+    if (HC.orderChain.posten[positionIndex].zellen.length > 1) {
+      var remove = make("button", "mini", "× " + HC.text.remove);
+      remove.type = "button";
+      remove.addEventListener("click", function () { HC.removeCell(positionIndex, cellIndex); });
+      tools.appendChild(remove);
+    }
+    card.appendChild(tools);
+    return card;
+  }
+
+  HC.renderOrderChain = function () {
+    var root = $("order-chain-builder");
+    if (!root || !HC.orderChain) return;
+    root.textContent = "";
+    HC.orderChain.posten.forEach(function (position, positionIndex) {
+      var section = make("section", "order-position");
+      var head = make("div", "order-position-head");
+      head.appendChild(make("h4", "", HC.text.position + " " + (positionIndex + 1)));
+      if (HC.orderChain.posten.length > 1) {
+        var removePosition = make("button", "mini", "× " + HC.text.remove);
+        removePosition.type = "button";
+        removePosition.addEventListener("click", function () { HC.removePosition(positionIndex); });
+        head.appendChild(removePosition);
+      }
+      section.appendChild(head);
+
+      var cells = make("div", "order-cells");
+      position.zellen.forEach(function (cell, cellIndex) {
+        if (cellIndex) cells.appendChild(make("span", "order-arrow", "→"));
+        cells.appendChild(renderCell(positionIndex, cellIndex, cell));
+      });
+      var addCell = make("button", "mini", "＋ " + HC.text.addReplacement);
+      addCell.type = "button";
+      addCell.addEventListener("click", function () { HC.addCell(positionIndex); });
+      cells.appendChild(addCell);
+      section.appendChild(cells);
+
+      var foot = make("div", "order-position-foot");
+      var tags = document.createElement("input");
+      tags.type = "text"; tags.value = (position.tags || []).join(", ");
+      tags.setAttribute("list", "saved-tags");
+      tags.addEventListener("change", function () {
+        position.tags = tags.value.split(",").map(function (value) { return value.trim(); })
+          .filter(function (value, index, all) { return value && all.indexOf(value) === index; });
+        syncOrderChain();
+      });
+      foot.appendChild(field(HC.text.tags, tags));
+
+      var rule = document.createElement("select");
+      rule.appendChild(option("posten_weglassen", HC.text.ruleSkip, position.wenn_nichts_verfuegbar));
+      rule.appendChild(option("bestellung_abbrechen", HC.text.ruleAbort, position.wenn_nichts_verfuegbar));
+      rule.addEventListener("change", function () { position.wenn_nichts_verfuegbar = rule.value; syncOrderChain(); });
+      foot.appendChild(field(HC.text.ruleSkip + " / " + HC.text.ruleAbort, rule));
+      section.appendChild(foot);
+      root.appendChild(section);
+    });
+    syncOrderChain();
+  };
+
+  HC.addPosition = function () {
+    HC.orderChain.posten.push({
+      zellen: [{ menge: 1, produkt: "", art: "essen", kriterien: [] }],
+      tags: [], wenn_nichts_verfuegbar: "posten_weglassen"
+    });
+    HC.renderOrderChain();
+  };
+
+  HC.removePosition = function (positionIndex) {
+    if (HC.orderChain.posten.length > 1) HC.orderChain.posten.splice(positionIndex, 1);
+    HC.renderOrderChain();
+  };
+
+  HC.addCell = function (positionIndex) {
+    HC.orderChain.posten[positionIndex].zellen.push({
+      menge: 1, produkt: "", art: "essen", kriterien: []
+    });
+    HC.renderOrderChain();
+  };
+
+  HC.removeCell = function (positionIndex, cellIndex) {
+    var cells = HC.orderChain.posten[positionIndex].zellen;
+    if (cells.length > 1) cells.splice(cellIndex, 1);
+    HC.renderOrderChain();
+  };
+
+  HC.openCriteria = function (positionIndex, cellIndex) {
+    HC.criteriaPosition = positionIndex; HC.criteriaCell = cellIndex;
+    HC.renderCriteria(); HC.onCriterionKindChange();
+    var dialog = $("criteria-dialog");
+    if (dialog && dialog.showModal) dialog.showModal();
+  };
+
+  HC.closeCriteria = function () {
+    var dialog = $("criteria-dialog");
+    if (dialog && dialog.open) dialog.close();
+  };
+
+  HC.renderCriteria = function () {
+    var root = $("criteria-current");
+    if (!root || HC.criteriaPosition === null) return;
+    root.textContent = "";
+    var criteria = HC.orderChain.posten[HC.criteriaPosition].zellen[HC.criteriaCell].kriterien;
+    criteria.forEach(function (criterion, index) {
+      var row = make("div", "criterion-row");
+      row.appendChild(make("span", "", criterionText(criterion)));
+      var remove = make("button", "mini", "× " + HC.text.remove);
+      remove.type = "button";
+      remove.addEventListener("click", function () { HC.removeCriterion(index); });
+      row.appendChild(remove); root.appendChild(row);
+    });
+  };
+
+  HC.onCriterionKindChange = function () {
+    var kind = $("criterion-kind");
+    var input = $("criterion-value");
+    var label = $("criterion-value-label");
+    if (!kind || !input || !label) return;
+    var question = kind.value === "rueckfrage";
+    input.type = kind.value === "hoechstpreis" ? "number" : "text";
+    input.step = kind.value === "hoechstpreis" ? "0.01" : "";
+    label.textContent = kind.value === "hoechstpreis" ? HC.text.criterionValuePrice :
+      (question ? HC.text.criterionValueQuestion : HC.text.criterionValueSpecial);
+    $("criterion-single-reaction").hidden = question;
+    $("criterion-yes-reaction").hidden = !question;
+    $("criterion-no-reaction-question").hidden = !question;
+  };
+
+  HC.addCriterion = function () {
+    if (HC.criteriaPosition === null) return;
+    var kind = $("criterion-kind").value;
+    var raw = $("criterion-value").value.trim();
+    if (!raw) return;
+    var value = kind === "hoechstpreis" ? Number(raw) : raw;
+    if (kind === "hoechstpreis" && (!Number.isFinite(value) || value < 0)) return;
+    var criterion = { art: kind, wert: value, reaktion_ja: "annehmen", reaktion_nein: "naechster_ersatz" };
+    if (kind === "rueckfrage") {
+      criterion.reaktion_ja = $("criterion-on-yes").value;
+      criterion.reaktion_nein = $("criterion-on-no").value;
+    } else {
+      criterion.reaktion_nein = $("criterion-no-reaction").value;
+    }
+    HC.orderChain.posten[HC.criteriaPosition].zellen[HC.criteriaCell].kriterien.push(criterion);
+    $("criterion-value").value = "";
+    syncOrderChain(); HC.renderCriteria(); HC.renderOrderChain();
+  };
+
+  HC.removeCriterion = function (criterionIndex) {
+    HC.orderChain.posten[HC.criteriaPosition].zellen[HC.criteriaCell].kriterien.splice(criterionIndex, 1);
+    syncOrderChain(); HC.renderCriteria(); HC.renderOrderChain();
+  };
+
+  HC.loadOrderTemplate = function () {
+    var id = $("order-template-select").value;
+    var found = (HC.orderTemplates || []).find(function (item) { return item.id === id; });
+    if (!found) return;
+    HC.orderChain = clone(found.order_chain);
+    $("order-template-name").value = found.name;
+    HC.renderOrderChain();
+  };
+
+  HC.saveOrderTemplate = function () {
+    syncOrderChain();
+    var name = $("order-template-name").value.trim();
+    var status = $("order-template-status");
+    if (!name) { if (status) status.textContent = HC.text.templateError; return; }
+    var body = new FormData();
+    body.append("name", name);
+    body.append("order_chain_json", JSON.stringify(HC.orderChain));
+    fetch("/api/order-templates", { method: "POST", body: body })
+      .then(function (response) { return response.json().then(function (data) { return { ok: response.ok, data: data }; }); })
+      .then(function (result) {
+        if (!result.ok) throw new Error(result.data.error || HC.text.templateError);
+        var index = (HC.orderTemplates || []).findIndex(function (item) { return item.id === result.data.id; });
+        if (index >= 0) HC.orderTemplates[index] = result.data;
+        else HC.orderTemplates.push(result.data);
+        var select = $("order-template-select");
+        if (select && !Array.prototype.some.call(select.options, function (item) {
+          return item.value === result.data.id;
+        })) {
+          select.appendChild(option(result.data.id, result.data.name, result.data.id));
+        }
+        if (select) select.value = result.data.id;
+        if (status) status.textContent = HC.text.templateSaved;
+      })
+      .catch(function (error) { if (status) status.textContent = String(error.message || error); });
+  };
+
+  function initOrderChain() {
+    if (!HC.orderChainInitial || !$("order-chain-builder")) return;
+    HC.orderChain = clone(HC.orderChainInitial);
+    HC.renderOrderChain();
+    HC.onModeChange();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initOrderChain);
+  } else {
+    initOrderChain();
+  }
+
   // ------------------------------------------------------------ food modes
   /* Delivery and pickup are two different errands, so the form has to change
      shape, not just its wording: a pickup needs a collection time and a

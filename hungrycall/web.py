@@ -115,10 +115,25 @@ async def index(request: Request):
 
 
 @app.get("/order", response_class=HTMLResponse)
-async def order_page(request: Request):
+async def order_page(
+    request: Request,
+    history: Optional[str] = Query(None),
+    template: Optional[str] = Query(None),
+):
     lang = lang_of(request)
+    loaded_order = get_order_record(history) if history else None
+    loaded_template = get_order_template(template) if template else None
+    initial_chain = parse_order_chain(
+        (loaded_order or {}).get("order_chain")
+        or (loaded_template or {}).get("order_chain")
+    ) or default_order_chain()
+    defaults = loaded_order or {}
     body = render_branch_page(
-        Branch.FOOD, lang, sorted(SCENARIO_FIXTURES.keys()), DEFAULT_SCENARIOS[Mode.DELIVERY]
+        Branch.FOOD, lang, sorted(SCENARIO_FIXTURES.keys()), DEFAULT_SCENARIOS[Mode.DELIVERY],
+        order_chain=initial_chain,
+        tags=list_tags(),
+        order_templates=list_order_templates(),
+        defaults=defaults,
     )
     return html_page(body, lang, path="/order", with_map=True, title=t("food.title", lang))
 
@@ -136,7 +151,7 @@ async def reserve_page(request: Request):
 async def history_page(request: Request):
     lang = lang_of(request)
     return html_page(
-        render_history(lang, list_saved_results()), lang,
+        render_history(lang, list_saved_results(), list_order_records()), lang,
         path="/history", title=t("history.title", lang)
     )
 
@@ -180,10 +195,13 @@ def build_user_request(fields: Dict[str, Any]) -> UserRequest:
         value = as_float(key)
         return int(value) if value is not None else None
 
+    chain = parse_order_chain(fields.get("order_chain_json")) if mode is not Mode.RESERVATION else None
+    food_prompt = chain.summary() if chain else (fields.get("food_prompt") or "").strip()
+
     return UserRequest(
         mode=mode,
         customer_name=(fields.get("customer_name") or "").strip() or "Guest",
-        food_prompt=(fields.get("food_prompt") or "").strip(),
+        food_prompt=food_prompt,
         max_budget_eur=as_float("max_budget_eur") if mode is not Mode.RESERVATION else None,
         delivery_address=fields.get("delivery_address"),
         reservation_date=reservation_date,
@@ -195,6 +213,7 @@ def build_user_request(fields: Dict[str, Any]) -> UserRequest:
         day_of_week=day,
         time_of_request=fields.get("reservation_time") or current_clock(),
         concessions=concessions,
+        order_chain=chain,
     )
 
 
@@ -268,7 +287,13 @@ async def api_search(request: Request):
         return HTMLResponse(render_search_error(lang, exc.code, radius_km))
 
     fields["concessions"] = form.getlist("concessions")
-    user_request = build_user_request(fields)
+    try:
+        user_request = build_user_request(fields)
+    except ValueError as exc:
+        return HTMLResponse(
+            f'<div class="notice warn">{html.escape(t("order.error.invalid", lang, detail=str(exc)))}</div>',
+            status_code=400,
+        )
 
     ranked = [r for r, _ in filter_and_rank_restaurants(pool, user_request)]
     ranked_ids = {r.id for r in ranked}
@@ -287,6 +312,9 @@ async def api_search(request: Request):
         "scenario": fields.get("scenario") or DEFAULT_SCENARIOS[user_request.mode],
         "customer_name": user_request.customer_name,
         "food_prompt": user_request.food_prompt,
+        "order_chain_json": (
+            order_chain_json(user_request.order_chain) if user_request.order_chain else None
+        ),
         "delivery_address": user_request.delivery_address,
         "max_budget_eur": user_request.max_budget_eur,
         "pickup_time": user_request.pickup_time,
@@ -386,6 +414,12 @@ async def start_cascade(request: Request):
         return HTMLResponse(
             f'<div class="notice warn" style="margin-top:1rem;">{t("error.unsafe.content", lang)}</div>'
         )
+    except ValueError as exc:
+        return HTMLResponse(
+            f'<div class="notice warn" style="margin-top:1rem;">'
+            f'{html.escape(t("order.error.invalid", lang, detail=str(exc)))}</div>',
+            status_code=400,
+        )
 
     by_id = {r.id: r for r in pool}
 
@@ -426,7 +460,10 @@ async def start_cascade(request: Request):
         pickup_time=user_request.pickup_time,
         location_info=city,
         dry_run=not live_mode,
+        order_chain=(user_request.order_chain.to_dict() if user_request.order_chain else None),
     )
+    if user_request.order_chain:
+        save_tags(user_request.order_chain.all_tags())
 
     ACTIVE_ORDERS[order_id] = {
         "request": user_request,
@@ -558,6 +595,10 @@ async def cascade_stream(request: Request, order_id: str = Query(...)):
                 continue
 
             concession_used = call_result.structured_result.get("tier_applied") or None
+            chain_evaluation = (
+                evaluate_order_chain(user_request.order_chain, call_result.structured_result)
+                if user_request.order_chain else None
+            )
             yield sse({"type": "accepted", "id": restaurant.id})
 
             ACTIVE_ORDERS[order_id]["result"] = {
@@ -589,6 +630,8 @@ async def cascade_stream(request: Request, order_id: str = Query(...)):
                     order_id=order_id,
                     calls_made=calls_made,
                     concession_used=concession_used,
+                    order_chain=user_request.order_chain,
+                    chain_evaluation=chain_evaluation,
                 ),
             })
             yield sse({"type": "done"})
@@ -709,6 +752,27 @@ def build_receipt_payload(
 @app.get("/api/saved-results", response_class=JSONResponse)
 async def api_get_saved_results():
     return list_saved_results()
+
+
+@app.post("/api/order-templates", response_class=JSONResponse)
+async def api_save_order_template(
+    name: str = Form(...),
+    order_chain_json_value: str = Form(..., alias="order_chain_json"),
+):
+    try:
+        chain = parse_order_chain(order_chain_json_value)
+        if chain is None:
+            raise ValueError("order chain is required")
+        saved = save_order_template(name, chain.to_dict())
+        save_tags(chain.all_tags())
+        return JSONResponse(saved)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+
+
+@app.get("/api/order-templates", response_class=JSONResponse)
+async def api_get_order_templates():
+    return list_order_templates()
 
 
 def main():
