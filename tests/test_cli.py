@@ -89,3 +89,19 @@ def test_cli_live_without_confirm_fails(capsys):
     assert ret == 2
     captured = capsys.readouterr()
     assert "ERROR: Live execution requires explicit confirmation" in captured.err
+
+
+def test_cli_demo_subcommand(capsys):
+    ret = main(["demo"])
+    assert ret == 0
+    captured = capsys.readouterr()
+    assert "HUNGRYCALL — Cascade Agent Execution" in captured.out
+    assert "Attempt #1: Trattoria Bella Luigi" in captured.out
+    assert "Unclear price statement" in captured.out
+    assert "Attempt #2: Burger House Dorfstadt" in captured.out
+    assert "exceeds maximum budget limit" in captured.out
+    assert "Attempt #3: Asia Wok Express" in captured.out
+    assert "RESULT: SUCCESS" in captured.out
+    assert "Ordered from Asia Wok Express" in captured.out
+    assert "Verification Transcript (Order Proof):" in captured.out
+

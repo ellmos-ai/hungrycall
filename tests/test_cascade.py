@@ -71,3 +71,28 @@ def test_pickup_cascade():
     assert summary.successful_restaurant.id == "rest_burger_house"
     assert "Pickup order placed" in summary.message
     assert "22.00 EUR" in summary.message
+
+
+def test_tiered_concessions_cascade():
+    """Verify tiered concessions negotiation cascade (MUSTER.md pattern)."""
+    req = UserRequest(
+        mode=Mode.RESERVATION,
+        customer_name="Lukas",
+        food_prompt="Italian",
+        reservation_date="2026-08-05",
+        reservation_time="19:00",
+        party_size=4
+    )
+    
+    client = DryRunCallClient(scenario_name="tiered_concessions_cascade")
+    engine = CascadeEngine(candidate_pool=SAMPLE_RESTAURANTS, call_client=client)
+    
+    summary = engine.run(req)
+    
+    assert summary.success is True
+    assert summary.successful_restaurant.id == "rest_trattoria_luigi"
+    assert summary.final_result.structured_result.get("tier_applied") == "tier_2_concession_fee"
+    assert "Table reserved at Trattoria Bella Luigi" in summary.message
+    assert "via Tier 2" in summary.final_result.post_summary
+
+

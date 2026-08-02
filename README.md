@@ -2,9 +2,61 @@
 
 > **Hackathon Submission for CALL-E ("Your Code Is Calling")**
 >
-> Automated voice agent cascade for food delivery, table reservations, and pickup.
+> Automated voice agent cascade for food delivery, table reservations, and pickup based on the **Generalized Calling Cascade Pattern** (`MUSTER.md`).
 
 HungryCall solves a real-world problem in rural and suburban areas: local restaurants often lack integration with central delivery platforms (e.g. Lieferando/DoorDash). Finding out who delivers, table availability, or total cost requires calling restaurants one by one. HungryCall automates this via CALL-E by executing a **sequential calling cascade with immediate early exit upon success**.
+
+---
+
+## 💡 The Generalized Calling Cascade Pattern (Core Contribution)
+
+While food ordering is our primary demonstration, **the true contribution to the developer community is the Generalized Calling Cascade Pattern (`MUSTER.md`)**.
+
+```
+User Intent & Boundaries  ──>  Rank Candidates  ──>  Sequential Calling Cascade with Judgment
+                                                                │
+                                            ┌───────────────────┴───────────────────┐
+                                            ▼                                       ▼
+                                     Gate Violated                             All Met
+                               (e.g., Over budget / Vague quote)       (Place order / Reserve)
+                                            │                                       │
+                                     Polite exit, call                       Halt remaining
+                                     next candidate                          calls immediately
+```
+
+### Why This Pattern Matters
+In many everyday situations, a person needs a service from **one out of several candidate providers**, but cannot determine availability, cost, or terms without calling them sequentially. 
+
+Examples beyond food delivery:
+* **Dentist Appointments**: Finding an urgent appointment within 30 km, trying regular insurance first, stepping down to private fee concessions (up to €30) only if necessary.
+* **Auto Repair / Mechanics**: Finding an open emergency slot for brake repair before the weekend.
+* **Spare Parts & Hardware**: Locating a specific plumbing component in stock at local supply shops.
+* **Care & Nursing Services**: Securing temporary respite care slots across local providers.
+
+### The Four Types of Evaluation Criteria
+Unlike simple dialing scripts, HungryCall evaluates four distinct condition tiers during every call turn:
+
+| Criterion Type | Definition | Example in HungryCall | Example in Healthcare / Services |
+|---|---|---|---|
+| **Must (Pflicht)** | Non-negotiable prerequisite; without it, call fails | "Must deliver to address X" | "Must be within 30 km radius" |
+| **Hard Boundary (Grenze)** | Absolute limit; agent politely declines if exceeded | "Doorstep end price ≤ €35.00" | "Maximum co-pay ≤ €50.00" |
+| **Tiered Concession (Zugeständnis)** | Conditional flexibility; **played only when primary path fails** | "Accept 15 min longer ETA if price is lower" | "Pay private deposit only if regular slot full" |
+| **Wish (Wunsch)** | Optimizes priority ranking beforehand; doesn't block | "Prefer wood-fired pizza" | "Prefer 4+ star rated practice" |
+
+---
+
+## ❓ Why Not Just Use the CALL-E App?
+
+The official CALL-E chat / app is designed to solve **a single phone call to a single pre-known target for a single goal**.
+
+HungryCall addresses an entirely different class of problem — **a multi-candidate autonomous search & negotiation process**:
+
+1. **Multi-Candidate Search & Pre-Filtering**: HungryCall automatically geocodes locations, checks opening hours, and ranks candidate providers *before* picking up the phone.
+2. **Serial Execution & Cost Minimization**: Calling all providers simultaneously creates duplicate orders and wastes API credits. HungryCall executes sequentially and **halts all remaining calls the microsecond a candidate succeeds**.
+3. **Financial Authority Limits**: Extending CALL-E's `goal.commitment` design from time windows to monetary amounts (`max_budget_eur`), preventing unexpected doorstep charges.
+4. **Strict Quote Validation**: Rejects vague price quotes (`price_known: false`, e.g. *"about 30 Euros depending on driver"*) to eliminate guesswork.
+5. **Tiered Concessions**: Manages negotiation steps over the call duration, withholding concessions until necessary.
+6. **Oral Contract Evidence**: Captures full timestamped transcript logs (`[mm:ss] BOT: ...`) as binding verification proof alongside masked callback numbers.
 
 ---
 
@@ -140,6 +192,12 @@ pip install -e .
 
 ## Usage
 
+### 0. 30-Second Core Jury Demo (No Account Required)
+```bash
+hungrycall demo
+```
+*Executes the complete core cascade in 30 seconds: Candidate 1 rejected (over budget), Candidate 2 rejected (vague quote), Candidate 3 succeeds, early exit halts Candidate 4, and prints formatted order proof transcript.*
+
 ### 1. Delivery Mode (Dry-Run Scenario with Custom Address & Prompt)
 ```bash
 hungrycall delivery --food "2x Döner Kebab" --address "Dorfstrasse 1, 16321 Bernau" --budget 30.0 --scenario success_direct
@@ -159,23 +217,6 @@ hungrycall pickup --food "Pizza" --budget 25.0 --scenario pickup_cascade
 ```bash
 hungrycall delivery --food "Burger" --address "Hauptstraße 12, 12345 Dorfstadt" --budget 35.0 --scenario budget_exceeded_cascade
 ```
-*Output excerpt:*
-```text
-Attempt History & Activity Stream:
-  Attempt #1: Burger House Dorfstadt (+491 ••• ••••111) -> ❌ REJECTED
-    Reason: Total price 42.00 EUR exceeds maximum budget limit of 35.00 EUR
-    Live Activity Progress:
-      • 17:37:05.100 | Bot initialized.
-      • 17:37:44.200 | Call is ringing (~40s setup latency).
-      • 17:37:49.500 | Call connected.
-      • 17:37:50.700 | Bot is speaking: Hello, calling on behalf of Lukas...
-      • 17:37:52.200 | Callee said: 42 Euro.
-      • 17:38:00.100 | Call ended; syncing final Calling result.
-  Attempt #2: Trattoria Bella Luigi (+491 ••• ••••222) -> ✅ PASSED
-
-RESULT: SUCCESS
-SUMMARY: Ordered from Trattoria Bella Luigi: delivers in 40 minutes, items 'Burger', total 31.50 EUR. Callback at +491 ••• ••••222.
-```
 
 ### 5. Simulating Vague Price Rejection
 ```bash
@@ -186,7 +227,7 @@ hungrycall delivery --food "Burger" --address "Hauptstraße 12, 12345 Dorfstadt"
 
 ## Running Tests
 
-Run the full pytest suite (29 tests covering ranking, schemas, phone masking, safety, budget rejection, vague price rejection, dynamic fixture rendering, STT deduplication, and CLI execution):
+Run the full pytest suite (34 unit tests covering ranking, schemas, phone masking, safety, budget rejection, vague price rejection, tiered concessions, dynamic fixture rendering, STT deduplication, web routes, and CLI execution):
 
 ```bash
 pytest -v
@@ -197,3 +238,4 @@ pytest -v
 ## License
 
 MIT License.
+
