@@ -1,8 +1,0 @@
-owner: Claude Opus 5 (huckepack-schutzkonzept)
-created: 2026-08-02T23:05
-host: ASUS-GEI
-expires_after: 24h
-mode: soft
-scope: component:huckepack
-purpose: Restluecken aus dem Datenschutzbefund schliessen (Sitzungsbindung, Einstellungsroute),
-  dann Schutzkonzept und Pruefbeleg veroeffentlichen.
