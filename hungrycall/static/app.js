@@ -17,6 +17,32 @@
   HC.callCount = 0;
   HC.canceled = false;
 
+  // ----------------------------------------------------------- color theme
+  function syncThemeControl() {
+    var button = $("theme-toggle");
+    if (!button) return;
+    var isDark = document.documentElement.dataset.theme === "dark";
+    button.setAttribute("aria-pressed", String(isDark));
+    var label = $("theme-label");
+    if (label) label.textContent = isDark ? button.dataset.light : button.dataset.dark;
+  }
+
+  HC.toggleTheme = function () {
+    var isDark = document.documentElement.dataset.theme === "dark";
+    if (isDark) delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = "dark";
+    try {
+      localStorage.setItem("hc-theme", isDark ? "light" : "dark");
+    } catch (error) { /* persistence is optional; the control still works */ }
+    syncThemeControl();
+  };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", syncThemeControl);
+  } else {
+    syncThemeControl();
+  }
+
   // ---------------------------------------------------------------- helpers
   function $(id) { return document.getElementById(id); }
 
@@ -52,13 +78,13 @@
     }).addTo(HC.map);
 
     L.circleMarker([lat, lon], {
-      radius: 7, color: "#C9A227", fillColor: "#C9A227", fillOpacity: 1, weight: 2
+      radius: 7, color: "#7C3AED", fillColor: "#EC4899", fillOpacity: 1, weight: 2
     }).addTo(HC.map);
 
     if (radiusKm > 0) {
       L.circle([lat, lon], {
         radius: radiusKm * 1000,
-        color: "#C9A227", fillColor: "#C9A227", fillOpacity: 0.06,
+        color: "#2563EB", fillColor: "#7C3AED", fillOpacity: 0.07,
         weight: 1.5, dashArray: "5 6"
       }).addTo(HC.map);
     }
@@ -157,6 +183,23 @@
     if (addr) addr.textContent = isPickup ? HC.text.addressPickup : HC.text.addressDelivery;
   };
 
+  // -------------------------------------------------------- call transport
+  HC.onTransportChange = function () {
+    var live = document.querySelector('input[name="transport"][value="live"]');
+    var isLive = !!(live && live.checked);
+    var panel = $("live-confirm-panel");
+    var confirmation = $("confirm-live");
+    if (panel) panel.hidden = !isLive;
+    if (confirmation) confirmation.required = isLive;
+
+    var chip = $("transport-chip");
+    var label = $("transport-label");
+    var note = $("transport-note");
+    if (chip) chip.classList.toggle("locked", isLive);
+    if (label && HC.text) label.textContent = isLive ? HC.text.liveMode : HC.text.dryMode;
+    if (note && HC.text) note.textContent = isLive ? HC.text.liveWarning : HC.text.dryExplain;
+  };
+
   // ---------------------------------------------------------- goal preview
   HC.previewGoal = function () {
     var form = $("cascade-form");
@@ -251,6 +294,12 @@
 
       case "canceled":
         setStatus(data.text);
+        if (HC.stream) { HC.stream.close(); HC.stream = null; }
+        break;
+
+      case "error":
+        setStatus(data.text);
+        logLine(data.text);
         if (HC.stream) { HC.stream.close(); HC.stream = null; }
         break;
 

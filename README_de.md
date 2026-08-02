@@ -113,6 +113,18 @@ cd hungrycall
 pip install -e .
 ```
 
+Für den Trockenlauf wird kein Zugang gelesen. Der Live-Adapter nimmt den Schlüssel
+zuerst aus `CALLE_API_KEY` oder `IAM_API_KEY`, ersatzweise aus einer externen
+`.env`-Datei (`CALLE_ENV_FILE` beziehungsweise `--env-file`). Auf diesem Rechner liegt
+sie hier:
+
+```text
+C:\_Local_DEV\CREDENTIALS\call-e\call-e.env
+```
+
+Nur dieser Pfad darf genannt werden. Der Wert gehört nie in Repo, Doku, Bericht,
+Kommandozeile oder Commit.
+
 ## Benutzung
 
 ```bash
@@ -140,7 +152,15 @@ hungrycall delivery --food "Burger" --address "Hauptstraße 12, 12345 Dorfstadt"
   --budget 35.0 --scenario budget_exceeded_cascade
 hungrycall delivery --food "Burger" --address "Hauptstraße 12, 12345 Dorfstadt" \
   --budget 35.0 --scenario vague_price_cascade
+
+# Authentifizierung read-only prüfen; keine Rufnummer, kein POST, kein Anruf
+hungrycall preflight
 ```
+
+Der Preflight sendet ausschließlich ein authentifiziertes
+`GET /v1/calls/probe-does-not-exist`; HTTP 404 ist der erwartete Erfolgsfall. Ein echter
+Lauf würde zusätzlich `--live --confirm-live` benötigen. Bei negativem Guthaben nicht
+ausführen.
 
 ### Weboberfläche
 
@@ -153,6 +173,13 @@ kein Build-Schritt, kein CDN. Zwei Zweige starten auf der Startseite und enden b
 derselben Kaskade, nur mit anderen Kriterien. Oberfläche vollständig auf Deutsch und
 Englisch; `tests/test_i18n.py` lässt den Build scheitern, wenn ein Schlüssel fehlt, eine
 Sprache eine Lücke hat oder ein `{platzhalter}` bei der Übersetzung verloren geht.
+
+Das Farbschema startet **hell**: weiße Flächen, Kobaltblau, Lila und Pink. Grasneongrün
+bleibt auf einzelne Live- und Erfolgsakzente beschränkt. Der Schalter im Kopf wechselt
+zu einem dunklen Zweitmodus und speichert ausschließlich diese Auswahl in
+`localStorage`. Ohne gespeicherte Wahl startet jede Seite hell. Die lebendige
+Routen-Optik unterscheidet HungryCall bewusst von der ruhigen Papier-Optik von
+ResearchCall.
 
 ---
 
@@ -194,7 +221,8 @@ widersprechen ihr:
 * **Nur auf ausdrückliche Handlung** wird gewählt.
 * **E.164-Prüfung** jeder Zielnummer vor dem Wählen.
 * **Rufnummern-Maskierung** in Konsole, JSON-Berichten und Zusammenfassungen.
-* **Keine Zugangsdaten im Code oder Log** — ausschließlich Umgebungsvariablen.
+* **Keine Zugangsdaten im Code oder Log** — Prozess-Umgebung oder eine externe
+  `.env`-Datei außerhalb des Repos; die Umgebung hat Vorrang.
 * **Keine versteckten wiederkehrenden Zeitpläne** — ein CLI-Lauf, kein Daemon, keine
   Endlosschleife.
 * **Idempotenzschlüssel** je Anruf (`hungrycall-<modus>-<id>-<hash>`) gegen Doppelanrufe.
@@ -208,9 +236,10 @@ widersprechen ihr:
 
 Die Oberfläche schreibt das dort hin, wo man arbeitet, statt es zu verstecken:
 
-* **Echte Anrufe sind gesperrt.** Es gibt kein CALL-E-Konto, das Guthaben steht bei
-  −0,05 USD. `LiveCallClient` wirft eine Ausnahme, statt so zu tun als ob. Es gibt
-  absichtlich keinen Schalter „live schalten", der nichts bewirkt.
+* **Echte Anrufe sind mehrfach gegattert und werden aktuell vom Dienst abgelehnt.**
+  Trockenlauf ist vorausgewählt. Im Web braucht Live zusätzlich ein Bestätigungshäkchen,
+  im CLI `--live` und `--confirm-live`. Die Warnung „Echte Anrufe — kostet Geld“ ist
+  sichtbar. Bei derzeit −0,05 USD lehnt CALL-E echte Anrufe ab.
 * **Die Live-Suche über OpenStreetMap ist ungeprüft.** Der Code existiert; der Trockenlauf
   betritt ihn nie.
 * **Kartenkacheln kommen von OpenStreetMap.** Die Anwendungslogik läuft ohne Netz; ohne
@@ -220,7 +249,8 @@ Die Oberfläche schreibt das dort hin, wo man arbeitet, statt es zu verstecken:
 
 ## Tests
 
-85 Tests, alle im Trockenlauf, ohne Konto und ohne Netz:
+99 Tests. Produktpfade laufen mit Fixtures beziehungsweise gemocktem Transport; kein
+Test führt einen echten Anruf aus:
 
 ```bash
 pytest -v
@@ -231,7 +261,8 @@ Mitternacht, die Schemata, Rufnummern-Maskierung, die Sicherheitsgatter, Ablehnu
 Budget und wegen geschätztem Preis, Zugeständnis-Vollmacht in beide Richtungen, beide
 Zweige Ende zu Ende über den Ereignisstrom, die vom Nutzer festgelegte Kandidatenreihenfolge,
 die Auftragsvorschau, der Abbruch, das Speichern mit dem tatsächlich gelaufenen Modus,
-HTML-Maskierung freier Texteingaben und die Vollständigkeit beider Sprachen.
+HTML-Maskierung freier Texteingaben, Hell-/Dunkelmodus, externes Laden der Zugangsdaten,
+read-only Preflight, REST-Payload und Polling sowie die Vollständigkeit beider Sprachen.
 
 ## Lizenz
 

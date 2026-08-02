@@ -27,6 +27,18 @@
     "de": "Sprache wählen",
     "en": "Choose language"
   },
+  "theme.light": {
+    "de": "Hell",
+    "en": "Light"
+  },
+  "theme.dark": {
+    "de": "Dunkel",
+    "en": "Dark"
+  },
+  "theme.switch.aria": {
+    "de": "Farbschema zwischen Hell und Dunkel umschalten",
+    "en": "Switch between light and dark color themes"
+  },
   "landing.claim": {
     "de": "Du sagst, was du brauchst — wir finden, wer es dir liefert oder wo du es abholen kannst. Zu deinen Konditionen und Prioritäten.",
     "en": "You say what you need — we find who will bring it to you, or where you can collect it. On your terms, in your order of priority."
@@ -119,13 +131,41 @@
     "de": "Es wird nicht telefoniert. Jede Antwort kommt aus einer lokalen Fixture — kein Konto, kein Netz, keine Kosten.",
     "en": "Nothing is dialled. Every answer comes from a local fixture — no account, no network, no cost."
   },
+  "safety.mode.live": {
+    "de": "Live-Modus",
+    "en": "Live mode"
+  },
   "safety.live.locked": {
-    "de": "Echter Anruf gesperrt",
-    "en": "Real calls locked"
+    "de": "Echter Anruf standardmäßig gesperrt",
+    "en": "Real calls locked by default"
+  },
+  "safety.live.gated": {
+    "de": "Live nur nach Auswahl und Bestätigung",
+    "en": "Live only after selection and confirmation"
+  },
+  "safety.live.warning": {
+    "de": "Echte Anrufe — kostet Geld",
+    "en": "Real calls — cost money"
+  },
+  "safety.live.balance": {
+    "de": "Guthaben aktuell −0,05 USD; der Dienst lehnt Anrufe derzeit ab",
+    "en": "Balance currently −0.05 USD; the service currently rejects calls"
+  },
+  "safety.live.confirm": {
+    "de": "Ich bestätige diese angezeigte Anrufkaskade und akzeptiere mögliche Kosten.",
+    "en": "I confirm this displayed call cascade and accept possible charges."
+  },
+  "safety.live.confirm.help": {
+    "de": "Der Schalter allein genügt nicht. Erst dieses Häkchen gibt den nächsten Schritt frei.",
+    "en": "The mode switch alone is not enough. This checkbox is required before the next step."
+  },
+  "safety.live.confirmed": {
+    "de": "Live wurde ausdrücklich gewählt und bestätigt. Der nächste Start kann die angezeigten Restaurants wirklich anrufen.",
+    "en": "Live was explicitly selected and confirmed. Starting now may really call the displayed restaurants."
   },
   "safety.live.why": {
-    "de": "Dieser Stand hat kein CALL-E-Konto, das Guthaben steht bei −0,05 USD. Der Live-Client verweigert den Dienst, statt so zu tun als ob.",
-    "en": "This build has no CALL-E account; the balance sits at −0.05 USD. The live client refuses to run rather than pretend."
+    "de": "Die Schlüsselanbindung ist vorhanden, aber Live bleibt aus, bis du den Modus wählst und die Kaskade ausdrücklich bestätigst. Bei −0,05 USD lehnt der Dienst echte Anrufe derzeit ab.",
+    "en": "Credential loading is wired, but live stays off until you select the mode and explicitly confirm the cascade. At −0.05 USD the service currently rejects real calls."
   },
   "safety.calls": {
     "de": "Anrufe",
@@ -142,6 +182,10 @@
   "safety.tiles": {
     "de": "Der Code läuft ohne Netz. Die Kartenkacheln kommen von OpenStreetMap — ohne Verbindung bleibt die Karte grau, alles andere funktioniert weiter.",
     "en": "The code runs without a network. The map tiles come from OpenStreetMap — with no connection the map stays grey, everything else keeps working."
+  },
+  "transport.title": {
+    "de": "Wie soll getestet werden?",
+    "en": "How should this be tested?"
   },
   "unverified.badge": {
     "de": "ungeprüft",
@@ -596,8 +640,16 @@
     "en": "Where"
   },
   "error.live.refused": {
-    "de": "Echte Anrufe sind in diesem Stand gesperrt. Es wurde nichts gewählt.",
-    "en": "Real calls are locked in this build. Nothing was dialled."
+    "de": "Live wurde nicht ausdrücklich bestätigt. Es wurde keine Nummer gewählt.",
+    "en": "Live was not explicitly confirmed. No number was dialled."
+  },
+  "error.live.settings": {
+    "de": "CALL-E-Zugang fehlt oder ist nicht lesbar. Es wurde keine Nummer gewählt.",
+    "en": "CALL-E access is missing or unreadable. No number was dialled."
+  },
+  "error.live.transport": {
+    "de": "CALL-E hat den Live-Versuch abgelehnt. Die Kaskade wurde gestoppt.",
+    "en": "CALL-E rejected the live attempt. The cascade was stopped."
   },
   "error.unsafe.content": {
     "de": "Dieser Wunsch berührt einen Bereich, in dem ein Sprachagent nicht in deinem Namen sprechen darf.",

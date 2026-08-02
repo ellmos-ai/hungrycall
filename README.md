@@ -108,7 +108,7 @@ HungryCall incorporates empirical findings measured against the live CALL-E serv
 
 5. **REST API vs. MCP Architecture**:
    - Schema-validated call results (`result_schema`) are supported **only via the REST API** (`POST /v1/calls`, Header `Authorization: Bearer $CALLE_API_KEY`). MCP (`plan_call`) does not support result schemas and operates in a separate ID space.
-   - API keys must be loaded strictly from environment variables (`CALLE_API_KEY` or `IAM_API_KEY`), never hardcoded in code, logs, or commits.
+   - API keys are loaded from `CALLE_API_KEY` / `IAM_API_KEY`, or from an external `.env` file. Environment variables win. Values are never hardcoded, logged, documented, or committed.
 
 6. **Serial Execution Safety**:
    - Concurrency limits remain unverified; HungryCall strictly uses serial cascade ordering (stopping immediately on first success) to avoid duplicate food orders or extra call costs.
@@ -135,7 +135,7 @@ HungryCall adheres strictly to the CALL-E repository safety guidelines:
 - **Explicit User Intent**: Calls are only initiated upon direct user action.
 - **E.164 Validation**: All target phone numbers are validated against standard E.164 format (`+491701234567`) prior to dialing.
 - **Phone Number Masking**: All phone numbers in console logs, JSON reports, and summaries are masked (e.g. `+49 ••• ••••123`).
-- **No Hardcoded Credentials**: API tokens or secrets are never committed to code or logs; environment variables are used exclusively.
+- **No Hardcoded Credentials**: API tokens or secrets are never committed to code or logs. HungryCall reads the process environment or a machine-local `.env` file outside the repository.
 - **No Hidden Recurring Background Schedules**: HungryCall operates as a single execution CLI. No background daemons or infinite loops exist.
 - **Idempotency Safeguards**: Every call generates a unique idempotency key (`hungrycall-<mode>-<restaurant_id>-<hash>`) to prevent duplicate accidental calls.
 - **Domain Guardrails**: Prompts containing medical, legal, financial, or emergency terms are automatically rejected prior to call planning.
@@ -153,6 +153,16 @@ In the official CALL-E repository, `apps/typescript/call-on-behalf` constrains a
 
 Zero build step, no bundler, no CDN. Two branches start from the landing page,
 and both end in the same cascade engine on different criteria.
+
+### Appearance: light first, dark on request
+
+The default theme is deliberately bright and energetic: white surfaces, cobalt
+blue routes, violet structure and pink refusal/action marks. Grass-neon green is
+reserved for a genuinely live connection or a successful candidate; it is never
+used as a large fill. The header's **Light / Dark** control switches to the retained
+dark scheme and stores only that preference in `localStorage`. With no saved choice,
+every page starts light. This electric route-map identity is intentionally distinct
+from ResearchCall's quiet paper-like surface.
 
 ### The two branches
 
@@ -218,9 +228,11 @@ either language has a gap, or if a `{placeholder}` is lost in translation.
 
 The interface states these where you are working, rather than hiding them:
 
-* **Real calls are locked.** There is no CALL-E account and the balance is
-  −0.05 USD. `LiveCallClient` raises rather than pretend. There is deliberately
-  no "go live" switch that does nothing.
+* **Real calls are gated and currently rejected upstream.** The REST transport is
+  functional, but dry-run remains selected by default. Web users must select Live
+  and tick a second confirmation; CLI users need both `--live` and `--confirm-live`.
+  The UI states **“Real calls — cost money”**. The current balance is −0.05 USD,
+  so CALL-E currently rejects a real call.
 * **The live OpenStreetMap search is unverified.** The code exists; the dry run
   never enters it.
 * **Map tiles come from OpenStreetMap.** The application logic runs with no
@@ -250,6 +262,20 @@ cd hungrycall
 # Install in editable mode
 pip install -e .
 ```
+
+### CALL-E credentials (optional; live mode only)
+
+Dry-run needs no account and reads no credential. For a live-capable setup, use
+`CALLE_API_KEY` (or `IAM_API_KEY`) and optionally `CALLE_BASE_URL`. HungryCall can
+also read an external file selected with `CALLE_ENV_FILE` / `--env-file`. On this
+operator machine the existing file is:
+
+```text
+C:\_Local_DEV\CREDENTIALS\call-e\call-e.env
+```
+
+Only this path may be named. Never copy the value into the repository, command
+history, documentation, screenshots, reports, or commits.
 
 ---
 
@@ -295,11 +321,26 @@ hungrycall delivery --food "Burger" --address "Hauptstraße 12, 12345 Dorfstadt"
 hungrycall delivery --food "Burger" --address "Hauptstraße 12, 12345 Dorfstadt" --budget 35.0 --scenario vague_price_cascade
 ```
 
+### 6. Read-only credential preflight (no phone call)
+
+```bash
+hungrycall preflight
+```
+
+This sends one authenticated `GET /v1/calls/probe-does-not-exist`. It has no phone
+number input and never sends `POST /v1/calls`; an authenticated `404` is the expected
+success result. A real cascade additionally requires both live gates:
+
+```bash
+# WARNING: real calls cost money. Do not run while the balance is negative.
+hungrycall delivery ... --live --confirm-live
+```
+
 ---
 
 ## Running Tests
 
-85 tests, all in the dry run, no account and no network required:
+99 tests. The product tests use fixtures and mocked transports; no test places a real call:
 
 ```bash
 pytest -v
@@ -310,7 +351,9 @@ midnight, the schemas, phone masking, the safety gates, budget and vague-price
 rejection, concession authority in both directions, both branches end to end
 over the event stream, the candidate order the user arranged, the goal preview,
 cancellation, saving with the mode that actually happened, HTML escaping of
-free-text input, and the completeness of both languages.
+free-text input, the light/dark theme, external credential loading, read-only
+preflight semantics, live REST payload/polling behavior, and the completeness of
+both languages.
 
 ---
 

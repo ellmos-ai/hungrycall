@@ -11,6 +11,7 @@ restaurants.
 """
 
 import asyncio
+import html
 import json
 import logging
 import os
@@ -22,7 +23,7 @@ from fastapi import FastAPI, Form, Query, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from hungrycall.call_client import DryRunCallClient
+from hungrycall.call_client import CalleAPIError, DryRunCallClient, LiveCallClient
 from hungrycall.db import (
     create_order_record, init_db, list_saved_results, save_cascade_result
 )
@@ -225,6 +226,13 @@ async def api_search(request: Request):
     fields["concessions"] = form.getlist("concessions")
     user_request = build_user_request(fields)
 
+    transport = fields.get("transport") or "dry_run"
+    if transport == "live" and fields.get("confirm_live") != "yes":
+        return HTMLResponse(
+            f'<div class="notice warn" style="margin-top:1rem;">{t("error.live.refused", lang)}</div>',
+            status_code=400,
+        )
+
     ranked = [r for r, _ in filter_and_rank_restaurants(pool, user_request)]
     ranked_ids = {r.id for r in ranked}
     skipped = [
@@ -251,6 +259,8 @@ async def api_search(request: Request):
         "party_size": user_request.party_size,
         "seating": user_request.seating.value,
         "concessions": [c.key for c in user_request.concessions],
+        "transport": transport,
+        "confirm_live": "yes" if fields.get("confirm_live") == "yes" else None,
     }
 
     return HTMLResponse(render_candidate_step(
@@ -322,6 +332,24 @@ async def start_cascade(request: Request):
         )
 
     scenario = fields.get("scenario") or DEFAULT_SCENARIOS[user_request.mode]
+    live_mode = fields.get("transport") == "live"
+    if live_mode and fields.get("confirm_live") != "yes":
+        return HTMLResponse(
+            f'<div class="notice warn" style="margin-top:1rem;">{t("error.live.refused", lang)}</div>',
+            status_code=400,
+        )
+
+    if live_mode:
+        try:
+            call_client = LiveCallClient.from_environment(confirmed=True)
+        except SafetyError as exc:
+            return HTMLResponse(
+                '<div class="notice warn" style="margin-top:1rem;">'
+                f'<strong>{t("error.live.settings", lang)}</strong><br>{html.escape(str(exc))}</div>',
+                status_code=400,
+            )
+    else:
+        call_client = DryRunCallClient(scenario_name=scenario)
     order_id = f"ord_{uuid.uuid4().hex[:8]}"
 
     create_order_record(
@@ -336,7 +364,7 @@ async def start_cascade(request: Request):
         party_size=user_request.party_size,
         pickup_time=user_request.pickup_time,
         location_info=city,
-        dry_run=True,
+        dry_run=not live_mode,
     )
 
     ACTIVE_ORDERS[order_id] = {
@@ -344,6 +372,8 @@ async def start_cascade(request: Request):
         "candidates": call_order,
         "scenario": scenario,
         "branch": branch,
+        "call_client": call_client,
+        "live_mode": live_mode,
     }
 
     return HTMLResponse(render_cascade_monitor(
@@ -353,6 +383,7 @@ async def start_cascade(request: Request):
         max_budget_eur=user_request.max_budget_eur,
         criteria_line=criteria_line(user_request, lang),
         concession_keys=[c.key for c in user_request.concessions],
+        live_mode=live_mode,
     ))
 
 
@@ -378,7 +409,8 @@ async def cascade_stream(request: Request, order_id: str = Query(...)):
 
     user_request: UserRequest = order["request"]
     candidates: List[Restaurant] = order["candidates"]
-    client = DryRunCallClient(scenario_name=order["scenario"])
+    client = order["call_client"]
+    live_mode = bool(order.get("live_mode"))
     engine = CascadeEngine(candidate_pool=candidates, call_client=client, preserve_order=True)
 
     async def event_generator():
@@ -397,19 +429,33 @@ async def cascade_stream(request: Request, order_id: str = Query(...)):
                 "id": restaurant.id,
                 "text": t("cascade.dialing", lang, name=restaurant.name),
             })
-            await asyncio.sleep(DRY_RUN_DIAL_SECONDS)
+            if not live_mode:
+                await asyncio.sleep(DRY_RUN_DIAL_SECONDS)
 
             if order_id in CANCELED_ORDERS:
                 yield sse({"type": "canceled", "text": t("cascade.canceled", lang)})
                 return
 
-            call_result = client.execute_candidate_call(
-                restaurant=restaurant,
-                user_request=user_request,
-                idempotency_key=generate_idempotency_key(
-                    user_request.mode.value, restaurant.id, time.time()
-                ),
-            )
+            try:
+                call_args = {
+                    "restaurant": restaurant,
+                    "user_request": user_request,
+                    "idempotency_key": generate_idempotency_key(
+                        user_request.mode.value, restaurant.id, time.time()
+                    ),
+                }
+                if live_mode:
+                    call_result = await asyncio.to_thread(
+                        client.execute_candidate_call, **call_args
+                    )
+                else:
+                    call_result = client.execute_candidate_call(**call_args)
+            except (CalleAPIError, RuntimeError, TimeoutError, SafetyError) as exc:
+                yield sse({
+                    "type": "error",
+                    "text": f'{t("error.live.transport", lang)} {exc}',
+                })
+                return
             calls_made += 1
 
             yield sse({
@@ -423,7 +469,8 @@ async def cascade_stream(request: Request, order_id: str = Query(...)):
                     yield sse({"type": "canceled", "text": t("cascade.canceled", lang)})
                     return
                 yield sse({"type": "activity", "id": restaurant.id, "line": line})
-                await asyncio.sleep(DRY_RUN_TURN_SECONDS)
+                if not live_mode:
+                    await asyncio.sleep(DRY_RUN_TURN_SECONDS)
 
             passed, rejection_reason = engine.evaluate_result(user_request, call_result)
 

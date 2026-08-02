@@ -4,6 +4,7 @@ import re
 
 # E.164 pattern: Starts with '+', followed by country code and subscriber number (7 to 15 digits total)
 E164_REGEX = re.compile(r"^\+[1-9]\d{6,14}$")
+E164_IN_TEXT_REGEX = re.compile(r"\+[1-9](?:[ -]?\d){6,14}")
 
 
 def validate_e164(phone: str) -> bool:
@@ -45,3 +46,15 @@ def mask_phone(phone: str) -> str:
     masked_middle = " ••• ••••"
     
     return f"{prefix}{masked_middle}{suffix}"
+
+
+def mask_phones_in_text(text: str) -> str:
+    """Mask compact or spaced E.164 numbers in API text and transcripts."""
+    if not text:
+        return text
+
+    def replace(match: re.Match) -> str:
+        normalized = re.sub(r"[ -]", "", match.group(0))
+        return mask_phone(normalized) if validate_e164(normalized) else match.group(0)
+
+    return E164_IN_TEXT_REGEX.sub(replace, text)

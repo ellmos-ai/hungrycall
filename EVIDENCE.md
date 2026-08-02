@@ -615,3 +615,108 @@ Each of these looked functional in the running app and was not:
 * **Screen reader testing.** Focus order, ARIA labels and reduced-motion
   handling are implemented and were verified only by reading the markup and by
   keyboard, not with an actual assistive tool.
+
+---
+
+## 10. Light-first theme and gated CALL-E REST transport (Codex, 2026-08-02)
+
+This pass supersedes one sentence in 9.4: machine-local CALL-E access material
+now exists. The value was not copied, printed, documented or committed. The
+negative balance remains −0.05 USD, so no real call was attempted.
+
+### 10.1 What was implemented
+
+* Light is the CSS default: white surfaces with blue, violet and pink structure.
+  Grass-neon green is limited to live/success dots and borders.
+* Dark remains available from the header. The choice is stored as `hc-theme` in
+  browser `localStorage`; no saved value means light.
+* The web interface now has a real transport choice. Live requires selecting
+  Live, checking the separate confirmation and pressing the cascade start
+  action after seeing the candidate order. The CLI still requires both `--live`
+  and `--confirm-live`.
+* `CALLE_API_KEY` / `IAM_API_KEY` are read from the process environment first,
+  then an external `.env`. On this machine that file is
+  `C:\_Local_DEV\CREDENTIALS\call-e\call-e.env`. No secret value is present in
+  this repository.
+* The live REST adapter sends `recipient_result_schema`, validates E.164 before
+  transport, uses `Idempotency-Key`, polls serially, preserves terminal status
+  distinctions, reads `result.transcript`, and masks phone numbers in returned
+  activity/transcript text.
+
+### 10.2 Read-only service preflight — executed, no call
+
+Command:
+
+```powershell
+python -X utf8 -m hungrycall.cli preflight
+```
+
+Literal output:
+
+```text
+CALL-E PREFLIGHT — read-only; no call will be placed
+Credentials: C:\_Local_DEV\CREDENTIALS\call-e\call-e.env
+Endpoint: https://api.heycall-e.com
+HTTP: 404
+Result: Service reachable; credential accepted; probe resource absent as expected.
+Confirmed: no POST /v1/calls was sent.
+```
+
+The preflight implementation has no phone argument and fixes the HTTP method to
+`GET /v1/calls/probe-does-not-exist`. It cannot create a call.
+
+### 10.3 Tests — executed
+
+The sandbox denied pytest's default `tmp_path` root with `WinError 5`. The final
+run therefore set Python's `tempfile.tempdir` to a fresh directory under the
+system temp folder before calling `pytest.main(['-q', '-p',
+'no:cacheprovider'])`. No product test was skipped.
+
+Literal output:
+
+```text
+........................................................................ [ 72%]
+...........................                                              [100%]
+99 passed, 1 warning in 14.17s
+```
+
+The warning was Starlette's existing `TestClient` / `httpx` deprecation warning.
+
+### 10.4 Browser check — executed
+
+Microsoft Edge via Playwright loaded the local server at 1440×1000. Measured
+light-theme values were:
+
+```text
+theme: light
+body: rgb(247, 249, 255)
+tile surface: rgb(255, 255, 255)
+text: rgb(24, 32, 59)
+theme button action: Dunkel
+console errors: 0
+```
+
+The light landing page was visually captured. A later controller pass on the
+map page timed out while waiting on external tile requests; no visual pass for
+that second page is claimed.
+
+### 10.5 Not executed
+
+* No `POST /v1/calls` against the real service.
+* No real phone call.
+* No successful or rejected paid call claim; only the read-only authenticated
+  404 preflight above.
+* No push, pull request, publication or upload.
+
+### 10.6 Local commit attempt — blocked by repository permissions
+
+The selected file list explicitly excluded the concurrently changed
+`AUFGABEN.txt`. Secret-value scanning and `git diff --check` passed before the
+attempt. The first write operation failed before staging:
+
+```text
+fatal: Unable to create 'C:/_Local_DEV/repos/hungrycall/.git/index.lock': Permission denied
+```
+
+Result: no files staged, no local commit created, no retry made without restored
+Git write access, and no push attempted.

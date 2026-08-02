@@ -132,3 +132,10 @@ N2 Live-Restaurantsuche über Overpass/Nominatim. Der Code dafür steht in
 
 N3 Parallele Anrufe. Die Kaskade läuft streng nacheinander. Ob CALL-E
    Parallelität erlaubt, ist nicht verifiziert (siehe AGENTS.md).
+
+## Aus dem Video-Feedback [U 2026-08-02]
+- [ ] **"Guten Appetit"-Abschlussbildschirm** in der App bauen — der Nutzer will ihn
+      sowohl im Video als auch in der Anwendung selbst.
+- [ ] **Countdown** bis zur Lieferung anzeigen (Ergebnis nennt Minuten, Restaurant und
+      bereitzuhaltenden Betrag: "Lieferung in 40 Minuten, Restaurant AA, halte 40 Euro
+      bereit").

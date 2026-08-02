@@ -1,14 +1,14 @@
 """HTML for the HungryCall web interface.
 
-Design note — why this does not look like a dashboard
------------------------------------------------------
-The subject is a telephone exchange, not analytics. What the user is really
-watching is an operator working down a list of jacks: plug in, ask, unplug,
-next. So the surface borrows from that world — bakelite dark, brass hardware,
-patch-cord green for a live line, oxidised red for a dead one — and the type
-system carries one rule: *the machine speaks in monospace, the human reads in
-sans*. Transcripts, activity lines, phone numbers, prices and the goal text are
-machine speech. Everything else is not.
+Design note — the electric picnic map
+--------------------------------------
+HungryCall is a lively route through nearby food, not an analytics dashboard.
+The light default feels like a white takeaway counter covered by a cobalt route,
+violet waypoints and pink refusal marks. Grass-neon green appears only when a
+line is genuinely live or a candidate succeeds. The dark switchboard remains
+available as a deliberate second mode. The type system keeps one rule: *the
+machine speaks in monospace, the human reads in sans*. Transcripts, activity
+lines, phone numbers, prices and the goal text are machine speech.
 
 No web fonts, no CDN. The page claimed offline capability while pulling a font
 from Google; either the claim or the link had to go, and the claim is worth
@@ -38,10 +38,11 @@ BRAND_MARK = (
     '<svg class="brand-mark" xmlns="http://www.w3.org/2000/svg" '
     'viewBox="0 0 100 100" aria-hidden="true" focusable="false">'
     '<defs><linearGradient id="hc-mark" x1="0.1" y1="1" x2="0.9" y2="0.1">'
-    '<stop offset="0" stop-color="#EA580C"/>'
-    '<stop offset="1" stop-color="#F97316"/></linearGradient></defs>'
+    '<stop offset="0" stop-color="#2563EB"/>'
+    '<stop offset="0.52" stop-color="#7C3AED"/>'
+    '<stop offset="1" stop-color="#EC4899"/></linearGradient></defs>'
     '<path d="M50 50 L91.9 40.33 A43 43 0 1 1 62.57 8.88 Z" fill="url(#hc-mark)"/>'
-    '<path d="M55.85 44.54 L68.42 3.42 A43 43 0 0 1 97.75 34.87 Z" fill="#FBBF24"/>'
+    '<path d="M55.85 44.54 L68.42 3.42 A43 43 0 0 1 97.75 34.87 Z" fill="#A78BFA"/>'
     "</svg>"
 )
 
@@ -51,14 +52,15 @@ BRAND_MARK = (
 FAVICON = (
     "data:image/svg+xml,"
     "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E"
-    "%3Crect width='512' height='512' rx='106' fill='%2314110E'/%3E"
+    "%3Crect width='512' height='512' rx='106' fill='%23FFFFFF'/%3E"
     "%3Cdefs%3E%3ClinearGradient id='f' x1='0.1' y1='1' x2='0.9' y2='0.1'%3E"
-    "%3Cstop offset='0' stop-color='%23EA580C'/%3E"
-    "%3Cstop offset='1' stop-color='%23F97316'/%3E"
+    "%3Cstop offset='0' stop-color='%232563EB'/%3E"
+    "%3Cstop offset='0.52' stop-color='%237C3AED'/%3E"
+    "%3Cstop offset='1' stop-color='%23EC4899'/%3E"
     "%3C/linearGradient%3E%3C/defs%3E"
     "%3Cg transform='translate(97.28 97.28) scale(3.17)'%3E"
     "%3Cpath d='M50 50 L91.9 40.33 A43 43 0 1 1 62.57 8.88 Z' fill='url(%23f)'/%3E"
-    "%3Cpath d='M55.85 44.54 L68.42 3.42 A43 43 0 0 1 97.75 34.87 Z' fill='%23FBBF24'/%3E"
+    "%3Cpath d='M55.85 44.54 L68.42 3.42 A43 43 0 0 1 97.75 34.87 Z' fill='%23A78BFA'/%3E"
     "%3C/g%3E%3C/svg%3E"
 )
 
@@ -69,23 +71,72 @@ FAVICON = (
 
 STYLESHEET = """
 :root {
-  --ink:      #14110E;
-  --panel:    #1F1A15;
-  --panel-2:  #2A231C;
-  --line:     #3B322A;
-  --paper:    #EDE6D8;
-  --dim:      #9C9083;
-  --brass:    #C9A227;
-  --brass-lo: #8C6F1B;
-  --patch:    #3E9E86;
-  --busy:     #C05436;
+  color-scheme: light;
+  --ink:          #F7F9FF;
+  --panel:        #FFFFFF;
+  --panel-2:      #EEF2FF;
+  --line:         #C7D2FE;
+  --paper:        #18203B;
+  --dim:          #667085;
+  --brass:        #2563EB;
+  --brass-lo:     #7C3AED;
+  --violet:       #7C3AED;
+  --pink:         #EC4899;
+  --patch:        #82F21B;
+  --patch-ink:    #347A00;
+  --busy:         #EC4899;
+  --busy-ink:     #B42367;
+  --body-rules:   rgba(37,99,235,0.055);
+  --header-bg:    rgba(255,255,255,0.92);
+  --chip-bg:      rgba(238,242,255,0.82);
+  --field-bg:     #FFFFFF;
+  --accent-wash:  rgba(37,99,235,0.075);
+  --success-wash: rgba(130,242,27,0.12);
+  --facts-bg:     #F5F3FF;
+  --log-bg:       #F4F5FF;
+  --log-rule:     rgba(124,58,237,0.18);
+  --warning-text: #A51D5D;
+  --popup-bg:     #FFFFFF;
+  --popup-attr:   rgba(255,255,255,0.9);
+  --shadow:       0 12px 34px rgba(63,71,140,0.11);
 
-  --font-display: "Arial Narrow", "Helvetica Neue", "Liberation Sans Narrow", system-ui, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Trebuchet MS", "Arial Narrow", system-ui, sans-serif;
   --font-body: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-mono: "Cascadia Mono", Consolas, "SF Mono", "DejaVu Sans Mono", ui-monospace, monospace;
 
   --gap: 1.25rem;
   --radius: 4px;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --ink:          #111327;
+  --panel:        #191B35;
+  --panel-2:      #25284D;
+  --line:         #3E4474;
+  --paper:        #F8FAFF;
+  --dim:          #A7AED0;
+  --brass:        #6EA8FF;
+  --brass-lo:     #A78BFA;
+  --violet:       #A78BFA;
+  --pink:         #FF5CA8;
+  --patch:        #8CFF32;
+  --patch-ink:    #B7FF82;
+  --busy:         #FF5CA8;
+  --busy-ink:     #FF91C2;
+  --body-rules:   rgba(110,168,255,0.045);
+  --header-bg:    rgba(25,27,53,0.94);
+  --chip-bg:      rgba(10,12,31,0.42);
+  --field-bg:     #111327;
+  --accent-wash:  rgba(110,168,255,0.10);
+  --success-wash: rgba(140,255,50,0.08);
+  --facts-bg:     rgba(7,9,25,0.38);
+  --log-bg:       #0C0E20;
+  --log-rule:     rgba(167,139,250,0.20);
+  --warning-text: #FF9AC8;
+  --popup-bg:     #191B35;
+  --popup-attr:   rgba(17,19,39,0.88);
+  --shadow:       0 14px 38px rgba(0,0,0,0.26);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -104,9 +155,11 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  /* Faint horizontal ruling, like a switchboard label strip. */
-  background-image: repeating-linear-gradient(
-    180deg, transparent 0 39px, rgba(201,162,39,0.035) 39px 40px);
+  background-image:
+    radial-gradient(circle at 8% 5%, rgba(37,99,235,0.09), transparent 24rem),
+    radial-gradient(circle at 92% 18%, rgba(236,72,153,0.07), transparent 22rem),
+    repeating-linear-gradient(180deg, transparent 0 39px, var(--body-rules) 39px 40px);
+  background-attachment: fixed;
 }
 
 h1, h2, h3, .eyebrow, .btn, th {
@@ -133,7 +186,8 @@ a { color: var(--brass); }
 /* ---------- header ---------- */
 header {
   border-bottom: 1px solid var(--line);
-  background: linear-gradient(180deg, var(--panel) 0%, rgba(31,26,21,0.86) 100%);
+  background: var(--header-bg);
+  backdrop-filter: blur(14px);
   position: sticky; top: 0; z-index: 50;
 }
 .header-inner {
@@ -150,11 +204,14 @@ header {
   display: inline-flex; align-items: center; gap: 0.45rem;
   border: 1px solid var(--line); border-radius: 999px;
   padding: 0.25rem 0.75rem; font-size: 0.78rem; color: var(--dim);
-  background: rgba(0,0,0,0.25);
+  background: var(--chip-bg);
 }
 .chip strong { color: var(--paper); font-family: var(--font-mono); }
-.chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--patch); flex: none; }
+.chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--patch); box-shadow: 0 0 0 3px var(--success-wash); flex: none; }
 .chip.locked .dot { background: var(--busy); }
+.theme-toggle { cursor: pointer; color: var(--paper); font-family: var(--font-mono); }
+.theme-toggle:hover { border-color: var(--violet); color: var(--violet); }
+.theme-toggle .theme-icon { color: var(--pink); font-size: 0.9rem; }
 
 .langbar { display: flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
 .langbar a {
@@ -174,6 +231,7 @@ main { flex: 1; width: 100%; max-width: 1180px; margin: 0 auto; padding: 2rem 1.
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 1.35rem;
+  box-shadow: var(--shadow);
 }
 .panel > * + * { margin-top: 0.9rem; }
 .panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--line); padding-bottom: 0.6rem; }
@@ -190,6 +248,9 @@ main { flex: 1; width: 100%; max-width: 1180px; margin: 0 auto; padding: 2rem 1.
   border-left: 3px solid var(--brass);
   padding-left: 1rem;
   color: var(--paper);
+  background: linear-gradient(90deg, var(--accent-wash), transparent);
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
 }
 .hero .muted { margin-top: 0.9rem; }
 
@@ -201,17 +262,20 @@ main { flex: 1; width: 100%; max-width: 1180px; margin: 0 auto; padding: 2rem 1.
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
   padding: 1.6rem 1.5rem 1.5rem; position: relative; overflow: hidden;
   transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+  box-shadow: var(--shadow);
 }
+.tile::before { content: ""; position: absolute; inset: 0 0 auto; height: 4px; background: linear-gradient(90deg, var(--brass), var(--violet), var(--pink)); }
 .tile:hover, .tile:focus-visible { border-color: var(--brass); background: var(--panel-2); transform: translateY(-2px); }
 .tile:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .tile-jack {
   display: block;  /* an inline span ignores width and height and renders as a dot */
   width: 40px; height: 40px; border-radius: 50%; margin-bottom: 1rem;
-  background: radial-gradient(circle at 32% 30%, #F0D98A 0%, var(--brass) 45%, var(--brass-lo) 100%);
-  box-shadow: inset 0 0 0 5px var(--panel), 0 0 0 1px var(--brass-lo);
+  background: radial-gradient(circle at 32% 30%, #FFFFFF 0%, var(--brass) 40%, var(--violet) 100%);
+  box-shadow: inset 0 0 0 5px var(--panel), 0 0 0 1px var(--violet);
   transition: box-shadow 0.18s ease;
 }
-.tile:hover .tile-jack, .tile:focus-visible .tile-jack { box-shadow: inset 0 0 0 5px var(--panel), 0 0 0 1px var(--brass-lo), 0 0 18px rgba(201,162,39,0.5); }
+.tile:nth-child(2) .tile-jack { background: radial-gradient(circle at 32% 30%, #FFFFFF 0%, var(--pink) 40%, var(--violet) 100%); }
+.tile:hover .tile-jack, .tile:focus-visible .tile-jack { box-shadow: inset 0 0 0 5px var(--panel), 0 0 0 1px var(--violet), 0 0 20px rgba(124,58,237,0.32); }
 .tile h2 { font-size: 1.75rem; letter-spacing: 0.04em; }
 .tile .tile-sub { color: var(--brass); font-size: 0.85rem; margin-top: 0.2rem; }
 
@@ -228,11 +292,11 @@ main { flex: 1; width: 100%; max-width: 1180px; margin: 0 auto; padding: 2rem 1.
 .tile-more { margin-top: 1.1rem; font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.14em; font-size: 0.72rem; color: var(--brass); }
 
 /* ---------- the cascade animation (the one signature element) ---------- */
-.exchange { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.5rem; }
+.exchange { background: linear-gradient(135deg, var(--panel), var(--panel-2)); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.5rem; box-shadow: var(--shadow); }
 .exchange svg { width: 100%; height: auto; display: block; }
 
 .cord-line { stroke: var(--brass); stroke-width: 2.5; }
-.plug-head { fill: var(--brass); }
+.plug-head { fill: var(--pink); }
 .station-ring { fill: none; stroke: var(--line); stroke-width: 2; }
 .station-core { fill: var(--panel-2); stroke: var(--line); stroke-width: 1; }
 .station-label { font-family: var(--font-mono); font-size: 11px; fill: var(--dim); }
@@ -306,7 +370,7 @@ main { flex: 1; width: 100%; max-width: 1180px; margin: 0 auto; padding: 2rem 1.
 .field.wide { grid-column: 1 / -1; }
 label { font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); font-family: var(--font-display); }
 input, select, textarea {
-  background: var(--ink); color: var(--paper);
+  background: var(--field-bg); color: var(--paper);
   border: 1px solid var(--line); border-radius: var(--radius);
   padding: 0.6rem 0.7rem; font-size: 0.95rem; font-family: var(--font-body);
 }
@@ -319,7 +383,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brass); out
   border-radius: var(--radius); padding: 0.7rem 1.15rem; cursor: pointer;
   font-size: 0.82rem; display: inline-flex; align-items: center; gap: 0.5rem;
 }
-.btn:hover { background: #DDB733; }
+.btn:hover { background: var(--violet); border-color: var(--violet); color: #FFFFFF; }
 .btn:focus-visible { outline: 2px solid var(--paper); outline-offset: 2px; }
 .btn.ghost { background: transparent; color: var(--paper); border-color: var(--line); }
 .btn.ghost:hover { border-color: var(--brass); color: var(--brass); }
@@ -348,24 +412,35 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brass); out
 .check input { margin-top: 0.25rem; accent-color: var(--brass); }
 .tier { font-family: var(--font-mono); font-size: 0.75rem; color: var(--brass); border: 1px solid var(--brass-lo); border-radius: 3px; padding: 0 0.3rem; }
 
+.transport-switch { margin-top: 0.65rem; }
+.transport-switch label { position: relative; overflow: hidden; }
+.transport-switch label::after { content: ""; position: absolute; inset: auto 0 0; height: 3px; background: var(--brass); opacity: 0; }
+.transport-switch input:checked + label::after { opacity: 1; }
+.transport-switch input[value="live"]:checked + label { border-color: var(--pink); background: rgba(236,72,153,0.07); }
+.transport-switch input[value="live"]:checked + label .t { color: var(--busy-ink); }
+.transport-switch input[value="live"]:checked + label::after { background: linear-gradient(90deg, var(--pink), var(--violet)); }
+.live-confirm { border: 1px solid var(--pink); border-left: 4px solid var(--pink); background: rgba(236,72,153,0.07); border-radius: var(--radius); padding: 0.85rem 1rem; }
+.live-confirm strong { color: var(--busy-ink); }
+.live-confirm .check { margin-top: 0.6rem; }
+
 /* ---------- candidates ---------- */
 .candidates { display: flex; flex-direction: column; gap: 0.6rem; }
 .cand {
   display: flex; gap: 0.8rem; align-items: flex-start;
   border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 0.75rem 0.85rem; background: var(--ink);
+  padding: 0.75rem 0.85rem; background: var(--panel);
   transition: border-color 0.2s, opacity 0.2s;
 }
 .cand.off { opacity: 0.4; }
 .cand.rejected { border-color: var(--busy); }
 .cand.rejected .cand-name { text-decoration: line-through; }
-.cand.accepted { border-color: var(--patch); background: rgba(62,158,134,0.08); }
+.cand.accepted { border-color: var(--patch); background: var(--success-wash); }
 .cand-rank { font-family: var(--font-mono); color: var(--brass); width: 1.6rem; text-align: right; flex: none; padding-top: 0.1rem; }
 .cand-body { flex: 1; min-width: 0; }
 .cand-name { font-weight: 600; }
 .cand-meta { font-size: 0.8rem; color: var(--dim); }
 .cand-meta .num { color: var(--paper); }
-.cand-reason { font-size: 0.82rem; color: var(--busy); margin-top: 0.3rem; font-family: var(--font-mono); }
+.cand-reason { font-size: 0.82rem; color: var(--busy-ink); margin-top: 0.3rem; font-family: var(--font-mono); }
 .cand-tools { display: flex; flex-direction: column; gap: 0.2rem; flex: none; }
 .mini {
   background: var(--panel-2); color: var(--paper); border: 1px solid var(--line);
@@ -374,16 +449,16 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brass); out
 .mini:hover { border-color: var(--brass); color: var(--brass); }
 .state { flex: none; width: 2rem; text-align: center; font-size: 1.15rem; padding-top: 0.05rem; }
 .state.dialing { color: var(--brass); animation: pulse 1.1s infinite; }
-.state.live { color: var(--patch); }
-.state.no { color: var(--busy); }
-.state.yes { color: var(--patch); }
+.state.live { color: var(--patch-ink); text-shadow: 0 0 10px var(--patch); }
+.state.no { color: var(--busy-ink); }
+.state.yes { color: var(--patch-ink); text-shadow: 0 0 10px var(--patch); }
 @keyframes pulse { 0%,100% { opacity: 0.35; } 50% { opacity: 1; } }
 
 /* ---------- bands, monitor, result ---------- */
 .band {
   display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
   border: 1px solid var(--brass-lo); border-left: 3px solid var(--brass);
-  background: rgba(201,162,39,0.07); border-radius: var(--radius); padding: 0.55rem 0.85rem;
+  background: var(--accent-wash); border-radius: var(--radius); padding: 0.55rem 0.85rem;
   font-size: 0.85rem;
 }
 .band .k { color: var(--brass); font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.72rem; }
@@ -391,28 +466,28 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brass); out
 
 .status { font-family: var(--font-mono); font-size: 0.9rem; color: var(--dim); }
 .log {
-  background: #0C0A08; border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--log-bg); border: 1px solid var(--line); border-radius: var(--radius);
   padding: 0.6rem 0.75rem; max-height: 190px; overflow-y: auto;
   font-family: var(--font-mono); font-size: 0.76rem; color: var(--dim);
 }
-.log div { padding: 0.12rem 0; border-bottom: 1px dotted rgba(59,50,42,0.6); word-break: break-word; }
+.log div { padding: 0.12rem 0; border-bottom: 1px dotted var(--log-rule); word-break: break-word; }
 .log div:last-child { border-bottom: none; color: var(--paper); }
 
-.result { border: 1px solid var(--patch); border-left: 3px solid var(--patch); border-radius: var(--radius); background: rgba(62,158,134,0.07); padding: 1.35rem; }
+.result { border: 1px solid var(--patch); border-left: 4px solid var(--patch); border-radius: var(--radius); background: var(--success-wash); padding: 1.35rem; }
 .result > * + * { margin-top: 1rem; }
-.result h2 { color: var(--patch); }
+.result h2 { color: var(--patch-ink); }
 .result-sentence { font-size: 1.15rem; }
-.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.9rem; background: rgba(0,0,0,0.3); padding: 0.9rem; border-radius: var(--radius); }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.9rem; background: var(--facts-bg); padding: 0.9rem; border-radius: var(--radius); }
 .fact .k { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dim); font-family: var(--font-display); }
 .fact .v { font-family: var(--font-mono); font-size: 1.1rem; }
 .callback { border: 1px solid var(--patch); border-radius: var(--radius); padding: 0.8rem 1rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
-.callback .num { font-size: 1.25rem; color: var(--patch); letter-spacing: 0.06em; }
+.callback .num { font-size: 1.25rem; color: var(--patch-ink); letter-spacing: 0.06em; }
 details { border: 1px solid var(--line); border-radius: var(--radius); padding: 0.7rem 0.85rem; }
 summary { cursor: pointer; font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.8rem; color: var(--brass); }
 pre { white-space: pre-wrap; word-break: break-word; font-size: 0.78rem; color: var(--dim); margin-top: 0.7rem; }
 
 .notice { border: 1px solid var(--line); border-left: 3px solid var(--dim); border-radius: var(--radius); padding: 0.7rem 0.9rem; font-size: 0.85rem; color: var(--dim); }
-.notice.warn { border-left-color: var(--busy); color: #E2A18F; }
+.notice.warn { border-left-color: var(--busy); color: var(--warning-text); }
 .tag { font-family: var(--font-mono); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; border: 1px solid var(--line); border-radius: 3px; padding: 0.05rem 0.35rem; color: var(--dim); }
 
 .loading { display: flex; flex-direction: column; align-items: center; gap: 1rem; padding: 2.5rem 1rem; text-align: center; }
@@ -431,9 +506,9 @@ pre { white-space: pre-wrap; word-break: break-word; font-size: 0.78rem; color: 
   font-family: var(--font-mono); font-size: 0.8rem; font-weight: 700;
   border: 2px solid var(--ink); box-shadow: 0 2px 6px rgba(0,0,0,0.5);
 }
-.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--panel); color: var(--paper); }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--popup-bg); color: var(--paper); }
 .leaflet-popup-content { font-family: var(--font-body); font-size: 0.85rem; }
-.leaflet-control-attribution { background: rgba(20,17,14,0.8) !important; color: var(--dim) !important; }
+.leaflet-control-attribution { background: var(--popup-attr) !important; color: var(--dim) !important; }
 .leaflet-control-attribution a { color: var(--brass) !important; }
 
 table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
@@ -482,7 +557,13 @@ def render_page(
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{esc(page_title)} — {esc(t("app.name", lang))}</title>
 <link rel="icon" href="{FAVICON}">
+<script>
+try {{
+  if (localStorage.getItem("hc-theme") === "dark") document.documentElement.dataset.theme = "dark";
+}} catch (error) {{ /* storage can be unavailable; light remains the safe default */ }}
+</script>
 <script src="/static/htmx.min.js" defer></script>
+<script src="/static/app.js" defer></script>
 {leaflet}
 <style>{STYLESHEET}</style>
 </head>
@@ -498,13 +579,19 @@ def render_page(
       </span>
     </a>
     <span class="header-spacer"></span>
-    <span class="chip" title="{esc(t("safety.mode.dry.explain", lang))}">
-      <span class="dot"></span>{esc(t("safety.mode.dry", lang))}
+    <span class="chip" id="transport-chip" title="{esc(t("safety.mode.dry.explain", lang))}">
+      <span class="dot"></span><span id="transport-label">{esc(t("safety.mode.dry", lang))}</span>
     </span>
     <span class="chip" title="{esc(t("safety.calls.explain", lang))}">
       {esc(t("safety.calls", lang))} <strong id="call-counter">0</strong>
     </span>
     <a class="chip" href="/history?lang={lang}" style="text-decoration:none;">{esc(t("nav.history", lang))}</a>
+    <button class="chip theme-toggle" type="button" id="theme-toggle"
+            data-light="{esc(t("theme.light", lang))}" data-dark="{esc(t("theme.dark", lang))}"
+            aria-label="{esc(t("theme.switch.aria", lang))}" aria-pressed="false"
+            onclick="HC.toggleTheme()">
+      <span class="theme-icon" aria-hidden="true">◐</span><span id="theme-label">{esc(t("theme.dark", lang))}</span>
+    </button>
     <nav class="langbar" aria-label="{esc(t("lang.switch.aria", lang))}">{lang_links}</nav>
   </div>
 </header>
@@ -513,7 +600,7 @@ def render_page(
 </main>
 <footer><div class="footer-inner">
   <span>{esc(t("safety.dataflow", lang))}</span>
-  <span class="mono">{esc(t("safety.live.locked", lang))}</span>
+  <span class="mono">{esc(t("safety.live.gated", lang))}</span>
 </div></footer>
 </body>
 </html>"""
@@ -661,9 +748,11 @@ def render_branch_page(
 
         {detail}
 
+        {render_transport_controls(lang)}
+
         <div class="btn-row" style="margin-top:1.1rem;">
           <button type="submit" class="btn">{esc(t("form.search", lang))}</button>
-          <span class="small muted">{esc(t("safety.mode.dry.explain", lang))}</span>
+          <span class="small muted" id="transport-note">{esc(t("safety.mode.dry.explain", lang))}</span>
         </div>
       </form>
 
@@ -691,9 +780,12 @@ HC.text = {json.dumps({
     "addressPickup": t("form.address.pickup", lang),
     "canceled": t("cascade.canceled", lang),
     "rejected": t("cascade.rejected", lang),
+    "dryMode": t("safety.mode.dry", lang),
+    "dryExplain": t("safety.mode.dry.explain", lang),
+    "liveMode": t("safety.mode.live", lang),
+    "liveWarning": t("safety.live.warning", lang),
 }, ensure_ascii=False)};
 </script>
-<script src="/static/app.js" defer></script>
 """
 
 
@@ -809,16 +901,41 @@ def render_table_fields(lang: str) -> str:
 """
 
 
-def render_limits(lang: str) -> str:
-    """What this build cannot do, stated where the user is working.
+def render_transport_controls(lang: str) -> str:
+    """A real transport choice with a second, explicit live confirmation."""
+    return f"""
+<hr class="hr" style="margin:1.2rem 0;">
+<h3 class="eyebrow">{esc(t("transport.title", lang))}</h3>
+<div class="switch transport-switch">
+  <input type="radio" id="transport-dry" name="transport" value="dry_run" checked
+         onchange="HC.onTransportChange()">
+  <label for="transport-dry">
+    <span class="t">{esc(t("safety.mode.dry", lang))}</span>
+    <span class="n">{esc(t("safety.mode.dry.explain", lang))}</span>
+  </label>
+  <input type="radio" id="transport-live" name="transport" value="live"
+         onchange="HC.onTransportChange()">
+  <label for="transport-live">
+    <span class="t">{esc(t("safety.mode.live", lang))}</span>
+    <span class="n"><strong>{esc(t("safety.live.warning", lang))}</strong> · {esc(t("safety.live.balance", lang))}</span>
+  </label>
+</div>
+<div class="live-confirm" id="live-confirm-panel" hidden style="margin-top:0.7rem;">
+  <strong>{esc(t("safety.live.warning", lang))}</strong>
+  <p class="small">{esc(t("safety.live.confirm.help", lang))}</p>
+  <label class="check" for="confirm-live">
+    <input type="checkbox" id="confirm-live" name="confirm_live" value="yes">
+    <span>{esc(t("safety.live.confirm", lang))}</span>
+  </label>
+</div>
+"""
 
-    A control that looks live and is not is worse than a missing one. The
-    earlier header carried a "real call" switch that changed nothing about the
-    cascade; it is gone, and what replaced it says why.
-    """
+
+def render_limits(lang: str) -> str:
+    """The live gate and remaining unverified boundaries, shown in context."""
     return f"""
 <div class="notice warn" style="margin-top:0.7rem;">
-  <strong>{esc(t("safety.live.locked", lang))}</strong><br>
+  <strong>{esc(t("safety.live.warning", lang))}</strong><br>
   {esc(t("safety.live.why", lang))}
 </div>
 <div class="notice" style="margin-top:0.5rem;">
@@ -915,6 +1032,14 @@ def render_candidate_step(
         hidden_state += f'<input type="hidden" name="concessions" value="{esc(key)}">'
 
     start_key = "cascade.start.food" if branch is Branch.FOOD else "cascade.start.table"
+    transport_banner = ""
+    if form_state.get("transport") == "live":
+        transport_banner = (
+            '<div class="live-confirm" style="margin-bottom:0.9rem;">'
+            f'<strong>{esc(t("safety.live.warning", lang))}</strong><br>'
+            f'<span class="small">{esc(t("safety.live.confirmed", lang))}</span>'
+            "</div>"
+        )
 
     return f"""
 <hr class="hr" style="margin:1.3rem 0 1rem;">
@@ -926,6 +1051,7 @@ def render_candidate_step(
 
 <form id="cascade-form" hx-post="/api/start-cascade?lang={lang}" hx-target="#monitor" hx-swap="innerHTML">
   {hidden_state}
+  {transport_banner}
   <input type="hidden" name="candidate_order" id="candidate_order" value="{esc(",".join(r.id for r in ranked))}">
   <div class="candidates" id="candidate-list">{cards}</div>
   {skipped_html}
@@ -963,6 +1089,7 @@ def render_cascade_monitor(
     max_budget_eur: Optional[float],
     criteria_line: str,
     concession_keys: List[str],
+    live_mode: bool = False,
 ) -> str:
     """The waiting screen. Waiting is not idleness, it is not knowing."""
     if mode is Mode.RESERVATION:
@@ -978,9 +1105,14 @@ def render_cascade_monitor(
         ", ".join(t("table.concession." + k, lang) for k in concession_keys)
         if concession_keys else t("cascade.band.concessions.none", lang)
     )
+    live_banner = (
+        f'<div class="live-confirm"><strong>{esc(t("safety.live.warning", lang))}</strong></div>'
+        if live_mode else ""
+    )
 
     return f"""
 <div class="panel" style="margin-top:1.2rem;" id="monitor-panel">
+  {live_banner}
   <div class="band">
     <span class="k">{esc(band_key)}</span>
     <span class="v">{esc(band_value)}</span>
