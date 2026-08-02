@@ -1,0 +1,35 @@
+# HungryCall data flow
+
+Status: code review on 2026-08-02. No live call was placed. This document describes the current implementation, not a planned deployment.
+
+For server-side rows, “leaves the computer” means leaving the machine that runs the Python process. The OpenStreetMap tile row is different: that request leaves the user's browser device directly. If the app is remotely hosted, browser-to-host form submissions already disclose data to the app operator and its infrastructure, including when restaurant/call fixtures are used.
+
+## Operating modes
+
+- `test_mode=True` uses local fixtures for restaurant discovery and the dry-run call client. It does **not** by itself make the browser offline: rendering the candidate map still requests OpenStreetMap tiles.
+- The ordinary non-test search sends location data to Nominatim and coordinates plus radius to Overpass even when the later call cascade is a dry run.
+- Live calling is a separate, explicitly gated path. It sends data to CALL-E. The web server binds to loopback by default, but loopback is not an access-control system if the application is exposed through another service.
+
+## Data switchboard
+
+| Data | Collection and use | Storage | Retention implemented in code | Who can see it | Leaves the computer? | Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| Customer name, food request, budget, delivery address, reservation date/time, party size, pickup time, location text and mode | Entered in the web form and used to search, rank and build the restaurant call task | One process-wide `ACTIVE_ORDERS` dictionary and the `orders` table in the configured SQLite file (`hungrycall.db` by default) | Memory remains until process exit; no automatic SQLite expiry or deletion routine was found | The current process; any visitor able to use the unauthenticated history/result routes can reach shared records | Form submission stays on the app host; some values leave during live calling as described below | `hungrycall/web.py:63-64, 340-438`; `hungrycall/db.py:9-19, 37-54, 82-125` |
+| Postcode, city and country | Geocoded for restaurant search | The query postcode/country are not separately written to SQLite; the order's `location_info` receives the city text | No separate retention mechanism beyond the order's city text | App process and the Nominatim service | **Yes in non-test search:** sent as the `q` request parameter to Nominatim | `hungrycall/location.py:124-166`; `hungrycall/web.py:228-337, 409-418`; `hungrycall/db.py:37-54` |
+| Latitude, longitude and search radius | Used to discover restaurants and render the candidate map | The search centre/radius are used for the response/browser view; the `orders` schema does not persist them. Selected restaurant objects remain in active process memory | Active process lifetime; no SQLite retention for search centre/radius | App process, browser and Overpass service | **Yes in non-test search:** sent in an Overpass query | `hungrycall/location.py:169-210`; `hungrycall/web.py:228-337, 421-438` |
+| OpenStreetMap tile requests | Renders the map in the browser | Browser/network caches are controlled by the browser and tile service, not by HungryCall | Not controlled by HungryCall | OpenStreetMap tile endpoint receives the request | **Yes:** the browser requests tiles, exposing ordinary connection data and requested tile coordinates | `hungrycall/static/app.js:69-81` |
+| Restaurant/venue data: OSM identifier, name, cuisine, address, coordinates and public contact number | Returned by Overpass, ranked, displayed and used as call candidate data | Candidate objects are held in active process memory. A saved result writes restaurant ID/name/phone and call-result fields, not the complete cuisine/address/coordinate object | Active process lifetime; saved result fields have no automatic deletion | App visitors through shared screens/routes; CALL-E receives the selected destination number in live mode | Overpass supplies it; selected destination data then leave for CALL-E in live mode | `hungrycall/location.py:169-241`; `hungrycall/web.py:340-582, 597-635`; `hungrycall/db.py:57-73` |
+| Live call task: selected restaurant number, customer name, request, address or reservation details, budget/constraints, language and metadata | Builds and starts a live CALL-E call | Sent to CALL-E; returned structured result, activity and transcript are held in memory, and can be saved to SQLite | CALL-E-side retention is not specified in this repository; local saved records have no automatic expiry | Restaurant recipient, CALL-E, app process, and visitors able to access the shared result/history endpoints | **Yes, live mode only:** HTTPS requests to the configured CALL-E base URL (default `https://api.heycall-e.com`) | `hungrycall/engine.py:48-98`; `hungrycall/call_client.py:25-26, 281-329, 387-471`; `hungrycall/web.py:395-438` |
+| Saved result: restaurant name/ID, masked number, unmasked callback number, price, ETA, summary, phone-masked transcript text and result JSON | Saved after a cascade result | `saved_results` in the shared SQLite file | No automatic expiry or delete endpoint found | `/history` and `/api/saved-results` expose the shared collection without account or ownership checks | No new transfer at save time; the data may already have come from CALL-E | `hungrycall/call_client.py:430-471`; `hungrycall/db.py:57-73, 127-205`; `hungrycall/web.py:125-131, 597-640` |
+| Language preference | Selects interface language | Cookie | One year | Browser and app host | Sent with requests to the app host | `hungrycall/web.py:83-94` |
+| Theme preference | Selects light/dark theme | Browser `localStorage` key `hc-theme` | Until the user/browser removes it | The user's browser | No transfer by this code | `hungrycall/static/app.js:31-37`; `hungrycall/templates.py:610` |
+| CALL-E API key | Authenticates live API requests | Process environment or an external credential file; loaded once for the process | Controlled outside the data database | Server process and CALL-E authentication endpoint; the UI must never receive it | **Yes, live mode only:** sent as an authorization credential | `hungrycall/call_client.py:23-26, 64-116, 281-329` |
+
+## Important boundaries
+
+- A masked display value is not deletion: `saved_results.callback_number` stores the unmasked number. The saved transcript has phone-like strings masked by the live adapter, but its conversation content can still be personal data.
+- An opaque order ID is not authorization. All visitors share the same process state and SQLite history.
+- The repository specifies neither CALL-E-side retention nor the legal entity, hosting location or transfer safeguards for the configured endpoint. A deployer must obtain those facts contractually; this review does not infer them.
+- Browser, reverse-proxy, operating-system and infrastructure logs are deployment facts and cannot be derived from this repository. They must be added to the final privacy notice and retention schedule.
+
+See `HOST-READINESS.md` for the multi-user gap and `PRIVACY-TEMPLATE.md` for an operator-owned notice template.

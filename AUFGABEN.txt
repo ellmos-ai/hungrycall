@@ -202,3 +202,32 @@ zur Anrufsteuerung.
 *„Tisch vergessen zu reservieren und heute Abend Weihnachtsessen — lass es den Agenten
 loesen, er findet einen Tisch zu deinen Konditionen, wenn es einen gibt."*
 Dieselbe Kaskadenmechanik, andere Kriterien.
+
+---------------------------------------------------------------------------
+DATENSCHUTZ UND HOSTING [PRÜFUNG 2026-08-02]
+---------------------------------------------------------------------------
+
+D1 [ERLEDIGT] Belegten Datenschaltplan erstellt: DATA-FLOW.md
+   - lokale SQLite-/Speicher-/Browserpfade und Nominatim, Overpass,
+     OpenStreetMap-Tiles sowie CALL-E getrennt ausgewiesen
+   - keine echten Anrufe und keine echten Rufnummern verwendet
+
+D2 [ERLEDIGT] Anpassbare Muster-Datenschutzerklärung erstellt:
+   PRIVACY-TEMPLATE.md
+   - Platzhalter für Verantwortlichen, Hoster, Rechtsgrundlagen, Empfänger,
+     Speicherfristen, Drittlandtransfers und Betroffenenrechte
+
+D3 [ERLEDIGT] Host-Readiness belegt: HOST-READINESS.md
+   - aktueller Stand NICHT mehrbenutzerfähig: keine Konten/Sitzungen,
+     gemeinsamer Prozesszustand, gemeinsame SQLite-Datei und ein
+     prozessweiter CALL-E-Schlüssel
+
+D4 [OFFEN — HOSTING-SPERRE] Vor einer Veröffentlichung für mehrere Nutzer:
+   Authentifizierung, Mandantentrennung, objektbezogene Autorisierung,
+   nutzerbezogene Secret-Verwaltung, Löschfristen, Sicherheitsprüfung sowie
+   deployment-spezifische Rechts- und Anbieterprüfung umsetzen.
+
+D5 [OFFEN — OFFLINE-KLARHEIT] Testmodus lädt weiterhin OpenStreetMap-Tiles,
+   sobald die Kandidatenkarte gerendert wird. Für einen vollständig
+   netzwerkfreien Modus Tiles lokal bereitstellen/abschalten und mit einem
+   Regressionstest belegen.
