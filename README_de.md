@@ -1,4 +1,4 @@
-![HungryCall](banner.png)
+![I am hungry](banner.png)
 
 # HungryCall 🍕📞
 
@@ -216,8 +216,10 @@ widersprechen ihr:
 
 ## Sicherheit
 
-* **Trockenlauf ist der Normalfall.** Ohne ausdrückliches `--live` und `--confirm-live`
-  läuft alles zu 100 % lokal gegen Fixtures — ohne Konto, ohne Netz.
+* **Der Anruf-Trockenlauf ist der Normalfall.** Ohne ausdrückliches `--live` und
+  `--confirm-live` nutzt die Anrufkaskade lokale Fixtures und braucht kein CALL-E-Konto.
+  Die Restaurantquelle ist davon getrennt: Im Web fragt der Normalbetrieb
+  OpenStreetMap ab; nur ein ausdrücklich gewählter Restaurant-Testmodus ist vollständig lokal.
 * **Nur auf ausdrückliche Handlung** wird gewählt.
 * **E.164-Prüfung** jeder Zielnummer vor dem Wählen.
 * **Rufnummern-Maskierung** in Konsole, JSON-Berichten und Zusammenfassungen.
@@ -240,17 +242,24 @@ Die Oberfläche schreibt das dort hin, wo man arbeitet, statt es zu verstecken:
   Trockenlauf ist vorausgewählt. Im Web braucht Live zusätzlich ein Bestätigungshäkchen,
   im CLI `--live` und `--confirm-live`. Die Warnung „Echte Anrufe — kostet Geld“ ist
   sichtbar. Bei derzeit −0,05 USD lehnt CALL-E echte Anrufe ab.
-* **Die Live-Suche über OpenStreetMap ist ungeprüft.** Der Code existiert; der Trockenlauf
-  betritt ihn nie.
-* **Kartenkacheln kommen von OpenStreetMap.** Die Anwendungslogik läuft ohne Netz; ohne
-  Netz bleibt die Karte grau und alles andere funktioniert weiter. Schriften, Skripte und
-  Stile werden von nirgendwo nachgeladen.
+* **Die Restaurantquelle ist sichtbar.** Im Normalbetrieb geocodiert Nominatim und
+  OpenStreetMap via Overpass liefert die Kandidaten. Die Oberfläche nennt die Quelle und
+  die Trefferzahl im gewählten Umkreis. Nicht erreichbarer Dienst, nicht gefundene Adresse
+  und null nutzbare Treffer sind getrennte Fehlermeldungen; keine davon ersetzt das
+  Ergebnis durch Beispieldaten.
+* **Restaurant-Beispieldaten gibt es nur im ausdrücklich gewählten Testmodus.** Das
+  Kontrollkästchen ist zunächst aus. Die Ergebnisfläche sagt deutlich: **„Testmodus —
+  Beispieldaten, keine echten Restaurants“**. Dabei findet kein Netzwerkzugriff für die
+  Restaurantsuche statt.
+* **Kartenkacheln kommen von OpenStreetMap.** Ohne Verbindung bleibt die Karte grau und
+  eine normale Restaurantsuche meldet den Netzwerkfehler; der ausdrückliche Testmodus
+  bleibt verfügbar. Schriften, Skripte und Stile werden von nirgendwo nachgeladen.
 * **Ein Feldversuch mit echten Betrieben hat nicht stattgefunden.**
 
 ## Tests
 
-99 Tests. Produktpfade laufen mit Fixtures beziehungsweise gemocktem Transport; kein
-Test führt einen echten Anruf aus:
+Die Produktpfade laufen in der Testsuite mit Fixtures beziehungsweise gemocktem
+Transport; kein Test führt einen echten Anruf aus:
 
 ```bash
 pytest -v

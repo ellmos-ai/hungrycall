@@ -7,6 +7,7 @@ saved result's mode.
 
 import json
 import os
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -111,12 +112,12 @@ def test_db_order_and_save_result(setup_test_db):
 
 
 def test_location_geocoding_and_fixtures():
-    sg_lat, _ = geocode_location("730123", "Singapore", "Singapore")
+    sg_lat, _ = geocode_location("730123", "Singapore", "Singapore", test_mode=True)
     assert abs(sg_lat - 1.3521) < 0.1
     assert any("Hawker" in r.name for r in get_offline_restaurants("Singapore"))
 
-    lat, lon = geocode_location("12345", "Dorfstadt", "Deutschland")
-    found = search_overpass_restaurants(lat, lon, dry_run=True, city="Dorfstadt")
+    lat, lon = geocode_location("12345", "Dorfstadt", "Deutschland", test_mode=True)
+    found = search_overpass_restaurants(lat, lon, test_mode=True, city="Dorfstadt")
     assert len(found) >= 5
     # Every candidate knows how far away it is; pickup ranking depends on it.
     assert all(r.distance_km is not None for r in found)
@@ -124,7 +125,7 @@ def test_location_geocoding_and_fixtures():
 
 def test_offline_pool_is_copied_not_shared():
     """Annotating distances must not bleed from one visitor into the next."""
-    first = search_overpass_restaurants(52.52, 13.405, dry_run=True, city="Dorfstadt")
+    first = search_overpass_restaurants(52.52, 13.405, test_mode=True, city="Dorfstadt")
     first[0].distance_km = 999.0
     second = get_offline_restaurants("Dorfstadt")
     assert second[0].distance_km != 999.0
@@ -152,6 +153,56 @@ def test_landing_carries_the_process_animation(client):
     # The three statements the animation makes, in text, for screen readers.
     assert "höflich verabschieden" in page
     assert "niemand mehr an" in page
+
+
+def test_approved_brand_assets_are_packaged_and_served(client):
+    repo_root = Path(__file__).resolve().parents[1]
+    brand_dir = repo_root / "hungrycall" / "static" / "brand"
+    expected_sizes = {
+        "motiv.png": (1024, 1024),
+        "motiv-aus.png": (1024, 1024),
+        "motiv-an.png": (1024, 1024),
+        "thumbnail.png": (1280, 720),
+        "logo-square.png": (512, 512),
+    }
+
+    for name, dimensions in expected_sizes.items():
+        payload = (brand_dir / name).read_bytes()
+        assert payload.startswith(b"\x89PNG\r\n\x1a\n")
+        assert (int.from_bytes(payload[16:20], "big"),
+                int.from_bytes(payload[20:24], "big")) == dimensions
+        response = client.get(f"/static/brand/{name}")
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "image/png"
+
+    banner = (repo_root / "banner.png").read_bytes()
+    assert (int.from_bytes(banner[16:20], "big"),
+            int.from_bytes(banner[20:24], "big")) == (1200, 300)
+    for readme in ("README.md", "README_de.md"):
+        first_line = (repo_root / readme).read_text(encoding="utf-8").splitlines()[0]
+        assert first_line == "![I am hungry](banner.png)"
+
+
+def test_landing_uses_one_shot_accessible_fridge_reveal(client):
+    german = client.get("/?lang=de").text
+    english = client.get("/?lang=en").text
+
+    assert 'class="brand-mark" src="/static/brand/motiv.png"' in german
+    assert '<link rel="icon" type="image/png" href="/static/brand/logo-square.png">' in german
+    assert '/static/brand/motiv-aus.png' in german
+    assert '/static/brand/motiv-an.png' in german
+    assert german.index("fridge-layer-off") < german.index("fridge-layer-on")
+    assert "Der Kühlschrank ist leer" in german
+    assert "The fridge is empty" in english
+    assert "Ein leerer Kühlschrank im Dunkeln" in german
+    assert "An empty fridge in the dark" in english
+
+    light_rule = german.split(".fridge-layer-on {", 1)[1].split("}", 1)[0]
+    assert "fridge-light-on" in light_rule
+    assert "forwards" in light_rule
+    assert "infinite" not in light_rule
+    assert ".fridge-layer-off { opacity: 0; animation: none !important; }" in german
+    assert ".fridge-layer-on { opacity: 1; animation: none !important; }" in german
 
 
 def test_no_external_font_or_script_is_loaded(client):
@@ -227,7 +278,12 @@ def test_confirmed_live_transport_reaches_the_real_client_seam(client, monkeypat
         "from_environment",
         classmethod(lambda cls, **kwargs: DryRunCallClient("jury_30s_demo")),
     )
-    form = cascade_form(transport="live", confirm_live="yes")
+    pool = search_overpass_restaurants(
+        52.52, 13.405, test_mode=True, city="Dorfstadt"
+    )
+    monkeypatch.setattr(web, "geocode_location", lambda *args, **kwargs: (52.52, 13.405))
+    monkeypatch.setattr(web, "rebuild_pool", lambda *args, **kwargs: pool)
+    form = cascade_form(transport="live", confirm_live="yes", test_mode="")
     started = client.post("/api/start-cascade?lang=de", data=form)
     assert started.status_code == 200
     assert "Echte Anrufe — kostet Geld" in started.text
@@ -263,6 +319,7 @@ def search_form(**overrides):
         "food_prompt": "Burger",
         "max_budget_eur": "35.00",
         "scenario": "jury_30s_demo",
+        "test_mode": "yes",
     }
     form.update(overrides)
     return form
@@ -316,7 +373,7 @@ def test_table_search_filters_by_party_size(client):
         "delivery_address": "Dorfstraße 10", "customer_name": "Alex",
         "food_prompt": "Italienisch", "reservation_date": "2026-08-07",
         "reservation_time": "19:00", "party_size": "12", "seating": "any",
-        "scenario": "table_cascade",
+        "scenario": "table_cascade", "test_mode": "yes",
     }
     page = client.post("/api/search", data=form).text
     order = page.split('id="candidate_order" value="')[1].split('"')[0].split(",")
@@ -357,6 +414,7 @@ def test_goal_preview_carries_concessions_in_order(client):
         "reservation_date": "2026-08-07", "reservation_time": "19:00",
         "party_size": "4", "seating": "outdoor",
         "candidate_order": "rest_trattoria_luigi",
+        "test_mode": "yes",
         "concessions": ["deposit_ok", "indoor_ok"],
     }
     goal = client.post("/api/preview-goal", data=form).json()["goal"]
@@ -497,7 +555,7 @@ def test_table_cascade_books_a_table_and_names_the_seating(client):
         "delivery_address": "Dorfstraße 10", "customer_name": "Alex",
         "food_prompt": "Italienisch", "reservation_date": "2026-08-07",
         "reservation_time": "19:00", "party_size": "4", "seating": "outdoor",
-        "scenario": "table_cascade",
+        "scenario": "table_cascade", "test_mode": "yes",
         "candidate_order": "rest_trattoria_luigi,rest_gasthaus_linde",
         "selected_restaurants": ["rest_trattoria_luigi", "rest_gasthaus_linde"],
     }
@@ -519,7 +577,7 @@ def test_table_cascade_refuses_a_concession_that_was_not_granted(client):
         "delivery_address": "Dorfstraße 10", "customer_name": "Alex",
         "food_prompt": "Italienisch", "reservation_date": "2026-08-07",
         "reservation_time": "19:00", "party_size": "4", "seating": "outdoor",
-        "scenario": "table_concession_cascade",
+        "scenario": "table_concession_cascade", "test_mode": "yes",
         "candidate_order": "rest_trattoria_luigi,rest_gasthaus_linde",
         "selected_restaurants": ["rest_trattoria_luigi", "rest_gasthaus_linde"],
     }
@@ -551,7 +609,7 @@ def test_saved_result_keeps_the_mode_that_actually_happened(client):
         "delivery_address": "Dorfstraße 10", "customer_name": "Alex",
         "food_prompt": "Italienisch", "reservation_date": "2026-08-07",
         "reservation_time": "19:00", "party_size": "4", "seating": "any",
-        "scenario": "table_cascade",
+        "scenario": "table_cascade", "test_mode": "yes",
         "candidate_order": "rest_gasthaus_linde",
         "selected_restaurants": ["rest_gasthaus_linde"],
     }

@@ -31,7 +31,9 @@ from hungrycall.engine import CascadeEngine, build_call_goal
 from hungrycall.fixtures import SCENARIO_FIXTURES
 from hungrycall.geo import today_weekday_key, weekday_key
 from hungrycall.i18n import LANG_COOKIE, resolve_lang, t
-from hungrycall.location import geocode_location, search_overpass_restaurants
+from hungrycall.location import (
+    RestaurantSearchError, geocode_location, search_overpass_restaurants
+)
 from hungrycall.models import (
     Branch, Concession, Mode, Restaurant, Seating, UserRequest
 )
@@ -41,7 +43,7 @@ from hungrycall.safety import SafetyError, generate_idempotency_key, verify_cont
 from hungrycall.templates import (
     TABLE_CONCESSIONS, render_branch_page, render_candidate_step,
     render_cascade_monitor, render_failure, render_history, render_landing,
-    render_page, render_result_card, render_result_sentence
+    render_page, render_result_card, render_result_sentence, render_search_error
 )
 
 logger = logging.getLogger(__name__)
@@ -186,12 +188,26 @@ def build_user_request(fields: Dict[str, Any]) -> UserRequest:
     )
 
 
-def rebuild_pool(city: str, lat: float, lon: float, radius_km: float) -> List[Restaurant]:
-    """The candidate pool for a place. Deterministic in dry run, so later steps
-    can rebuild it instead of relying on a cached search."""
+def rebuild_pool(
+    city: str,
+    lat: float,
+    lon: float,
+    radius_km: float,
+    test_mode: bool = False,
+) -> List[Restaurant]:
+    """Build a candidate pool from its explicitly selected restaurant source."""
     return search_overpass_restaurants(
-        lat=lat, lon=lon, radius_km=radius_km, dry_run=True, city=city
+        lat=lat, lon=lon, radius_km=radius_km, test_mode=test_mode, city=city
     )
+
+
+def localized_search_error(exc: RestaurantSearchError, lang: str, radius_km: float) -> str:
+    """Return the same clear reason used by the HTML error panel."""
+    if exc.code == "address_not_found":
+        return t("search.error.address.body", lang)
+    if exc.code == "no_restaurants":
+        return t("search.error.none.body", lang, radius=f"{radius_km:g}")
+    return t("search.error.service.body", lang)
 
 
 def criteria_line(request: UserRequest, lang: str) -> str:
@@ -219,19 +235,30 @@ async def api_search(request: Request):
     city = fields.get("city") or "Dorfstadt"
     postcode = fields.get("postcode") or ""
     radius_km = float(fields.get("radius_km") or 3.0)
-
-    lat, lon = geocode_location(postcode, city, "Deutschland")
-    pool = rebuild_pool(city, lat, lon, radius_km)
-
-    fields["concessions"] = form.getlist("concessions")
-    user_request = build_user_request(fields)
-
+    test_mode = fields.get("test_mode") == "yes"
     transport = fields.get("transport") or "dry_run"
+
     if transport == "live" and fields.get("confirm_live") != "yes":
         return HTMLResponse(
             f'<div class="notice warn" style="margin-top:1rem;">{t("error.live.refused", lang)}</div>',
             status_code=400,
         )
+    if transport == "live" and test_mode:
+        return HTMLResponse(
+            f'<div class="notice warn" style="margin-top:1rem;">{t("error.test_mode.live", lang)}</div>',
+            status_code=400,
+        )
+
+    try:
+        lat, lon = geocode_location(
+            postcode, city, "Deutschland", test_mode=test_mode
+        )
+        pool = rebuild_pool(city, lat, lon, radius_km, test_mode=test_mode)
+    except RestaurantSearchError as exc:
+        return HTMLResponse(render_search_error(lang, exc.code, radius_km))
+
+    fields["concessions"] = form.getlist("concessions")
+    user_request = build_user_request(fields)
 
     ranked = [r for r, _ in filter_and_rank_restaurants(pool, user_request)]
     ranked_ids = {r.id for r in ranked}
@@ -261,11 +288,13 @@ async def api_search(request: Request):
         "concessions": [c.key for c in user_request.concessions],
         "transport": transport,
         "confirm_live": "yes" if fields.get("confirm_live") == "yes" else None,
+        "test_mode": "yes" if test_mode else None,
     }
 
     return HTMLResponse(render_candidate_step(
         lang=lang, branch=branch, ranked=ranked, skipped=skipped,
         lat=lat, lon=lon, radius_km=radius_km, form_state=form_state,
+        source_count=len(pool), test_mode=test_mode,
     ))
 
 
@@ -286,8 +315,18 @@ async def api_preview_goal(request: Request):
     except (ValueError, KeyError) as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)
 
-    pool = rebuild_pool(fields.get("city") or "Dorfstadt", 52.52, 13.405,
-                        float(fields.get("radius_km") or 3.0))
+    city = fields.get("city") or "Dorfstadt"
+    radius_km = float(fields.get("radius_km") or 3.0)
+    test_mode = fields.get("test_mode") == "yes"
+    try:
+        lat, lon = geocode_location(
+            fields.get("postcode") or "", city, "Deutschland", test_mode=test_mode
+        )
+        pool = rebuild_pool(city, lat, lon, radius_km, test_mode=test_mode)
+    except RestaurantSearchError as exc:
+        return JSONResponse(
+            {"error": localized_search_error(exc, lang, radius_km)}, status_code=503
+        )
     order = [i for i in (fields.get("candidate_order") or "").split(",") if i]
     first = next((r for r in pool if r.id == order[0]), pool[0]) if order else pool[0]
 
@@ -308,7 +347,27 @@ async def start_cascade(request: Request):
     branch = Branch(fields.get("branch") or "food")
     city = fields.get("city") or "Dorfstadt"
     radius_km = float(fields.get("radius_km") or 3.0)
-    lat, lon = geocode_location(fields.get("postcode") or "", city, "Deutschland")
+    test_mode = fields.get("test_mode") == "yes"
+    live_mode = fields.get("transport") == "live"
+
+    if live_mode and fields.get("confirm_live") != "yes":
+        return HTMLResponse(
+            f'<div class="notice warn" style="margin-top:1rem;">{t("error.live.refused", lang)}</div>',
+            status_code=400,
+        )
+    if live_mode and test_mode:
+        return HTMLResponse(
+            f'<div class="notice warn" style="margin-top:1rem;">{t("error.test_mode.live", lang)}</div>',
+            status_code=400,
+        )
+
+    try:
+        lat, lon = geocode_location(
+            fields.get("postcode") or "", city, "Deutschland", test_mode=test_mode
+        )
+        pool = rebuild_pool(city, lat, lon, radius_km, test_mode=test_mode)
+    except RestaurantSearchError as exc:
+        return HTMLResponse(render_search_error(lang, exc.code, radius_km))
 
     try:
         user_request = build_user_request(fields)
@@ -318,7 +377,6 @@ async def start_cascade(request: Request):
             f'<div class="notice warn" style="margin-top:1rem;">{t("error.unsafe.content", lang)}</div>'
         )
 
-    pool = rebuild_pool(city, lat, lon, radius_km)
     by_id = {r.id: r for r in pool}
 
     # The order the user sees is the order we call. Anything unchecked is gone.
@@ -332,13 +390,6 @@ async def start_cascade(request: Request):
         )
 
     scenario = fields.get("scenario") or DEFAULT_SCENARIOS[user_request.mode]
-    live_mode = fields.get("transport") == "live"
-    if live_mode and fields.get("confirm_live") != "yes":
-        return HTMLResponse(
-            f'<div class="notice warn" style="margin-top:1rem;">{t("error.live.refused", lang)}</div>',
-            status_code=400,
-        )
-
     if live_mode:
         try:
             call_client = LiveCallClient.from_environment(confirmed=True)

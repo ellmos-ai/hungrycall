@@ -9,6 +9,31 @@ from hungrycall.fixtures import SAMPLE_RESTAURANTS
 
 logger = logging.getLogger(__name__)
 
+
+class RestaurantSearchError(RuntimeError):
+    """Base class for an honest, user-visible restaurant search failure."""
+
+    code = "search_failed"
+
+
+class SearchServiceUnavailable(RestaurantSearchError):
+    """Nominatim or Overpass could not be reached or returned an invalid response."""
+
+    code = "service_unavailable"
+
+
+class AddressNotFound(RestaurantSearchError):
+    """Nominatim completed the request but could not resolve the location."""
+
+    code = "address_not_found"
+
+
+class NoRestaurantsFound(RestaurantSearchError):
+    """Overpass completed the request but returned no callable restaurants."""
+
+    code = "no_restaurants"
+
+
 # Preset geocoding coordinates for offline/fixture mode (International support)
 OFFLINE_LOCATIONS: Dict[str, Tuple[float, float]] = {
     "singapore": (1.3521, 103.8198),
@@ -97,50 +122,70 @@ OFFLINE_RESTAURANTS_BY_LOC: Dict[str, List[Restaurant]] = {
 }
 
 
-def geocode_location(postcode: str, city: str, country: str) -> Tuple[float, float]:
-    """Resolve location to lat/lon using Nominatim API with offline fallback."""
+def geocode_location(
+    postcode: str,
+    city: str,
+    country: str,
+    test_mode: bool = False,
+) -> Tuple[float, float]:
+    """Resolve a location through Nominatim, or fixtures in explicit test mode."""
     city_clean = city.strip().lower()
     country_clean = country.strip().lower()
 
-    # Check offline presets first
-    for key, coords in OFFLINE_LOCATIONS.items():
-        if key != "default" and (key in city_clean or key in country_clean):
-            return coords
+    if test_mode:
+        for key, coords in OFFLINE_LOCATIONS.items():
+            if key != "default" and (key in city_clean or key in country_clean):
+                return coords
+        return OFFLINE_LOCATIONS["default"]
 
-    # Try live Nominatim lookup if network available
     query = f"{postcode} {city} {country}".strip()
     try:
         url = "https://nominatim.openstreetmap.org/search"
         headers = {"User-Agent": "HungryCallWebAgent/1.0"}
         params = {"q": query, "format": "json", "limit": 1}
         resp = httpx.get(url, headers=headers, params=params, timeout=3.0)
-        if resp.status_code == 200:
-            data = resp.json()
-            if data:
-                return float(data[0]["lat"]), float(data[0]["lon"])
-    except Exception as e:
-        logger.warning(f"Geocoding network lookup failed: {e}. Falling back to default.")
+    except (httpx.TimeoutException, httpx.RequestError) as exc:
+        logger.warning("Nominatim request failed: %s", exc)
+        raise SearchServiceUnavailable("Nominatim request failed") from exc
 
-    return OFFLINE_LOCATIONS["default"]
+    if resp.status_code != 200:
+        logger.warning("Nominatim returned HTTP %s", resp.status_code)
+        raise SearchServiceUnavailable(f"Nominatim returned HTTP {resp.status_code}")
+
+    try:
+        data = resp.json()
+    except (TypeError, ValueError) as exc:
+        logger.warning("Nominatim returned invalid JSON: %s", exc)
+        raise SearchServiceUnavailable("Nominatim returned invalid JSON") from exc
+
+    if not isinstance(data, list) or not data:
+        raise AddressNotFound(f"Nominatim could not resolve {query!r}")
+
+    try:
+        return float(data[0]["lat"]), float(data[0]["lon"])
+    except (KeyError, TypeError, ValueError, IndexError) as exc:
+        logger.warning("Nominatim response did not contain usable coordinates: %s", exc)
+        raise SearchServiceUnavailable("Nominatim returned unusable coordinates") from exc
 
 
 def search_overpass_restaurants(
     lat: float,
     lon: float,
     radius_km: float = 3.0,
-    dry_run: bool = True,
+    test_mode: bool = False,
     city: str = ""
 ) -> List[Restaurant]:
     """
     Search restaurants around center point using OSM Overpass API.
-    In dry-run mode or network failure, returns rich offline fixtures.
+    Only explicit test mode returns offline fixtures. Live lookup failures raise
+    a typed error and never substitute example restaurants.
 
     Every candidate comes back with distance_km filled in, because pickup
     ranking and the distance cut-off are meaningless without it.
     """
     from hungrycall.ranking import annotate_distances  # local: avoids an import cycle
 
-    if dry_run:
+    if test_mode:
         return annotate_distances(get_offline_restaurants(city), lat, lon)
 
     # Live Overpass API Query
@@ -157,54 +202,72 @@ def search_overpass_restaurants(
     """
     try:
         resp = httpx.post(overpass_url, data={"data": query}, timeout=5.0)
-        if resp.status_code == 200:
-            data = resp.json()
-            elements = data.get("elements", [])
-            restaurants: List[Restaurant] = []
+    except (httpx.TimeoutException, httpx.RequestError) as exc:
+        logger.warning("Overpass request failed: %s", exc)
+        raise SearchServiceUnavailable("Overpass request failed") from exc
+
+    if resp.status_code != 200:
+        logger.warning("Overpass returned HTTP %s", resp.status_code)
+        raise SearchServiceUnavailable(f"Overpass returned HTTP {resp.status_code}")
+
+    try:
+        data = resp.json()
+    except (TypeError, ValueError) as exc:
+        logger.warning("Overpass returned invalid JSON: %s", exc)
+        raise SearchServiceUnavailable("Overpass returned invalid JSON") from exc
+
+    if not isinstance(data, dict) or not isinstance(data.get("elements"), list):
+        logger.warning("Overpass response did not contain an elements list")
+        raise SearchServiceUnavailable("Overpass returned an invalid response shape")
+
+    elements = data["elements"]
+    restaurants: List[Restaurant] = []
             
-            for idx, elem in enumerate(elements):
-                tags = elem.get("tags", {})
-                name = tags.get("name")
-                if not name:
-                    continue
+    for idx, elem in enumerate(elements):
+        if not isinstance(elem, dict):
+            continue
+        tags = elem.get("tags", {})
+        name = tags.get("name")
+        phone = tags.get("phone") or tags.get("contact:phone")
+        if not name or not phone:
+            continue
                     
-                elem_lat = elem.get("lat") or elem.get("center", {}).get("lat", lat)
-                elem_lon = elem.get("lon") or elem.get("center", {}).get("lon", lon)
+        elem_lat = elem.get("lat") or elem.get("center", {}).get("lat", lat)
+        elem_lon = elem.get("lon") or elem.get("center", {}).get("lon", lon)
                 
-                phone = tags.get("phone") or tags.get("contact:phone") or f"+49170999{idx:03d}"
-                cuisine_raw = tags.get("cuisine", "General")
-                cuisines = [c.strip().capitalize() for c in cuisine_raw.split(";")]
+        cuisine_raw = tags.get("cuisine", "General")
+        cuisines = [c.strip().capitalize() for c in cuisine_raw.split(";")]
                 
-                street = tags.get("addr:street", "")
-                housenumber = tags.get("addr:housenumber", "")
-                address = f"{street} {housenumber}".strip() or f"Near ({elem_lat:.4f}, {elem_lon:.4f})"
+        street = tags.get("addr:street", "")
+        housenumber = tags.get("addr:housenumber", "")
+        address = f"{street} {housenumber}".strip() or f"Near ({elem_lat:.4f}, {elem_lon:.4f})"
 
-                restaurants.append(
-                    Restaurant(
-                        id=f"osm_{elem.get('id', idx)}",
-                        name=name,
-                        phone=phone,
-                        cuisines=cuisines,
-                        opening_hours=OpeningHours(
-                            days=["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-                            open_time="10:00",
-                            close_time="22:30"
-                        ),
-                        is_favorite=False,
-                        supports_delivery=True,
-                        supports_pickup=True,
-                        supports_reservation=True,
-                        address=address,
-                        lat=float(elem_lat),
-                        lon=float(elem_lon)
-                    )
-                )
-            if restaurants:
-                return annotate_distances(restaurants, lat, lon)
-    except Exception as e:
-        logger.warning(f"Overpass API call failed: {e}. Falling back to fixture pool.")
+        restaurants.append(
+            Restaurant(
+                id=f"osm_{elem.get('id', idx)}",
+                name=name,
+                phone=phone,
+                cuisines=cuisines,
+                opening_hours=OpeningHours(
+                    days=["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+                    open_time="10:00",
+                    close_time="22:30"
+                ),
+                is_favorite=False,
+                supports_delivery=True,
+                supports_pickup=True,
+                supports_reservation=True,
+                address=address,
+                lat=float(elem_lat),
+                lon=float(elem_lon)
+            )
+        )
 
-    return annotate_distances(get_offline_restaurants(city), lat, lon)
+    if not restaurants:
+        raise NoRestaurantsFound(
+            f"Overpass returned no callable restaurants within {radius_km:g} km"
+        )
+    return annotate_distances(restaurants, lat, lon)
 
 
 def get_offline_restaurants(city: str = "") -> List[Restaurant]:
