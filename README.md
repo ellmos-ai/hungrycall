@@ -1,4 +1,8 @@
+![HungryCall](banner.png)
+
 # HungryCall 🍕📞
+
+**English · [Deutsch](README_de.md)**
 
 > **Hackathon Submission for CALL-E ("Your Code Is Calling")**
 >
