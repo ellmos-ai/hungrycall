@@ -1,7 +1,7 @@
 # Initial EU AI Act assessment: HungryCall
 
-**Date:** 2 August 2026  
-**Scope:** AI-assisted restaurant calls for ordering, pickup, or reservations  
+**Date:** 2 August 2026
+**Scope:** AI-assisted restaurant calls for ordering, pickup, or reservations
 **Notice:** This is a technical and editorial initial assessment, not legal advice. Before live operation, the specific operator must obtain legal review of the use case, contracts, data sources, and applicable jurisdictions.
 
 ## Executive finding

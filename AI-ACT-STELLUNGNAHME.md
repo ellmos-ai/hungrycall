@@ -1,7 +1,7 @@
 # Ersteinschätzung zum EU AI Act: HungryCall
 
-**Stand:** 2. August 2026  
-**Gegenstand:** KI-gestützte Anrufe bei Restaurants für Bestellung, Abholung oder Reservierung  
+**Stand:** 2. August 2026
+**Gegenstand:** KI-gestützte Anrufe bei Restaurants für Bestellung, Abholung oder Reservierung
 **Hinweis:** Diese technische und redaktionelle Ersteinschätzung ist keine Rechtsberatung. Der konkrete Betreiber muss Einsatz, Verträge, Datenquellen und Rechtsordnung vor dem Live-Betrieb rechtlich prüfen lassen.
 
 ## Kurzurteil
