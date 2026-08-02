@@ -1,7 +1,10 @@
 """JSON Schemas for CALL-E result_schema definition across all HungryCall modes."""
 
-from typing import Any, Dict
-from hungrycall.models import Mode
+from copy import deepcopy
+from typing import Any, Dict, Optional
+
+from hungrycall.models import Mode, OrderChain
+from hungrycall.order_chains import ORDER_CHAIN_RESULT_SCHEMA
 
 
 DELIVERY_RESULT_SCHEMA: Dict[str, Any] = {
@@ -100,13 +103,20 @@ PICKUP_RESULT_SCHEMA: Dict[str, Any] = {
 }
 
 
-def get_result_schema(mode: Mode) -> Dict[str, Any]:
+def get_result_schema(mode: Mode, order_chain: Optional[OrderChain] = None) -> Dict[str, Any]:
     """Retrieve the designated result_schema for a given HungryCall mode."""
     if mode == Mode.DELIVERY:
-        return DELIVERY_RESULT_SCHEMA
+        schema = DELIVERY_RESULT_SCHEMA
     elif mode == Mode.RESERVATION:
-        return RESERVATION_RESULT_SCHEMA
+        schema = RESERVATION_RESULT_SCHEMA
     elif mode == Mode.PICKUP:
-        return PICKUP_RESULT_SCHEMA
+        schema = PICKUP_RESULT_SCHEMA
     else:
         raise ValueError(f"Unsupported mode: {mode}")
+
+    if order_chain is None:
+        return schema
+    result = deepcopy(schema)
+    result["required"] = list(result.get("required", [])) + ["order_chain_results"]
+    result["properties"]["order_chain_results"] = deepcopy(ORDER_CHAIN_RESULT_SCHEMA)
+    return result

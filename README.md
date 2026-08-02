@@ -80,10 +80,16 @@ HungryCall addresses an entirely different class of problem — **a multi-candid
    - **Vague Price Rejection**: If a restaurant gives a vague or unconfirmed price quote (`price_known: false`, e.g., "about 30 Euros depending on the driver"), the agent politely declines and moves to the next candidate. Guessing prices is strictly forbidden.
    - **No Return After Commitment**: Once an order is confirmed, it is binding. HungryCall always outputs the restaurant's direct callback number for caller modifications.
 
-4. **Structured Schema Work**:
+4. **Order Wish Chains**:
+   - An order is modeled as `position -> replacement cell -> criterion`, not as an unstructured wish list.
+   - Each cell carries quantity, product, food/drink type and any number of maximum-price, special-request or yes/no criteria. A failed criterion either accepts, advances to the next replacement, or rejects the position; the position rule then skips it or aborts the whole order.
+   - The same JSON definition renders the editor, generates the call instruction and evaluates `order_chain_results`. The result screen groups the selected products by free-form tags.
+   - Complete chains can be saved as templates. Every submitted order remains loadable, editable and reusable from history.
+
+5. **Structured Schema Work**:
    - Uses strict CALL-E `result_schema` definitions per mode (`delivers_to_address`, `price_known`, `total_price_eur`, `eta_minutes`, `order_placed`, `callback_number`, `rejection_reason`).
 
-5. **Dynamic Fixture Input Reflection**:
+6. **Dynamic Fixture Input Reflection**:
    - In dry-run mode, actual user parameters (`delivery_address`, `food_prompt`, `customer_name`, `max_budget_eur`) are dynamically interpolated into verification transcripts, activity logs, and summaries to ensure dry-run output matches input exactness.
 
 ---

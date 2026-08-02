@@ -17,6 +17,7 @@ from hungrycall.fixtures import (
     render_fixture_data,
 )
 from hungrycall.models import CallResult, CallStatus, Mode, Restaurant, UserRequest
+from hungrycall.order_chains import simulate_order_chain_result
 from hungrycall.phone_utils import mask_phones_in_text
 from hungrycall.safety import SafetyError, verify_phone_safety
 from hungrycall.schemas import get_result_schema
@@ -233,6 +234,10 @@ class DryRunCallClient(CallClient):
         rendered = render_fixture_data(raw_mock_entry, user_request, restaurant)
         status = rendered.get("status", CallStatus.COMPLETED)
         structured = rendered.get("structured_result", {})
+        if user_request.order_chain and "order_chain_results" not in structured:
+            structured["order_chain_results"] = simulate_order_chain_result(
+                user_request.order_chain, structured
+            )
         transcript = []
         for turn in rendered.get("transcript", []):
             if isinstance(turn, dict):
@@ -409,7 +414,9 @@ class LiveCallClient(CallClient):
                 "type": "object",
                 "properties": {"completed_count": {"type": "integer"}},
             },
-            "recipient_result_schema": get_result_schema(user_request.mode),
+            "recipient_result_schema": get_result_schema(
+                user_request.mode, user_request.order_chain
+            ),
             "metadata": {
                 "hungrycall_restaurant_id": restaurant.id,
                 "hungrycall_mode": user_request.mode.value,

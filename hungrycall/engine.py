@@ -15,6 +15,7 @@ from hungrycall.models import (
     Concession, Mode, Restaurant, Seating, UserRequest
 )
 from hungrycall.phone_utils import mask_phone
+from hungrycall.order_chains import build_order_chain_instruction, evaluate_order_chain
 from hungrycall.ranking import filter_and_rank_restaurants
 from hungrycall.safety import generate_idempotency_key, verify_content_safety
 
@@ -55,7 +56,7 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
     fallback = _concession_clause(request.concessions)
 
     if request.mode == Mode.DELIVERY:
-        return (
+        goal = (
             f"{intro} We would like to order food for delivery to {request.delivery_address}. "
             f"Requested items: '{request.food_prompt}'. "
             f"Please verify: 1. Do you deliver to this address? "
@@ -66,9 +67,12 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
             f"An approximate price is not acceptable: if no exact total is given, do not order."
             f"{fallback}"
         )
+        if request.order_chain:
+            goal += "\n\n" + build_order_chain_instruction(request.order_chain)
+        return goal
 
     if request.mode == Mode.PICKUP:
-        return (
+        goal = (
             f"{intro} We would like to place a pickup order to collect in person. "
             f"Requested items: '{request.food_prompt}'. Preferred pickup time: {request.pickup_time}. "
             f"Please verify: 1. Can you prepare this for pickup? "
@@ -79,6 +83,9 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
             f"An approximate price is not acceptable: if no exact total is given, do not order."
             f"{fallback}"
         )
+        if request.order_chain:
+            goal += "\n\n" + build_order_chain_instruction(request.order_chain)
+        return goal
 
     if request.mode == Mode.RESERVATION:
         seating_clause = ""
@@ -222,12 +229,14 @@ class CascadeEngine:
         if request.mode == Mode.DELIVERY:
             if not struct.get("delivers_to_address", False):
                 return False, "Restaurant does not deliver to specified address"
-            return self.check_price_and_order(request, struct)
+            passed, reason = self.check_price_and_order(request, struct)
+            return self.check_order_chain(request, struct) if passed else (passed, reason)
 
         if request.mode == Mode.PICKUP:
             if not struct.get("pickup_available", False):
                 return False, "Pickup not available at restaurant"
-            return self.check_price_and_order(request, struct)
+            passed, reason = self.check_price_and_order(request, struct)
+            return self.check_order_chain(request, struct) if passed else (passed, reason)
 
         if request.mode == Mode.RESERVATION:
             if not struct.get("table_available", False):
@@ -247,6 +256,17 @@ class CascadeEngine:
             return True, None
 
         return False, f"Unknown mode {request.mode}"
+
+    @staticmethod
+    def check_order_chain(
+        request: UserRequest, struct: dict
+    ) -> Tuple[bool, Optional[str]]:
+        if request.order_chain is None:
+            return True, None
+        evaluation = evaluate_order_chain(request.order_chain, struct)
+        if not evaluation.success:
+            return False, evaluation.reason or "Order wish chain did not resolve"
+        return True, None
 
     def check_concession_authority(self, request: UserRequest, struct: dict) -> Optional[str]:
         """Reject results that used a concession the user never granted."""

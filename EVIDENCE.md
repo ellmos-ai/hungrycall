@@ -785,6 +785,25 @@ warning is Starlette's existing `TestClient` / `httpx` deprecation warning.
 * No browser screenshot or assistive-technology session is claimed; the
   final page behavior is covered by markup, static-asset and CSS regressions.
 
+### 11.4 Local commit attempt — blocked by repository permissions
+
+The requested local commit reached its first narrowly scoped Git write:
+
+```text
+git add -- README.md
+```
+
+Literal result:
+
+```text
+fatal: Unable to create 'C:/_Local_DEV/repos/hungrycall/.git/index.lock': Permission denied
+```
+
+Git failed before changing the index. No logo-integration file was staged, no
+local commit was created, and no second write attempt or push was made. The
+concurrent changes in `AUFGABEN.txt`, restaurant discovery, the shared files,
+the fallback report and its new test file were left uncommitted and intact.
+
 ## 12. Fail-closed restaurant discovery and explicit test mode (2026-08-02)
 
 ### 12.1 Implemented behavior
@@ -850,3 +869,22 @@ fatal: Unable to create 'C:/_Local_DEV/repos/hungrycall/.git/index.lock': Permis
 
 Result: no fallback-fix file was staged, no local commit was created, and no
 second write attempt or push was made.
+
+---
+
+## 13. Subsequent concurrent local commit readback (2026-08-02)
+
+Sections 11.4 and 12.4 describe the two agents' failed write attempts at the
+time they occurred. After those attempts, the concurrent lock owner created:
+
+```text
+8f4899a fix: say when there are no restaurants instead of inventing some
+```
+
+`git show --name-status HEAD` confirmed that this local commit contains all
+fridge-brand files and code, the fallback fix, and the previously foreign
+`AUFGABEN.txt` change. It is therefore a mixed concurrent commit, not the
+separate logo-only commit that was intended. No history rewrite, split, push or
+publication was performed. The present readback clarification remains a
+working-tree documentation delta because this agent still cannot write
+`.git/index.lock`.

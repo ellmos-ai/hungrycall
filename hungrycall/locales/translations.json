@@ -710,5 +710,185 @@
   "error.unsafe.content": {
     "de": "Dieser Wunsch berührt einen Bereich, in dem ein Sprachagent nicht in deinem Namen sprechen darf.",
     "en": "This request touches an area where a voice agent must not speak on your behalf."
+  },
+  "order.title": {
+    "de": "Bestellwunschketten",
+    "en": "Order wish chains"
+  },
+  "order.help": {
+    "de": "Jeder Posten läuft von links nach rechts: Wunsch, Ersatzwünsche und am Ende die Regel, falls nichts trägt.",
+    "en": "Each position runs from left to right: wish, replacements, then the rule if none carries."
+  },
+  "order.position": {
+    "de": "Posten",
+    "en": "Position"
+  },
+  "order.wish": {
+    "de": "Wunsch",
+    "en": "Wish"
+  },
+  "order.replacement": {
+    "de": "Ersatz",
+    "en": "Replacement"
+  },
+  "order.quantity": {
+    "de": "Menge",
+    "en": "Quantity"
+  },
+  "order.product": {
+    "de": "Produkt",
+    "en": "Product"
+  },
+  "order.kind": {
+    "de": "Art",
+    "en": "Type"
+  },
+  "order.kind.food": {
+    "de": "Essen",
+    "en": "Food"
+  },
+  "order.kind.drink": {
+    "de": "Getränk",
+    "en": "Drink"
+  },
+  "order.tags": {
+    "de": "Tags, durch Komma getrennt",
+    "en": "Tags, separated by commas"
+  },
+  "order.criteria": {
+    "de": "Zusatzkriterien",
+    "en": "Additional criteria"
+  },
+  "order.remove": {
+    "de": "Entfernen",
+    "en": "Remove"
+  },
+  "order.add.position": {
+    "de": "Posten hinzufügen",
+    "en": "Add position"
+  },
+  "order.add.replacement": {
+    "de": "weiterer Ersatz",
+    "en": "another replacement"
+  },
+  "order.template.load": {
+    "de": "Vorlage laden",
+    "en": "Load template"
+  },
+  "order.template.load.button": {
+    "de": "Laden",
+    "en": "Load"
+  },
+  "order.template.name": {
+    "de": "Vorlagenname",
+    "en": "Template name"
+  },
+  "order.template.save": {
+    "de": "Als Vorlage speichern",
+    "en": "Save as template"
+  },
+  "order.template.saved": {
+    "de": "Vorlage gespeichert.",
+    "en": "Template saved."
+  },
+  "order.template.error": {
+    "de": "Bitte einen Vorlagennamen eingeben.",
+    "en": "Enter a template name."
+  },
+  "order.criteria.dialog": {
+    "de": "Zusatzkriterien der Zelle",
+    "en": "Cell criteria"
+  },
+  "order.close": {
+    "de": "Schließen",
+    "en": "Close"
+  },
+  "order.criterion.kind": {
+    "de": "Kriterienart",
+    "en": "Criterion type"
+  },
+  "order.criterion.hoechstpreis": {
+    "de": "Höchstpreis",
+    "en": "Maximum price"
+  },
+  "order.criterion.sonderwunsch": {
+    "de": "Sonderwunsch",
+    "en": "Special request"
+  },
+  "order.criterion.rueckfrage": {
+    "de": "Rückfrage",
+    "en": "Question"
+  },
+  "order.criterion.value.price": {
+    "de": "Höchstpreis in Euro",
+    "en": "Maximum price in euros"
+  },
+  "order.criterion.value.special": {
+    "de": "Sonderwunsch",
+    "en": "Special request"
+  },
+  "order.criterion.value.question": {
+    "de": "Ja-Nein-Frage",
+    "en": "Yes-no question"
+  },
+  "order.criterion.if.not.met": {
+    "de": "Wenn nicht erfüllt",
+    "en": "If not met"
+  },
+  "order.criterion.if.yes": {
+    "de": "Bei Ja",
+    "en": "On yes"
+  },
+  "order.criterion.if.no": {
+    "de": "Bei Nein",
+    "en": "On no"
+  },
+  "order.criterion.add": {
+    "de": "Kriterium hinzufügen",
+    "en": "Add criterion"
+  },
+  "order.reaction.annehmen": {
+    "de": "annehmen",
+    "en": "accept"
+  },
+  "order.reaction.naechster_ersatz": {
+    "de": "weich: nächster Ersatz",
+    "en": "soft: next replacement"
+  },
+  "order.reaction.ablehnen": {
+    "de": "hart: Posten ablehnen",
+    "en": "hard: reject position"
+  },
+  "order.rule.posten_weglassen": {
+    "de": "Wenn nichts verfügbar: Posten weglassen",
+    "en": "If nothing is available: skip position"
+  },
+  "order.rule.bestellung_abbrechen": {
+    "de": "Wenn nichts verfügbar: Bestellung abbrechen",
+    "en": "If nothing is available: abort order"
+  },
+  "order.tags.none": {
+    "de": "ohne Tag",
+    "en": "without tag"
+  },
+  "order.summary.by.tags": {
+    "de": "Bestellübersicht nach Tags",
+    "en": "Order summary by tags"
+  },
+  "history.orders.title": {
+    "de": "Abgeschickte Bestellungen",
+    "en": "Submitted orders"
+  },
+  "history.orders.help": {
+    "de": "Eine Bestellung laden, ändern und erneut durch den Trockenlauf schicken.",
+    "en": "Load an order, change it, and submit it through the dry run again."
+  },
+  "history.load.edit": {
+    "de": "Laden und ändern",
+    "en": "Load and edit"
+  },
+  "order.error.invalid": {
+    "de": "Die Bestellkette ist ungültig: {detail}",
+    "en": "The order chain is invalid: {detail}"
   }
 }

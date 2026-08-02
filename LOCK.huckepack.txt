@@ -1,0 +1,14 @@
+owner: Claude Opus 5 (huckepack-umsetzung)
+created: 2026-08-02T21:25
+host: ASUS-GEI
+expires_after: 24h
+mode: soft
+scope: component:huckepack
+purpose: Huckepack-Servermodi einbauen (Modus-Erkennung, austauschbare Speicherschicht,
+  Schlüsseldurchreichung, Export/Import, Beleg als Datei) samt Dokumentation.
+paths: hungrycall/server_mode.py, hungrycall/huckepack_storage.py, hungrycall/huckepack_web.py,
+  hungrycall/calle_key.py, hungrycall/static/huckepack.js, tests/test_huckepack_*.py,
+  DATA-FLOW.md, PRIVACY-TEMPLATE.md
+note: Bestellwunschketten-Arbeit (models/db-Schema, Oberfläche, Gesprächsübersetzer) ist
+  NICHT gesperrt — dort arbeitet ein anderer Agent. Berührt werden von mir nur die oben
+  genannten Dateien plus je eine Zeile in db.py, web.py und templates.py.
