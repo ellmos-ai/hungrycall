@@ -1,8 +1,8 @@
 """Location geocoding and OpenStreetMap Overpass restaurant search module."""
 
-import json
+import copy
 import logging
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional
 import httpx
 from hungrycall.models import Restaurant, OpeningHours
 from hungrycall.fixtures import SAMPLE_RESTAURANTS
@@ -91,64 +91,9 @@ OFFLINE_RESTAURANTS_BY_LOC: Dict[str, List[Restaurant]] = {
             lon=-0.1325
         )
     ],
-    "default": [
-        Restaurant(
-            id="rest_burger_house",
-            name="Burger House Dorfstadt",
-            phone="+491701111111",
-            cuisines=["Burger", "American", "Fast Food"],
-            opening_hours=OpeningHours(days=["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], open_time="11:00", close_time="23:00"),
-            is_favorite=False,
-            supports_delivery=True,
-            supports_pickup=True,
-            supports_reservation=True,
-            address="Dorfstraße 5, 12345 Dorfstadt",
-            lat=52.5220,
-            lon=13.4080
-        ),
-        Restaurant(
-            id="rest_trattoria_luigi",
-            name="Trattoria Bella Luigi",
-            phone="+491702222222",
-            cuisines=["Italian", "Pizza", "Pasta"],
-            opening_hours=OpeningHours(days=["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], open_time="12:00", close_time="22:00"),
-            is_favorite=True,
-            supports_delivery=True,
-            supports_pickup=True,
-            supports_reservation=True,
-            address="Marktplatz 1, 12345 Dorfstadt",
-            lat=52.5180,
-            lon=13.4020
-        ),
-        Restaurant(
-            id="rest_asian_wok",
-            name="Asia Wok Express",
-            phone="+491703333333",
-            cuisines=["Asian", "Chinese", "Noodles"],
-            opening_hours=OpeningHours(days=["Wed", "Thu", "Fri", "Sat", "Sun"], open_time="16:00", close_time="22:00"),
-            is_favorite=False,
-            supports_delivery=True,
-            supports_pickup=True,
-            supports_reservation=False,
-            address="Bahnhofstraße 12, 12345 Dorfstadt",
-            lat=52.5240,
-            lon=13.3980
-        ),
-        Restaurant(
-            id="rest_closed_diner",
-            name="Late Night Snack Shack",
-            phone="+491704444444",
-            cuisines=["Burger", "Snack"],
-            opening_hours=OpeningHours(days=["Fri", "Sat"], open_time="22:00", close_time="04:00"),
-            is_favorite=False,
-            supports_delivery=True,
-            supports_pickup=True,
-            supports_reservation=False,
-            address="Industriestraße 8, 12345 Dorfstadt",
-            lat=52.5150,
-            lon=13.4120
-        )
-    ]
+    # The German village pool lives in fixtures.SAMPLE_RESTAURANTS. Keeping a
+    # second copy here is how the two lists drifted apart in the first place.
+    "default": SAMPLE_RESTAURANTS,
 }
 
 
@@ -189,9 +134,14 @@ def search_overpass_restaurants(
     """
     Search restaurants around center point using OSM Overpass API.
     In dry-run mode or network failure, returns rich offline fixtures.
+
+    Every candidate comes back with distance_km filled in, because pickup
+    ranking and the distance cut-off are meaningless without it.
     """
+    from hungrycall.ranking import annotate_distances  # local: avoids an import cycle
+
     if dry_run:
-        return get_offline_restaurants(city)
+        return annotate_distances(get_offline_restaurants(city), lat, lon)
 
     # Live Overpass API Query
     radius_m = int(radius_km * 1000)
@@ -250,17 +200,22 @@ def search_overpass_restaurants(
                     )
                 )
             if restaurants:
-                return restaurants
+                return annotate_distances(restaurants, lat, lon)
     except Exception as e:
         logger.warning(f"Overpass API call failed: {e}. Falling back to fixture pool.")
 
-    return get_offline_restaurants(city)
+    return annotate_distances(get_offline_restaurants(city), lat, lon)
 
 
 def get_offline_restaurants(city: str = "") -> List[Restaurant]:
-    """Retrieve offline restaurant fixture pool matching city or default."""
+    """Retrieve the offline candidate pool for a city, or the default village.
+
+    Returns deep copies. The search annotates each candidate with its distance
+    to the caller, and handing out the shared module-level objects would leak
+    one visitor's distances into the next one's results.
+    """
     city_clean = city.strip().lower()
     for key, pool in OFFLINE_RESTAURANTS_BY_LOC.items():
         if key != "default" and key in city_clean:
-            return pool
-    return OFFLINE_RESTAURANTS_BY_LOC["default"]
+            return copy.deepcopy(pool)
+    return copy.deepcopy(OFFLINE_RESTAURANTS_BY_LOC["default"])

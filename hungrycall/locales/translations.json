@@ -1,0 +1,606 @@
+{
+  "app.name": {
+    "de": "I am hungry",
+    "en": "I am hungry"
+  },
+  "app.tagline": {
+    "de": "Ein Anruf nach dem anderen — bis einer passt",
+    "en": "One call after another — until one fits"
+  },
+  "app.subtitle": {
+    "de": "Kaskaden-Sprachagent auf CALL-E",
+    "en": "Cascading voice agent on CALL-E"
+  },
+  "nav.start": {
+    "de": "Zum Inhalt",
+    "en": "Skip to content"
+  },
+  "nav.history": {
+    "de": "Verlauf",
+    "en": "History"
+  },
+  "nav.back": {
+    "de": "Zurück zur Auswahl",
+    "en": "Back to the choice"
+  },
+  "lang.switch.aria": {
+    "de": "Sprache wählen",
+    "en": "Choose language"
+  },
+  "landing.claim": {
+    "de": "Du sagst, was du brauchst — wir finden, wer es dir liefert oder wo du es abholen kannst. Zu deinen Konditionen und Prioritäten.",
+    "en": "You say what you need — we find who will bring it to you, or where you can collect it. On your terms, in your order of priority."
+  },
+  "landing.lead": {
+    "de": "Auf dem Land ist kein Restaurant bei einem Lieferportal. Um herauszufinden, wer überhaupt liefert, muss man anrufen. Und nochmal. Und nochmal.",
+    "en": "In a village no restaurant is on a delivery portal. To find out who delivers at all, you have to call. And call again. And again."
+  },
+  "landing.choose": {
+    "de": "Was brauchst du?",
+    "en": "What do you need?"
+  },
+  "landing.tile.food.title": {
+    "de": "Essen bestellen",
+    "en": "Order food"
+  },
+  "landing.tile.food.sub": {
+    "de": "Lieferung oder Abholung",
+    "en": "Delivery or pickup"
+  },
+  "landing.tile.food.hint": {
+    "de": "Wir rufen der Reihe nach an und fragen, ob geliefert wird, was es genau kostet und wie lange es dauert. Wer über deinem Höchstbetrag liegt oder keinen festen Preis nennt, wird höflich verabschiedet.",
+    "en": "We call one place after another and ask whether they deliver, what it costs exactly, and how long it takes. Anyone above your limit, or unwilling to name a firm price, is politely thanked and left."
+  },
+  "landing.tile.table.title": {
+    "de": "Tisch reservieren",
+    "en": "Book a table"
+  },
+  "landing.tile.table.sub": {
+    "de": "Uhrzeit, Personen, drinnen oder draußen",
+    "en": "Time, party size, indoors or out"
+  },
+  "landing.tile.table.hint": {
+    "de": "Dieselbe Kaskade, andere Kriterien: Uhrzeit, Personenzahl, drinnen oder draußen. Kein Preis, keine Liefergebühr — der erste freie Tisch, der wirklich passt, gewinnt.",
+    "en": "The same cascade on different criteria: time, party size, indoors or out. No price, no delivery fee — the first free table that genuinely fits wins."
+  },
+  "landing.tile.reveal": {
+    "de": "Zeigen, was passiert",
+    "en": "Show what happens"
+  },
+  "landing.anim.title": {
+    "de": "Wie es arbeitet",
+    "en": "How it works"
+  },
+  "landing.anim.lead": {
+    "de": "Vier Nummern, ein Auftrag. Der Agent legt auf, sobald eine Bedingung verletzt ist — und hört ganz auf, sobald eine zusagt.",
+    "en": "Four numbers, one errand. The agent hangs up as soon as a condition breaks — and stops entirely as soon as one says yes."
+  },
+  "landing.anim.rejected": {
+    "de": "abgelehnt",
+    "en": "declined"
+  },
+  "landing.anim.booked": {
+    "de": "zugesagt",
+    "en": "confirmed"
+  },
+  "landing.anim.never": {
+    "de": "nie angerufen",
+    "en": "never called"
+  },
+  "landing.anim.legend.1": {
+    "de": "Bedingung verletzt: höflich verabschieden, nächster.",
+    "en": "Condition broken: thank them, move on."
+  },
+  "landing.anim.legend.2": {
+    "de": "Alles erfüllt: abschließen.",
+    "en": "Everything met: close the deal."
+  },
+  "landing.anim.legend.3": {
+    "de": "Und ab da ruft niemand mehr an.",
+    "en": "And from there, nobody else gets a call."
+  },
+  "landing.pattern.title": {
+    "de": "Das Muster trägt weiter als Essen",
+    "en": "The pattern reaches past food"
+  },
+  "landing.pattern.body": {
+    "de": "Zahnarzttermin, Handwerker mit freiem Termin, Ersatzteil auf Lager: überall, wo man mehrere Stellen abtelefonieren muss, bis eine passt. Der Tischzweig ist der Beleg dafür — gleiche Mechanik, völlig andere Kriterien.",
+    "en": "A dentist appointment, a tradesperson with a free slot, a spare part in stock: anywhere you have to work through a list of numbers until one fits. The table branch is the proof — same mechanics, entirely different criteria."
+  },
+  "landing.pattern.link": {
+    "de": "MUSTER.md im Repo",
+    "en": "MUSTER.md in the repo"
+  },
+  "safety.mode.dry": {
+    "de": "Trockenlauf",
+    "en": "Dry run"
+  },
+  "safety.mode.dry.explain": {
+    "de": "Es wird nicht telefoniert. Jede Antwort kommt aus einer lokalen Fixture — kein Konto, kein Netz, keine Kosten.",
+    "en": "Nothing is dialled. Every answer comes from a local fixture — no account, no network, no cost."
+  },
+  "safety.live.locked": {
+    "de": "Echter Anruf gesperrt",
+    "en": "Real calls locked"
+  },
+  "safety.live.why": {
+    "de": "Dieser Stand hat kein CALL-E-Konto, das Guthaben steht bei −0,05 USD. Der Live-Client verweigert den Dienst, statt so zu tun als ob.",
+    "en": "This build has no CALL-E account; the balance sits at −0.05 USD. The live client refuses to run rather than pretend."
+  },
+  "safety.calls": {
+    "de": "Anrufe",
+    "en": "Calls"
+  },
+  "safety.calls.explain": {
+    "de": "Tatsächlich geführte Gespräche in diesem Lauf, Absagen eingeschlossen.",
+    "en": "Calls actually made in this run, declines included."
+  },
+  "safety.dataflow": {
+    "de": "Was im Auftragstext steht, verlässt das Haus: CALL-E läuft in Singapur. Deshalb steht dort nur, was für diesen einen Anruf nötig ist.",
+    "en": "Whatever goes into the goal text leaves the building: CALL-E runs in Singapore. That is why only what this one call needs is put in it."
+  },
+  "safety.tiles": {
+    "de": "Der Code läuft ohne Netz. Die Kartenkacheln kommen von OpenStreetMap — ohne Verbindung bleibt die Karte grau, alles andere funktioniert weiter.",
+    "en": "The code runs without a network. The map tiles come from OpenStreetMap — with no connection the map stays grey, everything else keeps working."
+  },
+  "unverified.badge": {
+    "de": "ungeprüft",
+    "en": "unverified"
+  },
+  "unverified.live.search": {
+    "de": "Die Live-Suche über OpenStreetMap ist eingebaut, aber nie unter echten Bedingungen gelaufen. Im Trockenlauf wird sie nicht betreten.",
+    "en": "The live OpenStreetMap search is wired up but has never run under real conditions. The dry run never enters it."
+  },
+  "form.where.title": {
+    "de": "Wo bist du?",
+    "en": "Where are you?"
+  },
+  "form.postcode": {
+    "de": "PLZ",
+    "en": "Postcode"
+  },
+  "form.city": {
+    "de": "Ort",
+    "en": "Town"
+  },
+  "form.country": {
+    "de": "Land",
+    "en": "Country"
+  },
+  "form.name": {
+    "de": "Dein Name",
+    "en": "Your name"
+  },
+  "form.address": {
+    "de": "Lieferadresse",
+    "en": "Delivery address"
+  },
+  "form.address.pickup": {
+    "de": "Startadresse (für die Entfernung)",
+    "en": "Starting address (for distance)"
+  },
+  "form.radius": {
+    "de": "Umkreis (km)",
+    "en": "Radius (km)"
+  },
+  "form.search": {
+    "de": "Kandidaten suchen",
+    "en": "Find candidates"
+  },
+  "form.scenario": {
+    "de": "Trockenlauf-Szenario",
+    "en": "Dry-run scenario"
+  },
+  "form.scenario.help": {
+    "de": "Welche Antworten die Restaurants im Trockenlauf geben. Nichts davon ist ein echtes Gespräch.",
+    "en": "Which answers the restaurants give in the dry run. None of this is a real conversation."
+  },
+  "search.loading.title": {
+    "de": "Wir sammeln die Kandidaten",
+    "en": "Collecting candidates"
+  },
+  "search.loading.sub": {
+    "de": "Adressen, Rufnummern, Öffnungszeiten, Entfernung.",
+    "en": "Addresses, phone numbers, opening hours, distance."
+  },
+  "candidates.title": {
+    "de": "Kandidaten",
+    "en": "Candidates"
+  },
+  "candidates.hint": {
+    "de": "Von oben nach unten wird angerufen. Sortiere nach oben, was dir wichtiger ist, und nimm heraus, wen wir nicht anrufen sollen.",
+    "en": "We call from top to bottom. Move what matters more to the top, and take out anyone we should not call."
+  },
+  "candidates.order.up": {
+    "de": "Nach oben",
+    "en": "Move up"
+  },
+  "candidates.order.down": {
+    "de": "Nach unten",
+    "en": "Move down"
+  },
+  "candidates.include": {
+    "de": "anrufen",
+    "en": "call"
+  },
+  "candidates.closed.count": {
+    "de": "{n} kommen nicht in Frage — wir rufen dort nicht an.",
+    "en": "{n} are out of the question — we will not call them."
+  },
+  "candidates.closed.show": {
+    "de": "Trotzdem zeigen",
+    "en": "Show anyway"
+  },
+  "candidates.closed.hide": {
+    "de": "Wieder ausblenden",
+    "en": "Hide again"
+  },
+  "candidates.none": {
+    "de": "Kein Kandidat erfüllt die Vorbedingungen. Ändere Zeit, Umkreis oder Personenzahl.",
+    "en": "No candidate meets the preconditions. Change the time, the radius or the party size."
+  },
+  "candidates.distance": {
+    "de": "km entfernt",
+    "en": "km away"
+  },
+  "candidates.outdoor": {
+    "de": "Außenplätze",
+    "en": "outdoor seating"
+  },
+  "candidates.seats": {
+    "de": "bis {n} Personen",
+    "en": "up to {n} people"
+  },
+  "candidates.favorite": {
+    "de": "Favorit",
+    "en": "Favourite"
+  },
+  "food.title": {
+    "de": "Essen bestellen",
+    "en": "Order food"
+  },
+  "food.mode.title": {
+    "de": "Wie möchtest du es bekommen?",
+    "en": "How do you want it?"
+  },
+  "food.mode.delivery": {
+    "de": "Liefern lassen",
+    "en": "Have it delivered"
+  },
+  "food.mode.delivery.note": {
+    "de": "Standard. Der Höchstbetrag ist der Endbetrag an der Haustür, Liefergebühr und Mindestbestellwert eingerechnet. Wie weit ein Restaurant weg ist, ist dann nicht dein Problem.",
+    "en": "The default. Your limit is the total at the door, delivery fee and minimum order included. How far away a restaurant is stops being your problem."
+  },
+  "food.mode.pickup": {
+    "de": "Selbst abholen",
+    "en": "Collect it yourself"
+  },
+  "food.mode.pickup.note": {
+    "de": "Der Höchstbetrag ist der reine Abholpreis, ohne Liefergebühr. Dafür zählt die Entfernung jetzt in der Rangfolge mit — du fährst hin.",
+    "en": "Your limit is the collection price alone, with no delivery fee. In exchange, distance now counts in the ranking — you are the one driving."
+  },
+  "food.prompt": {
+    "de": "Was möchtest du essen?",
+    "en": "What do you want to eat?"
+  },
+  "food.prompt.help": {
+    "de": "Frei formuliert. Der Wunsch schlägt das Lieblingsrestaurant: Wer Burger will, bekommt nicht den Lieblings-Italiener vorgeschlagen.",
+    "en": "In your own words. The craving beats the favourite: someone who wants a burger is not handed their favourite Italian."
+  },
+  "food.budget.delivery": {
+    "de": "Höchstbetrag an der Haustür (€)",
+    "en": "Maximum at the door (€)"
+  },
+  "food.budget.pickup": {
+    "de": "Höchstbetrag bei Abholung (€)",
+    "en": "Maximum on collection (€)"
+  },
+  "food.budget.help": {
+    "de": "Darüber wird nicht bestellt. Eine ungefähre Auskunft — „so um die dreißig“ — gilt als Absage, nicht als Schätzung.",
+    "en": "Above this, nothing is ordered. A vague answer — “about thirty” — counts as a decline, not as an estimate."
+  },
+  "food.pickup.time": {
+    "de": "Abholzeit",
+    "en": "Collection time"
+  },
+  "food.maxdistance": {
+    "de": "Nicht weiter weg als (km)",
+    "en": "No further than (km)"
+  },
+  "food.maxdistance.help": {
+    "de": "Leer lassen heißt: egal. Bei Abholung ist es das selten.",
+    "en": "Leave empty for: does not matter. On collection it rarely does."
+  },
+  "table.title": {
+    "de": "Tisch reservieren",
+    "en": "Book a table"
+  },
+  "table.when.title": {
+    "de": "Wann und für wen?",
+    "en": "When, and for how many?"
+  },
+  "table.date": {
+    "de": "Datum",
+    "en": "Date"
+  },
+  "table.time": {
+    "de": "Uhrzeit",
+    "en": "Time"
+  },
+  "table.party": {
+    "de": "Personen",
+    "en": "People"
+  },
+  "table.party.help": {
+    "de": "Häuser, die so viele nicht setzen können, werden gar nicht erst angerufen.",
+    "en": "Places that cannot seat that many are never called in the first place."
+  },
+  "table.seating": {
+    "de": "Sitzplatz",
+    "en": "Seating"
+  },
+  "table.seating.any": {
+    "de": "Egal",
+    "en": "Either"
+  },
+  "table.seating.indoor": {
+    "de": "Drinnen",
+    "en": "Indoors"
+  },
+  "table.seating.outdoor": {
+    "de": "Draußen",
+    "en": "Outdoors"
+  },
+  "table.seating.help": {
+    "de": "Ein Tisch drinnen ist nicht der Tisch, nach dem gefragt wurde — außer du erlaubst es unten als Zugeständnis.",
+    "en": "A table indoors is not the table that was asked for — unless you allow it below as a concession."
+  },
+  "table.wish": {
+    "de": "Küche oder Anlass",
+    "en": "Cuisine or occasion"
+  },
+  "table.wish.help": {
+    "de": "Bestimmt die Rangfolge, nicht die Zusage.",
+    "en": "Shapes the ranking, not the answer."
+  },
+  "table.concessions.title": {
+    "de": "Wozu bist du notfalls bereit?",
+    "en": "What would you settle for, if you had to?"
+  },
+  "table.concessions.help": {
+    "de": "Was du hier erlaubst, wird erst ausgespielt, wenn der reguläre Versuch gescheitert ist — eins nach dem anderen, nie alles auf einmal. Was du nicht erlaubst, darf der Agent auch nicht anbieten: ein Ja, das er sich damit erkauft hat, wird zurückgewiesen.",
+    "en": "Whatever you allow here is played only after the plain attempt has failed — one step at a time, never all at once. What you do not allow, the agent may not offer: a yes bought that way is rejected."
+  },
+  "table.concession.indoor_ok": {
+    "de": "Notfalls auch drinnen",
+    "en": "Indoors would do"
+  },
+  "table.concession.time_flex": {
+    "de": "Notfalls eine Stunde früher oder später",
+    "en": "An hour earlier or later would do"
+  },
+  "table.concession.deposit_ok": {
+    "de": "Notfalls bis 15 € Reservierungsgebühr",
+    "en": "A booking fee up to €15 would do"
+  },
+  "table.concession.order": {
+    "de": "Stufe {order}",
+    "en": "Step {order}"
+  },
+  "goal.title": {
+    "de": "Der Auftragstext",
+    "en": "The goal text"
+  },
+  "goal.help": {
+    "de": "Das ist der vollständige Text, den der Sprachagent bekommt. Ab hier gibt es keinen Zugriff mehr — kein Nachfassen, kein Eingreifen. Alles, was drüben gelten soll, muss hier drinstehen.",
+    "en": "This is the complete text the voice agent receives. From here on there is no reach back in — no follow-up, no intervention. Everything that should hold over there has to be in here."
+  },
+  "goal.show": {
+    "de": "Auftragstext anzeigen",
+    "en": "Show the goal text"
+  },
+  "goal.empty": {
+    "de": "Noch nicht erzeugt. Erst ansehen, dann starten.",
+    "en": "Not generated yet. Look at it before you start."
+  },
+  "cascade.start.food": {
+    "de": "Anrufe starten",
+    "en": "Start calling"
+  },
+  "cascade.start.table": {
+    "de": "Tisch suchen lassen",
+    "en": "Go and find a table"
+  },
+  "cascade.running": {
+    "de": "Die Kaskade läuft",
+    "en": "The cascade is running"
+  },
+  "cascade.cancel": {
+    "de": "Abbrechen",
+    "en": "Stop"
+  },
+  "cascade.canceled": {
+    "de": "Abgebrochen. Es wird niemand mehr angerufen.",
+    "en": "Stopped. Nobody else will be called."
+  },
+  "cascade.init": {
+    "de": "Verbindung steht. Pro Anruf rund 40 Sekunden Vorlauf.",
+    "en": "Connected. Around 40 seconds of setup per call."
+  },
+  "cascade.dialing": {
+    "de": "Wähle {name} …",
+    "en": "Dialling {name} …"
+  },
+  "cascade.talking": {
+    "de": "Gespräch steht mit {name}",
+    "en": "Talking to {name}"
+  },
+  "cascade.rejected": {
+    "de": "Abgelehnt",
+    "en": "Declined"
+  },
+  "cascade.done": {
+    "de": "Fertig.",
+    "en": "Done."
+  },
+  "cascade.exhausted": {
+    "de": "Alle Kandidaten durch. Keiner hat die Bedingungen erfüllt — es wurde nichts bestellt und nichts zugesagt.",
+    "en": "Every candidate has been tried. None met the conditions — nothing was ordered and nothing was promised."
+  },
+  "cascade.activity": {
+    "de": "Was gerade gesprochen wird",
+    "en": "What is being said"
+  },
+  "cascade.band.budget": {
+    "de": "Höchstbetrag",
+    "en": "Spending limit"
+  },
+  "cascade.band.budget.none": {
+    "de": "kein Limit",
+    "en": "no limit"
+  },
+  "cascade.band.criteria": {
+    "de": "Bedingungen",
+    "en": "Conditions"
+  },
+  "cascade.band.concessions": {
+    "de": "Erlaubte Zugeständnisse",
+    "en": "Concessions allowed"
+  },
+  "cascade.band.concessions.none": {
+    "de": "keine",
+    "en": "none"
+  },
+  "result.title.delivery": {
+    "de": "Bestellt",
+    "en": "Ordered"
+  },
+  "result.title.pickup": {
+    "de": "Zum Abholen bestellt",
+    "en": "Ordered for collection"
+  },
+  "result.title.reservation": {
+    "de": "Tisch reserviert",
+    "en": "Table booked"
+  },
+  "result.callback": {
+    "de": "Rückrufnummer",
+    "en": "Callback number"
+  },
+  "result.callback.note": {
+    "de": "Die Zusage ist verbindlich und steht nur in diesem Protokoll. Für Änderungen selbst dort anrufen.",
+    "en": "The commitment is binding and exists only in this transcript. To change it, call them yourself."
+  },
+  "result.price": {
+    "de": "Endbetrag",
+    "en": "Total"
+  },
+  "result.eta": {
+    "de": "Lieferzeit",
+    "en": "Delivery time"
+  },
+  "result.prep": {
+    "de": "Abholbereit in",
+    "en": "Ready in"
+  },
+  "result.minutes": {
+    "de": "Min.",
+    "en": "min"
+  },
+  "result.pickup.at": {
+    "de": "Abholen bei",
+    "en": "Collect from"
+  },
+  "result.when": {
+    "de": "Termin",
+    "en": "Time"
+  },
+  "result.party": {
+    "de": "Personen",
+    "en": "People"
+  },
+  "result.seating": {
+    "de": "Sitzplatz",
+    "en": "Seating"
+  },
+  "result.concession": {
+    "de": "Zugeständnis eingelöst",
+    "en": "Concession used"
+  },
+  "result.concession.note": {
+    "de": "Der reguläre Versuch ist gescheitert, deshalb wurde diese Stufe gezogen — und nur diese.",
+    "en": "The plain attempt failed, so this step was played — and only this one."
+  },
+  "result.calls.made.one": {
+    "de": "1 Anruf geführt",
+    "en": "1 call made"
+  },
+  "result.sentence.delivery": {
+    "de": "Bestellt bei {name}: liefert in {eta} Minuten, {items}, {price} €. Rückruf unter {callback}.",
+    "en": "Ordered from {name}: delivers in {eta} minutes, {items}, {price} €. Callback at {callback}."
+  },
+  "result.sentence.pickup": {
+    "de": "Bei {name} zum Abholen bestellt: fertig in {prep} Minuten, {price} €. Abholen bei {address}. Rückruf unter {callback}.",
+    "en": "Ordered for collection at {name}: ready in {prep} minutes, {price} €. Collect from {address}. Callback at {callback}."
+  },
+  "result.sentence.reservation": {
+    "de": "Tisch bei {name} für {party} Personen am {date} um {time}{seating}. Rückruf unter {callback}.",
+    "en": "Table at {name} for {party} people on {date} at {time}{seating}. Callback at {callback}."
+  },
+  "result.sentence.seating.indoor": {
+    "de": ", drinnen",
+    "en": ", indoors"
+  },
+  "result.sentence.seating.outdoor": {
+    "de": ", draußen",
+    "en": ", outdoors"
+  },
+  "result.transcript": {
+    "de": "Gesprächsprotokoll",
+    "en": "Transcript"
+  },
+  "result.transcript.note": {
+    "de": "Die Zusage ist ein mündlicher Vertrag ohne Papier. Dieses Protokoll ist der einzige Beleg.",
+    "en": "The commitment is a spoken contract with no paperwork. This transcript is the only record."
+  },
+  "result.save": {
+    "de": "Ergebnis sichern",
+    "en": "Keep this result"
+  },
+  "result.saved": {
+    "de": "Gesichert.",
+    "en": "Kept."
+  },
+  "result.calls.made": {
+    "de": "{n} Anrufe geführt",
+    "en": "{n} calls made"
+  },
+  "history.title": {
+    "de": "Gesicherte Ergebnisse",
+    "en": "Kept results"
+  },
+  "history.empty": {
+    "de": "Noch nichts gesichert.",
+    "en": "Nothing kept yet."
+  },
+  "history.masked.note": {
+    "de": "Rufnummern erscheinen hier maskiert, wie in jeder anderen Ausgabe auch.",
+    "en": "Phone numbers appear masked here, as in every other output."
+  },
+  "history.col.what": {
+    "de": "Vorgang",
+    "en": "What"
+  },
+  "history.col.who": {
+    "de": "Wo",
+    "en": "Where"
+  },
+  "error.live.refused": {
+    "de": "Echte Anrufe sind in diesem Stand gesperrt. Es wurde nichts gewählt.",
+    "en": "Real calls are locked in this build. Nothing was dialled."
+  },
+  "error.unsafe.content": {
+    "de": "Dieser Wunsch berührt einen Bereich, in dem ein Sprachagent nicht in deinem Namen sprechen darf.",
+    "en": "This request touches an area where a voice agent must not speak on your behalf."
+  }
+}

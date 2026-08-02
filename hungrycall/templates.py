@@ -1,987 +1,1180 @@
-"""HTML Templates and Component Generators for HungryCall Web Interface."""
+"""HTML for the HungryCall web interface.
 
-from typing import List, Dict, Any, Optional
-from hungrycall.models import Restaurant, Mode
+Design note — why this does not look like a dashboard
+-----------------------------------------------------
+The subject is a telephone exchange, not analytics. What the user is really
+watching is an operator working down a list of jacks: plug in, ask, unplug,
+next. So the surface borrows from that world — bakelite dark, brass hardware,
+patch-cord green for a live line, oxidised red for a dead one — and the type
+system carries one rule: *the machine speaks in monospace, the human reads in
+sans*. Transcripts, activity lines, phone numbers, prices and the goal text are
+machine speech. Everything else is not.
+
+No web fonts, no CDN. The page claimed offline capability while pulling a font
+from Google; either the claim or the link had to go, and the claim is worth
+more.
+"""
+
+import html
+import json
+from typing import Any, Dict, List, Optional
+
+from hungrycall.i18n import SUPPORTED, t
+from hungrycall.models import Branch, Concession, Mode, Restaurant, Seating
 from hungrycall.phone_utils import mask_phone
 
 
-def render_base_page() -> str:
-    """Render main application HTML frame with HTMX, Leaflet, and SSE support."""
-    return """<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>I am hungry — hungrycall</title>
-    
-    <!-- Local Static Assets for 100% Offline Capability -->
-    <link rel="stylesheet" href="/static/leaflet.css">
-    <script src="/static/leaflet.js"></script>
-    <script src="/static/htmx.min.js"></script>
-    <script src="/static/htmx-sse.js"></script>
-    
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
-    <style>
-        :root {
-            --bg-dark: #0f172a;
-            --card-bg: #1e293b;
-            --card-border: #334155;
-            --primary: #f59e0b;
-            --primary-hover: #d97706;
-            --success: #10b981;
-            --danger: #ef4444;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --accent-glow: rgba(245, 158, 11, 0.15);
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Outfit', -apple-system, sans-serif;
-        }
-
-        body {
-            background-color: var(--bg-dark);
-            color: var(--text-main);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        header {
-            background: rgba(30, 41, 59, 0.8);
-            backdrop-filter: blur(12px);
-            border-bottom: 1px solid var(--card-border);
-            padding: 1rem 2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-        }
-
-        .logo-container {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .logo-icon {
-            font-size: 1.8rem;
-        }
-
-        .logo-title {
-            font-size: 1.4rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, #f59e0b, #fbbf24);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .mode-badge {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            background: #0f172a;
-            padding: 0.4rem 1rem;
-            border-radius: 9999px;
-            border: 1px solid var(--card-border);
-            font-size: 0.85rem;
-        }
-
-        .toggle-switch {
-            position: relative;
-            display: inline-block;
-            width: 44px;
-            height: 24px;
-        }
-
-        .toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #475569;
-            transition: .3s;
-            border-radius: 24px;
-        }
-
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 18px;
-            width: 18px;
-            left: 3px;
-            bottom: 3px;
-            background-color: white;
-            transition: .3s;
-            border-radius: 50%;
-        }
-
-        input:checked + .slider {
-            background-color: var(--danger);
-        }
-
-        input:checked + .slider:before {
-            transform: translateX(20px);
-        }
-
-        .live-warning {
-            color: #f87171;
-            font-weight: 600;
-        }
-
-        .dry-badge {
-            color: #34d399;
-            font-weight: 600;
-        }
-
-        main {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1.5rem;
-            padding: 1.5rem 2rem;
-            flex: 1;
-            max-width: 1600px;
-            margin: 0 auto;
-            width: 100%;
-        }
-
-        @media (max-width: 1024px) {
-            main {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .panel {
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 16px;
-            padding: 1.5rem;
-            display: flex;
-            flex-direction: column;
-            gap: 1.25rem;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-        }
-
-        .panel-title {
-            font-size: 1.15rem;
-            font-weight: 600;
-            color: #e2e8f0;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            border-bottom: 1px solid var(--card-border);
-            padding-bottom: 0.75rem;
-        }
-
-        .form-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1rem;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 0.4rem;
-        }
-
-        .form-group.full-width {
-            grid-column: 1 / -1;
-        }
-
-        label {
-            font-size: 0.85rem;
-            font-weight: 500;
-            color: var(--text-muted);
-        }
-
-        input, select, textarea {
-            background: #0f172a;
-            border: 1px solid var(--card-border);
-            border-radius: 8px;
-            padding: 0.65rem 0.85rem;
-            color: var(--text-main);
-            font-size: 0.95rem;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-
-        input:focus, select:focus, textarea:focus {
-            border-color: var(--primary);
-        }
-
-        .btn {
-            background: var(--primary);
-            color: #000;
-            font-weight: 600;
-            border: none;
-            border-radius: 8px;
-            padding: 0.75rem 1.25rem;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            transition: all 0.2s;
-        }
-
-        .btn:hover {
-            background: var(--primary-hover);
-            transform: translateY(-1px);
-        }
-
-        .btn-danger {
-            background: var(--danger);
-            color: #fff;
-        }
-
-        .btn-danger:hover {
-            background: #dc2626;
-        }
-
-        .btn-secondary {
-            background: #334155;
-            color: #f8fafc;
-        }
-
-        .btn-secondary:hover {
-            background: #475569;
-        }
-
-        /* Pulsing search animation */
-        .search-loading-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 3rem 1.5rem;
-            gap: 1.5rem;
-            text-align: center;
-        }
-
-        .pulse-loader {
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            background: var(--primary);
-            box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
-            animation: pulse-ring 1.5s infinite cubic-bezier(0.66, 0, 0, 1);
-        }
-
-        @keyframes pulse-ring {
-            to {
-                box-shadow: 0 0 0 30px rgba(245, 158, 11, 0);
-            }
-        }
-
-        /* Map styling */
-        #map-container {
-            position: sticky;
-            top: 5rem;
-            height: calc(100vh - 7.5rem);
-            min-height: 500px;
-            border-radius: 16px;
-            overflow: hidden;
-            border: 1px solid var(--card-border);
-        }
-
-        #map {
-            width: 100%;
-            height: 100%;
-        }
-
-        /* User glowing marker */
-        .user-marker-pulse {
-            width: 20px;
-            height: 20px;
-            background: #3b82f6;
-            border: 3px solid #ffffff;
-            border-radius: 50%;
-            box-shadow: 0 0 15px #3b82f6, 0 0 25px #3b82f6;
-            animation: user-glow 2s infinite alternate;
-        }
-
-        @keyframes user-glow {
-            from { box-shadow: 0 0 10px #3b82f6, 0 0 20px #3b82f6; }
-            to { box-shadow: 0 0 20px #60a5fa, 0 0 35px #60a5fa; }
-        }
-
-        /* Restaurant list items */
-        .restaurant-list {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-        }
-
-        .restaurant-card {
-            background: #0f172a;
-            border: 1px solid var(--card-border);
-            border-radius: 12px;
-            padding: 1rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            transition: all 0.2s;
-        }
-
-        .restaurant-card.disabled {
-            opacity: 0.4;
-            filter: grayscale(80%);
-        }
-
-        .restaurant-card.struck-through {
-            text-decoration: line-through;
-            opacity: 0.4;
-            border-color: #ef4444;
-            background: rgba(239, 68, 68, 0.05);
-        }
-
-        .restaurant-card.success-active {
-            border-color: var(--success);
-            background: rgba(16, 185, 129, 0.1);
-            box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
-        }
-
-        .restaurant-info {
-            display: flex;
-            flex-direction: column;
-            gap: 0.25rem;
-        }
-
-        .restaurant-name {
-            font-weight: 600;
-            font-size: 1rem;
-            color: #f1f5f9;
-        }
-
-        .restaurant-details {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-        }
-
-        .handset-status {
-            font-size: 1.5rem;
-            padding: 0.4rem;
-            border-radius: 50%;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-
-        .handset-status.gray {
-            color: #94a3b8;
-            animation: spin-pulse 1.2s infinite;
-        }
-
-        .handset-status.green {
-            color: #10b981;
-            transform: scale(1.25);
-            filter: drop-shadow(0 0 8px #10b981);
-        }
-
-        @keyframes spin-pulse {
-            0% { transform: scale(1); opacity: 0.7; }
-            50% { transform: scale(1.15); opacity: 1; }
-            100% { transform: scale(1); opacity: 0.7; }
-        }
-
-        /* Result card */
-        .result-card {
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(30, 41, 59, 0.95));
-            border: 2px solid var(--success);
-            border-radius: 16px;
-            padding: 1.5rem;
-            display: flex;
-            flex-direction: column;
-            gap: 1.25rem;
-        }
-
-        .result-sentence {
-            font-size: 1.4rem;
-            font-weight: 700;
-            color: #6ee7b7;
-            line-height: 1.3;
-        }
-
-        .result-meta-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1rem;
-            background: rgba(15, 23, 42, 0.6);
-            padding: 1rem;
-            border-radius: 10px;
-        }
-
-        .meta-item {
-            display: flex;
-            flex-direction: column;
-            gap: 0.2rem;
-        }
-
-        .meta-label {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .meta-value {
-            font-size: 1.1rem;
-            font-weight: 700;
-            color: #ffffff;
-        }
-
-        .callback-box {
-            background: #064e3b;
-            border: 1px solid #059669;
-            padding: 0.75rem 1rem;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .callback-number {
-            font-size: 1.2rem;
-            font-weight: 700;
-            color: #a7f3d0;
-            letter-spacing: 0.05em;
-        }
-
-        /* Prompt transparency box */
-        .prompt-preview-box {
-            background: #090d16;
-            border: 1px solid #334155;
-            border-radius: 8px;
-            padding: 1rem;
-            font-family: monospace;
-            font-size: 0.85rem;
-            color: #cbd5e1;
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
-
-        /* Activity modal / drawer */
-        .activity-log {
-            background: #020617;
-            border: 1px solid #1e293b;
-            border-radius: 8px;
-            padding: 0.75rem;
-            max-height: 200px;
-            overflow-y: auto;
-            font-family: monospace;
-            font-size: 0.8rem;
-            color: #a1a1aa;
-        }
-
-        .activity-turn {
-            padding: 0.2rem 0;
-            border-bottom: 1px dotted #1e293b;
-        }
-
-        /* Reorder handles */
-        .reorder-btns {
-            display: flex;
-            flex-direction: column;
-            gap: 0.2rem;
-        }
-
-        .btn-mini {
-            background: #334155;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            padding: 0.2rem 0.4rem;
-            font-size: 0.7rem;
-            cursor: pointer;
-        }
-
-        .btn-mini:hover {
-            background: #475569;
-        }
-    </style>
-</head>
-<body>
-
-    <header>
-        <div class="logo-container">
-            <span class="logo-icon">🍕</span>
-            <div>
-                <div class="logo-title">I am hungry</div>
-                <div style="font-size: 0.75rem; color: var(--text-muted);">CALL-E Cascade Agent</div>
-            </div>
-        </div>
-
-        <div class="mode-badge">
-            <span id="mode-text-dry" class="dry-badge">⚡ Trockenlauf (Offline)</span>
-            <label class="toggle-switch">
-                <input type="checkbox" id="live-toggle" onchange="toggleLiveMode(this)">
-                <span class="slider"></span>
-            </label>
-            <span id="mode-text-live" style="display:none;" class="live-warning">⚠️ Echter Anruf ($0.05 / Anruf)</span>
-            <span style="border-left: 1px solid #334155; padding-left: 0.75rem; font-size: 0.8rem; color: #94a3b8;">
-                Anrufe: <strong id="call-counter" style="color: #fff;">0</strong>
-            </span>
-        </div>
-    </header>
-
-    <main>
-        <!-- Left Panel: Form, Restaurant Selection & Cascade Monitor -->
-        <div class="panel" id="main-panel">
-            
-            <div class="panel-title">
-                <span>📍</span> 1. Ort & Adresse eingeben
-            </div>
-
-            <form id="search-form" hx-post="/api/search" hx-target="#step-content" hx-indicator="#search-indicator">
-                <input type="hidden" name="dry_run" id="dry_run_input" value="true">
-                
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label for="postcode">PLZ</label>
-                        <input type="text" id="postcode" name="postcode" value="12345" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="city">Ort / Stadt</label>
-                        <input type="text" id="city" name="city" value="Dorfstadt" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="country">Land</label>
-                        <select id="country" name="country">
-                            <option value="Deutschland" selected>Deutschland</option>
-                            <option value="Singapore">Singapore (CALL-E Hub)</option>
-                            <option value="United Kingdom">United Kingdom</option>
-                            <option value="United States">United States</option>
-                        </select>
-                    </div>
-                    <div class="form-group full-width">
-                        <label for="delivery_address">Lieferadresse</label>
-                        <input type="text" id="delivery_address" name="delivery_address" value="Dorfstraße 10, 12345 Dorfstadt" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="radius_km">Umkreis (km)</label>
-                        <input type="number" id="radius_km" name="radius_km" value="3.0" step="0.5" min="0.5" max="20.0">
-                    </div>
-                    <div class="form-group" style="grid-column: span 2; align-self: flex-end;">
-                        <button type="submit" class="btn" style="width: 100%;">
-                            <span>🔍</span> Restaurants suchen
-                        </button>
-                    </div>
-                </div>
-            </form>
-
-            <div id="step-content">
-                <!-- Content will be swapped here via HTMX after search -->
-                <div style="text-align: center; color: var(--text-muted); padding: 2rem 1rem;">
-                    Geben Sie Ihren Ort ein und klicken Sie auf "Restaurants suchen", um zu starten.
-                </div>
-            </div>
-
-        </div>
-
-        <!-- Right Panel: Map (Always Visible) -->
-        <div class="panel" style="padding: 0; background: transparent; border: none; box-shadow: none;">
-            <div id="map-container">
-                <div id="map"></div>
-            </div>
-        </div>
-    </main>
-
-    <script>
-        // Global Map State
-        let map = null;
-        let userMarker = null;
-        let radiusCircle = null;
-        let restaurantMarkers = [];
-        let callCount = 0;
-
-        // Initialize Leaflet Map
-        function initLeafletMap(lat, lon, zoom = 14, radiusKm = 3.0) {
-            if (map) {
-                map.remove();
-            }
-            
-            map = L.map('map').setView([lat, lon], zoom);
-            
-            // Use OpenStreetMap Tiles
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; OpenStreetMap contributors'
-            }).addTo(map);
-
-            // User Center Marker (Glowing Dot)
-            const userIcon = L.divIcon({
-                className: 'user-marker-pulse',
-                iconSize: [20, 20],
-                iconAnchor: [10, 10]
-            });
-            userMarker = L.marker([lat, lon], { icon: userIcon }).addTo(map)
-                .bindPopup("<b>Ihr Standort</b><br>Lieferadresse");
-
-            // Candidate Search Radius Circle (Backflow from Video)
-            if (radiusKm && radiusKm > 0) {
-                radiusCircle = L.circle([lat, lon], {
-                    radius: radiusKm * 1000,
-                    color: '#f59e0b',
-                    fillColor: '#f59e0b',
-                    fillOpacity: 0.08,
-                    weight: 2,
-                    dashArray: '6, 6'
-                }).addTo(map).bindPopup(`<b>Kandidatenradius</b><br>${radiusKm} km Umkreis`);
-            }
-        }
-
-        // Add Restaurant Markers to Map
-        function updateMapMarkers(restaurants) {
-            restaurantMarkers.forEach(m => map.removeLayer(m));
-            restaurantMarkers = [];
-
-            restaurants.forEach(r => {
-                const marker = L.marker([r.lat, r.lon]).addTo(map)
-                    .bindPopup(`<b>${r.name}</b><br>${r.cuisines.join(', ')}<br>${r.masked_phone}`);
-                restaurantMarkers.push(marker);
-            });
-        }
-
-        // Live Mode Toggle Handler
-        function toggleLiveMode(checkbox) {
-            const isLive = checkbox.checked;
-            document.getElementById('dry_run_input').value = isLive ? "false" : "true";
-            document.getElementById('mode-text-dry').style.display = isLive ? "none" : "inline";
-            document.getElementById('mode-text-live').style.display = isLive ? "inline" : "none";
-        }
-
-        // Initialize map with default location on page load
-        document.addEventListener("DOMContentLoaded", function() {
-            initLeafletMap(52.5200, 13.4050, 13);
-        });
-    </script>
-</body>
-</html>
+def esc(value: Any) -> str:
+    """Escape anything that came from a form before it goes into HTML."""
+    return html.escape(str(value), quote=True)
+
+
+# A brass jack plug, inline. Keeps the tab icon from being a 404 without
+# adding a binary to a repo that is meant to run with no external fetches.
+FAVICON = (
+    "data:image/svg+xml,"
+    "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E"
+    "%3Ccircle cx='16' cy='16' r='15' fill='%2314110E'/%3E"
+    "%3Ccircle cx='16' cy='16' r='11' fill='%23C9A227'/%3E"
+    "%3Ccircle cx='16' cy='16' r='5' fill='%2314110E'/%3E%3C/svg%3E"
+)
+
+
+# --------------------------------------------------------------------------
+# Design tokens and stylesheet
+# --------------------------------------------------------------------------
+
+STYLESHEET = """
+:root {
+  --ink:      #14110E;
+  --panel:    #1F1A15;
+  --panel-2:  #2A231C;
+  --line:     #3B322A;
+  --paper:    #EDE6D8;
+  --dim:      #9C9083;
+  --brass:    #C9A227;
+  --brass-lo: #8C6F1B;
+  --patch:    #3E9E86;
+  --busy:     #C05436;
+
+  --font-display: "Arial Narrow", "Helvetica Neue", "Liberation Sans Narrow", system-ui, sans-serif;
+  --font-body: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "Cascadia Mono", Consolas, "SF Mono", "DejaVu Sans Mono", ui-monospace, monospace;
+
+  --gap: 1.25rem;
+  --radius: 4px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* The hidden attribute must win. A class that sets display (.field is flex)
+   outranks the user-agent rule for [hidden], which left the pickup-only
+   fields on screen during a delivery — visible, and quietly submitted. */
+[hidden] { display: none !important; }
+
+body {
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.55;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  /* Faint horizontal ruling, like a switchboard label strip. */
+  background-image: repeating-linear-gradient(
+    180deg, transparent 0 39px, rgba(201,162,39,0.035) 39px 40px);
+}
+
+h1, h2, h3, .eyebrow, .btn, th {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+
+h1 { font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1.05; }
+h2 { font-size: 1.5rem; }
+h3 { font-size: 1.05rem; }
+
+a { color: var(--brass); }
+
+.eyebrow {
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  color: var(--brass);
+}
+
+.mono, code, pre, .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* ---------- header ---------- */
+header {
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--panel) 0%, rgba(31,26,21,0.86) 100%);
+  position: sticky; top: 0; z-index: 50;
+}
+.header-inner {
+  max-width: 1180px; margin: 0 auto; padding: 0.7rem 1.5rem;
+  display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;
+}
+.brand { display: flex; align-items: center; gap: 0.7rem; text-decoration: none; color: inherit; }
+.jack {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: radial-gradient(circle at 32% 30%, #F0D98A 0%, var(--brass) 45%, var(--brass-lo) 100%);
+  box-shadow: inset 0 0 0 3px var(--ink), 0 0 0 1px var(--brass-lo);
+  flex: none;
+}
+.brand-name { font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.14em; font-weight: 700; font-size: 1.05rem; }
+.brand-sub { font-size: 0.7rem; color: var(--dim); letter-spacing: 0.04em; text-transform: none; }
+.header-spacer { flex: 1 1 auto; }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 0.25rem 0.75rem; font-size: 0.78rem; color: var(--dim);
+  background: rgba(0,0,0,0.25);
+}
+.chip strong { color: var(--paper); font-family: var(--font-mono); }
+.chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--patch); flex: none; }
+.chip.locked .dot { background: var(--busy); }
+
+.langbar { display: flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.langbar a {
+  padding: 0.25rem 0.7rem; font-size: 0.75rem; text-decoration: none;
+  color: var(--dim); font-family: var(--font-mono); text-transform: uppercase;
+}
+.langbar a[aria-current="true"] { background: var(--brass); color: var(--ink); font-weight: 700; }
+
+/* ---------- layout ---------- */
+main { flex: 1; width: 100%; max-width: 1180px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+.stack { display: flex; flex-direction: column; gap: var(--gap); }
+.split { display: grid; grid-template-columns: minmax(0,1.05fr) minmax(0,0.95fr); gap: var(--gap); align-items: start; }
+@media (max-width: 940px) { .split { grid-template-columns: 1fr; } }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.35rem;
+}
+.panel > * + * { margin-top: 0.9rem; }
+.panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--line); padding-bottom: 0.6rem; }
+
+.muted { color: var(--dim); font-size: 0.9rem; }
+.small { font-size: 0.82rem; }
+.hr { border: none; border-top: 1px solid var(--line); }
+
+/* ---------- landing ---------- */
+.hero { padding: 1rem 0 2rem; max-width: 62ch; }
+.hero h1 { margin-bottom: 0.9rem; }
+.claim {
+  font-size: clamp(1.05rem, 2.2vw, 1.3rem);
+  border-left: 3px solid var(--brass);
+  padding-left: 1rem;
+  color: var(--paper);
+}
+.hero .muted { margin-top: 0.9rem; }
+
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
+@media (max-width: 800px) { .tiles { grid-template-columns: 1fr; } }
+
+.tile {
+  display: block; text-decoration: none; color: inherit;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 1.6rem 1.5rem 1.5rem; position: relative; overflow: hidden;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+.tile:hover, .tile:focus-visible { border-color: var(--brass); background: var(--panel-2); transform: translateY(-2px); }
+.tile:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.tile-jack {
+  display: block;  /* an inline span ignores width and height and renders as a dot */
+  width: 40px; height: 40px; border-radius: 50%; margin-bottom: 1rem;
+  background: radial-gradient(circle at 32% 30%, #F0D98A 0%, var(--brass) 45%, var(--brass-lo) 100%);
+  box-shadow: inset 0 0 0 5px var(--panel), 0 0 0 1px var(--brass-lo);
+  transition: box-shadow 0.18s ease;
+}
+.tile:hover .tile-jack, .tile:focus-visible .tile-jack { box-shadow: inset 0 0 0 5px var(--panel), 0 0 0 1px var(--brass-lo), 0 0 18px rgba(201,162,39,0.5); }
+.tile h2 { font-size: 1.75rem; letter-spacing: 0.04em; }
+.tile .tile-sub { color: var(--brass); font-size: 0.85rem; margin-top: 0.2rem; }
+
+/* The explanation is the reveal: closed by default, opens on hover or focus. */
+.tile-hint {
+  display: grid; grid-template-rows: 0fr;
+  transition: grid-template-rows 0.28s ease, opacity 0.28s ease, margin-top 0.28s ease;
+  opacity: 0; margin-top: 0;
+}
+.tile-hint > span { overflow: hidden; display: block; font-size: 0.92rem; color: var(--dim); }
+.tile:hover .tile-hint, .tile:focus-visible .tile-hint, .tile:focus-within .tile-hint {
+  grid-template-rows: 1fr; opacity: 1; margin-top: 1rem;
+}
+.tile-more { margin-top: 1.1rem; font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.14em; font-size: 0.72rem; color: var(--brass); }
+
+/* ---------- the cascade animation (the one signature element) ---------- */
+.exchange { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.5rem; }
+.exchange svg { width: 100%; height: auto; display: block; }
+
+.cord-line { stroke: var(--brass); stroke-width: 2.5; }
+.plug-head { fill: var(--brass); }
+.station-ring { fill: none; stroke: var(--line); stroke-width: 2; }
+.station-core { fill: var(--panel-2); stroke: var(--line); stroke-width: 1; }
+.station-label { font-family: var(--font-mono); font-size: 11px; fill: var(--dim); }
+/* Hidden until this station's turn comes. Without the base opacity, a delayed
+   animation leaves the element in its normal state, so every verdict is on
+   screen before the plug has reached it and the sequence reads backwards. */
+.station-verdict { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; opacity: 0; }
+
+.cord { animation: cord-walk 13s infinite; }
+.s1 .station-ring { animation: ring-busy 13s infinite; }
+.s2 .station-ring { animation: ring-busy 13s infinite; animation-delay: 2.6s; }
+.s3 .station-ring { animation: ring-ok 13s infinite; animation-delay: 5.2s; }
+.v1 { animation: verdict-in 13s infinite; }
+.v2 { animation: verdict-in 13s infinite; animation-delay: 2.6s; }
+.v3 { animation: verdict-in 13s infinite; animation-delay: 5.2s; }
+.v4 { animation: verdict-in 13s infinite; animation-delay: 7.4s; }
+.s4 { animation: fade-out-station 13s infinite; animation-delay: 7.4s; }
+
+@keyframes cord-walk {
+  0%    { transform: translateX(0px); }
+  8%    { transform: translateX(120px); }
+  20%   { transform: translateX(120px); }
+  28%   { transform: translateX(280px); }
+  40%   { transform: translateX(280px); }
+  48%   { transform: translateX(440px); }
+  94%   { transform: translateX(440px); }
+  100%  { transform: translateX(0px); }
+}
+@keyframes ring-busy {
+  0%, 8%    { stroke: var(--line); stroke-width: 2; }
+  12%, 16%  { stroke: var(--brass); stroke-width: 3; }
+  20%, 100% { stroke: var(--busy); stroke-width: 3; }
+}
+@keyframes ring-ok {
+  0%, 8%    { stroke: var(--line); stroke-width: 2; }
+  12%, 16%  { stroke: var(--brass); stroke-width: 3; }
+  20%, 100% { stroke: var(--patch); stroke-width: 4; }
+}
+@keyframes verdict-in {
+  0%, 16%   { opacity: 0; }
+  22%, 100% { opacity: 1; }
+}
+@keyframes fade-out-station {
+  0%, 12%   { opacity: 1; }
+  24%, 100% { opacity: 0.35; }
+}
+
+.legend { display: grid; gap: 0.4rem; margin-top: 1.2rem; }
+.legend div { display: flex; align-items: baseline; gap: 0.6rem; font-size: 0.9rem; color: var(--dim); }
+.legend .key { width: 0.6rem; height: 0.6rem; border-radius: 50%; flex: none; transform: translateY(-1px); }
+.legend .k-busy { background: var(--busy); }
+.legend .k-ok { background: var(--patch); }
+.legend .k-off { background: var(--line); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cord { transform: translateX(440px); }
+  .cord, .s1 .station-ring, .s2 .station-ring, .s3 .station-ring,
+  .v1, .v2, .v3, .v4, .s4, .pulse, .dialing { animation: none !important; }
+  .s1 .station-ring, .s2 .station-ring { stroke: var(--busy); stroke-width: 3; }
+  .s3 .station-ring { stroke: var(--patch); stroke-width: 4; }
+  .v1, .v2, .v3, .v4 { opacity: 1; }
+  .s4 { opacity: 0.35; }
+  .tile-hint { grid-template-rows: 1fr; opacity: 1; margin-top: 1rem; }
+}
+
+/* ---------- forms ---------- */
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 0.9rem; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 0.9rem; }
+@media (max-width: 700px) { .grid3, .grid2 { grid-template-columns: 1fr; } }
+.field { display: flex; flex-direction: column; gap: 0.3rem; }
+.field.wide { grid-column: 1 / -1; }
+label { font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); font-family: var(--font-display); }
+input, select, textarea {
+  background: var(--ink); color: var(--paper);
+  border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 0.6rem 0.7rem; font-size: 0.95rem; font-family: var(--font-body);
+}
+input.num, input[type="number"], input[type="time"], input[type="date"] { font-family: var(--font-mono); }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--brass); outline-offset: 1px; border-color: var(--brass); }
+.help { font-size: 0.8rem; color: var(--dim); }
+
+.btn {
+  border: 1px solid var(--brass); background: var(--brass); color: var(--ink);
+  border-radius: var(--radius); padding: 0.7rem 1.15rem; cursor: pointer;
+  font-size: 0.82rem; display: inline-flex; align-items: center; gap: 0.5rem;
+}
+.btn:hover { background: #DDB733; }
+.btn:focus-visible { outline: 2px solid var(--paper); outline-offset: 2px; }
+.btn.ghost { background: transparent; color: var(--paper); border-color: var(--line); }
+.btn.ghost:hover { border-color: var(--brass); color: var(--brass); }
+.btn.danger { background: transparent; color: var(--busy); border-color: var(--busy); }
+.btn.danger:hover { background: var(--busy); color: var(--ink); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-row { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; }
+
+/* mode switch: two real choices, not a decorative toggle */
+.switch { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+@media (max-width: 620px) { .switch { grid-template-columns: 1fr; } }
+.switch label {
+  display: block; cursor: pointer; border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 0.85rem 1rem; text-transform: none; letter-spacing: 0; font-family: var(--font-body);
+  color: var(--paper);
+}
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch label .t { font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.9rem; display: block; }
+.switch label .n { font-size: 0.82rem; color: var(--dim); display: block; margin-top: 0.35rem; }
+.switch input:checked + label { border-color: var(--brass); background: var(--panel-2); }
+.switch input:checked + label .t { color: var(--brass); }
+.switch input:focus-visible + label { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+.checks { display: flex; flex-direction: column; gap: 0.5rem; }
+.check { display: flex; gap: 0.6rem; align-items: flex-start; font-size: 0.92rem; }
+.check input { margin-top: 0.25rem; accent-color: var(--brass); }
+.tier { font-family: var(--font-mono); font-size: 0.75rem; color: var(--brass); border: 1px solid var(--brass-lo); border-radius: 3px; padding: 0 0.3rem; }
+
+/* ---------- candidates ---------- */
+.candidates { display: flex; flex-direction: column; gap: 0.6rem; }
+.cand {
+  display: flex; gap: 0.8rem; align-items: flex-start;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 0.75rem 0.85rem; background: var(--ink);
+  transition: border-color 0.2s, opacity 0.2s;
+}
+.cand.off { opacity: 0.4; }
+.cand.rejected { border-color: var(--busy); }
+.cand.rejected .cand-name { text-decoration: line-through; }
+.cand.accepted { border-color: var(--patch); background: rgba(62,158,134,0.08); }
+.cand-rank { font-family: var(--font-mono); color: var(--brass); width: 1.6rem; text-align: right; flex: none; padding-top: 0.1rem; }
+.cand-body { flex: 1; min-width: 0; }
+.cand-name { font-weight: 600; }
+.cand-meta { font-size: 0.8rem; color: var(--dim); }
+.cand-meta .num { color: var(--paper); }
+.cand-reason { font-size: 0.82rem; color: var(--busy); margin-top: 0.3rem; font-family: var(--font-mono); }
+.cand-tools { display: flex; flex-direction: column; gap: 0.2rem; flex: none; }
+.mini {
+  background: var(--panel-2); color: var(--paper); border: 1px solid var(--line);
+  border-radius: 3px; font-size: 0.7rem; line-height: 1; padding: 0.25rem 0.4rem; cursor: pointer;
+}
+.mini:hover { border-color: var(--brass); color: var(--brass); }
+.state { flex: none; width: 2rem; text-align: center; font-size: 1.15rem; padding-top: 0.05rem; }
+.state.dialing { color: var(--brass); animation: pulse 1.1s infinite; }
+.state.live { color: var(--patch); }
+.state.no { color: var(--busy); }
+.state.yes { color: var(--patch); }
+@keyframes pulse { 0%,100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+/* ---------- bands, monitor, result ---------- */
+.band {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+  border: 1px solid var(--brass-lo); border-left: 3px solid var(--brass);
+  background: rgba(201,162,39,0.07); border-radius: var(--radius); padding: 0.55rem 0.85rem;
+  font-size: 0.85rem;
+}
+.band .k { color: var(--brass); font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.72rem; }
+.band .v { font-family: var(--font-mono); }
+
+.status { font-family: var(--font-mono); font-size: 0.9rem; color: var(--dim); }
+.log {
+  background: #0C0A08; border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 0.6rem 0.75rem; max-height: 190px; overflow-y: auto;
+  font-family: var(--font-mono); font-size: 0.76rem; color: var(--dim);
+}
+.log div { padding: 0.12rem 0; border-bottom: 1px dotted rgba(59,50,42,0.6); word-break: break-word; }
+.log div:last-child { border-bottom: none; color: var(--paper); }
+
+.result { border: 1px solid var(--patch); border-left: 3px solid var(--patch); border-radius: var(--radius); background: rgba(62,158,134,0.07); padding: 1.35rem; }
+.result > * + * { margin-top: 1rem; }
+.result h2 { color: var(--patch); }
+.result-sentence { font-size: 1.15rem; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.9rem; background: rgba(0,0,0,0.3); padding: 0.9rem; border-radius: var(--radius); }
+.fact .k { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dim); font-family: var(--font-display); }
+.fact .v { font-family: var(--font-mono); font-size: 1.1rem; }
+.callback { border: 1px solid var(--patch); border-radius: var(--radius); padding: 0.8rem 1rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.callback .num { font-size: 1.25rem; color: var(--patch); letter-spacing: 0.06em; }
+details { border: 1px solid var(--line); border-radius: var(--radius); padding: 0.7rem 0.85rem; }
+summary { cursor: pointer; font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.8rem; color: var(--brass); }
+pre { white-space: pre-wrap; word-break: break-word; font-size: 0.78rem; color: var(--dim); margin-top: 0.7rem; }
+
+.notice { border: 1px solid var(--line); border-left: 3px solid var(--dim); border-radius: var(--radius); padding: 0.7rem 0.9rem; font-size: 0.85rem; color: var(--dim); }
+.notice.warn { border-left-color: var(--busy); color: #E2A18F; }
+.tag { font-family: var(--font-mono); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; border: 1px solid var(--line); border-radius: 3px; padding: 0.05rem 0.35rem; color: var(--dim); }
+
+.loading { display: flex; flex-direction: column; align-items: center; gap: 1rem; padding: 2.5rem 1rem; text-align: center; }
+.loading .ring { width: 46px; height: 46px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--brass); animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.htmx-indicator { display: none; }
+.htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: flex; }
+
+#map-shell { position: sticky; top: 5.5rem; }
+#map { height: 460px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-2); }
+/* Numbered pin: the number is the position in the call order. */
+.map-pin span {
+  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--brass); color: var(--ink);
+  font-family: var(--font-mono); font-size: 0.8rem; font-weight: 700;
+  border: 2px solid var(--ink); box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+}
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--panel); color: var(--paper); }
+.leaflet-popup-content { font-family: var(--font-body); font-size: 0.85rem; }
+.leaflet-control-attribution { background: rgba(20,17,14,0.8) !important; color: var(--dim) !important; }
+.leaflet-control-attribution a { color: var(--brass) !important; }
+
+table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--line); }
+th { font-size: 0.7rem; letter-spacing: 0.12em; color: var(--dim); }
+td.num { font-family: var(--font-mono); }
+
+footer { border-top: 1px solid var(--line); padding: 1.5rem; color: var(--dim); font-size: 0.8rem; }
+footer .footer-inner { max-width: 1180px; margin: 0 auto; display: flex; gap: 1.5rem; flex-wrap: wrap; justify-content: space-between; }
+.skip { position: absolute; left: -9999px; }
+.skip:focus { left: 1rem; top: 1rem; background: var(--brass); color: var(--ink); padding: 0.5rem 1rem; z-index: 100; }
 """
 
 
-def render_search_loading() -> str:
-    """Render smooth search animation and text per UI-SPEC."""
-    return """
-    <div class="search-loading-container" id="search-indicator">
-        <div class="pulse-loader"></div>
-        <div>
-            <h3 style="color: #f59e0b; font-weight: 600; margin-bottom: 0.5rem;">Wir suchen für Sie die besten Essenspunkte...</h3>
-            <p style="color: #94a3b8; font-size: 0.9rem;">Sammle Restaurants, Adressen, Telefonnummern und Öffnungszeiten...</p>
+# --------------------------------------------------------------------------
+# Page shell
+# --------------------------------------------------------------------------
+
+def render_page(
+    body: str,
+    lang: str,
+    *,
+    path: str = "/",
+    with_map: bool = False,
+    title: Optional[str] = None,
+) -> str:
+    """Wrap page content in the shared shell."""
+    page_title = title or t("app.name", lang)
+    leaflet = ""
+    if with_map:
+        leaflet = (
+            '<link rel="stylesheet" href="/static/leaflet.css">'
+            '<script src="/static/leaflet.js" defer></script>'
+        )
+
+    lang_links = "".join(
+        f'<a href="?lang={code}" aria-current="{"true" if code == lang else "false"}" '
+        f'rel="nofollow">{code}</a>'
+        for code in SUPPORTED
+    )
+
+    return f"""<!DOCTYPE html>
+<html lang="{lang}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{esc(page_title)} — {esc(t("app.name", lang))}</title>
+<link rel="icon" href="{FAVICON}">
+<script src="/static/htmx.min.js" defer></script>
+{leaflet}
+<style>{STYLESHEET}</style>
+</head>
+<body>
+<a class="skip" href="#content">{esc(t("nav.start", lang))}</a>
+<header>
+  <div class="header-inner">
+    <a class="brand" href="/?lang={lang}">
+      <span class="jack" aria-hidden="true"></span>
+      <span>
+        <span class="brand-name">{esc(t("app.name", lang))}</span>
+        <span class="brand-sub">{esc(t("app.subtitle", lang))}</span>
+      </span>
+    </a>
+    <span class="header-spacer"></span>
+    <span class="chip" title="{esc(t("safety.mode.dry.explain", lang))}">
+      <span class="dot"></span>{esc(t("safety.mode.dry", lang))}
+    </span>
+    <span class="chip" title="{esc(t("safety.calls.explain", lang))}">
+      {esc(t("safety.calls", lang))} <strong id="call-counter">0</strong>
+    </span>
+    <a class="chip" href="/history?lang={lang}" style="text-decoration:none;">{esc(t("nav.history", lang))}</a>
+    <nav class="langbar" aria-label="{esc(t("lang.switch.aria", lang))}">{lang_links}</nav>
+  </div>
+</header>
+<main id="content">
+{body}
+</main>
+<footer><div class="footer-inner">
+  <span>{esc(t("safety.dataflow", lang))}</span>
+  <span class="mono">{esc(t("safety.live.locked", lang))}</span>
+</div></footer>
+</body>
+</html>"""
+
+
+# --------------------------------------------------------------------------
+# Landing page: the two tiles and the cascade animation
+# --------------------------------------------------------------------------
+
+def render_landing(lang: str) -> str:
+    """The first screen: choose a branch, and see what a cascade actually does."""
+    stations = [
+        ("s1", "v1", 120, "Trattoria", t("landing.anim.rejected", lang), "var(--busy)"),
+        ("s2", "v2", 280, "Burger House", t("landing.anim.rejected", lang), "var(--busy)"),
+        ("s3", "v3", 440, "Asia Wok", t("landing.anim.booked", lang), "var(--patch)"),
+        ("s4", "v4", 600, "Sushi Kudo", t("landing.anim.never", lang), "var(--dim)"),
+    ]
+    station_svg = ""
+    for cls, vcls, x, name, verdict, colour in stations:
+        station_svg += f"""
+        <g class="{cls}" transform="translate({x},70)">
+          <circle class="station-ring" r="20"></circle>
+          <circle class="station-core" r="13"></circle>
+          <text class="station-label" text-anchor="middle" y="45">{esc(name)}</text>
+          <text class="station-verdict {vcls}" text-anchor="middle" y="61" fill="{colour}">{esc(verdict)}</text>
+        </g>"""
+
+    return f"""
+<section class="hero">
+  <p class="eyebrow">{esc(t("app.tagline", lang))}</p>
+  <h1>{esc(t("landing.choose", lang))}</h1>
+  <p class="claim">{esc(t("landing.claim", lang))}</p>
+  <p class="muted">{esc(t("landing.lead", lang))}</p>
+</section>
+
+<section class="tiles" aria-label="{esc(t("landing.choose", lang))}">
+  <a class="tile" href="/order?lang={lang}">
+    <span class="tile-jack" aria-hidden="true"></span>
+    <h2>{esc(t("landing.tile.food.title", lang))}</h2>
+    <div class="tile-sub">{esc(t("landing.tile.food.sub", lang))}</div>
+    <span class="tile-hint"><span>{esc(t("landing.tile.food.hint", lang))}</span></span>
+    <div class="tile-more">{esc(t("landing.tile.reveal", lang))} →</div>
+  </a>
+  <a class="tile" href="/reserve?lang={lang}">
+    <span class="tile-jack" aria-hidden="true"></span>
+    <h2>{esc(t("landing.tile.table.title", lang))}</h2>
+    <div class="tile-sub">{esc(t("landing.tile.table.sub", lang))}</div>
+    <span class="tile-hint"><span>{esc(t("landing.tile.table.hint", lang))}</span></span>
+    <div class="tile-more">{esc(t("landing.tile.reveal", lang))} →</div>
+  </a>
+</section>
+
+<section class="exchange" style="margin-top:1.25rem;" aria-labelledby="how-title">
+  <div class="panel-head" style="border:none;padding:0;">
+    <h2 id="how-title">{esc(t("landing.anim.title", lang))}</h2>
+  </div>
+  <p class="muted" style="margin:0.5rem 0 1rem;max-width:70ch;">{esc(t("landing.anim.lead", lang))}</p>
+
+  <svg viewBox="0 0 700 150" role="img"
+       aria-label="{esc(t("landing.anim.legend.1", lang))} {esc(t("landing.anim.legend.2", lang))} {esc(t("landing.anim.legend.3", lang))}">
+    <line x1="0" y1="70" x2="700" y2="70" stroke="var(--line)" stroke-width="1" stroke-dasharray="3 5"></line>
+    {station_svg}
+    <g class="cord">
+      <line class="cord-line" x1="-900" y1="70" x2="0" y2="70"></line>
+      <circle class="plug-head" cx="0" cy="70" r="6"></circle>
+    </g>
+  </svg>
+
+  <div class="legend">
+    <div><span class="key k-busy"></span>{esc(t("landing.anim.legend.1", lang))}</div>
+    <div><span class="key k-ok"></span>{esc(t("landing.anim.legend.2", lang))}</div>
+    <div><span class="key k-off"></span>{esc(t("landing.anim.legend.3", lang))}</div>
+  </div>
+</section>
+
+<section class="panel" style="margin-top:1.25rem;">
+  <h3>{esc(t("landing.pattern.title", lang))}</h3>
+  <p class="muted">{esc(t("landing.pattern.body", lang))}</p>
+  <p class="small mono">{esc(t("landing.pattern.link", lang))}</p>
+</section>
+"""
+
+
+# --------------------------------------------------------------------------
+# Branch pages
+# --------------------------------------------------------------------------
+
+def _scenario_options(scenarios: List[str], selected: str) -> str:
+    return "".join(
+        f'<option value="{esc(s)}"{" selected" if s == selected else ""}>{esc(s)}</option>'
+        for s in scenarios
+    )
+
+
+def render_branch_page(
+    branch: Branch,
+    lang: str,
+    scenarios: List[str],
+    default_scenario: str,
+) -> str:
+    """Step 1 of a branch: where you are, plus the branch's own questions."""
+    is_food = branch is Branch.FOOD
+    title_key = "food.title" if is_food else "table.title"
+    address_label = t("form.address", lang) if is_food else t("form.address.pickup", lang)
+
+    detail = render_food_fields(lang) if is_food else render_table_fields(lang)
+
+    return f"""
+<div class="split">
+  <div class="stack">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>{esc(t(title_key, lang))}</h2>
+        <a class="small" href="/?lang={lang}">← {esc(t("nav.back", lang))}</a>
+      </div>
+
+      <form id="search-form" hx-post="/api/search?lang={lang}"
+            hx-target="#step2" hx-indicator="#search-indicator" hx-swap="innerHTML">
+        <input type="hidden" name="branch" value="{branch.value}">
+        <h3 class="eyebrow">{esc(t("form.where.title", lang))}</h3>
+        <div class="grid3" style="margin-top:0.6rem;">
+          <div class="field">
+            <label for="postcode">{esc(t("form.postcode", lang))}</label>
+            <input class="num" type="text" id="postcode" name="postcode" value="12345" required>
+          </div>
+          <div class="field">
+            <label for="city">{esc(t("form.city", lang))}</label>
+            <input type="text" id="city" name="city" value="Dorfstadt" required>
+          </div>
+          <div class="field">
+            <label for="radius_km">{esc(t("form.radius", lang))}</label>
+            <input type="number" id="radius_km" name="radius_km" value="3.0" step="0.5" min="0.5" max="20">
+          </div>
+          <div class="field wide">
+            <label for="delivery_address">{esc(address_label)}</label>
+            <input type="text" id="delivery_address" name="delivery_address"
+                   value="Dorfstraße 10, 12345 Dorfstadt" required>
+          </div>
+          <div class="field wide">
+            <label for="scenario">{esc(t("form.scenario", lang))}</label>
+            <select id="scenario" name="scenario">{_scenario_options(scenarios, default_scenario)}</select>
+            <span class="help">{esc(t("form.scenario.help", lang))}</span>
+          </div>
         </div>
+
+        {detail}
+
+        <div class="btn-row" style="margin-top:1.1rem;">
+          <button type="submit" class="btn">{esc(t("form.search", lang))}</button>
+          <span class="small muted">{esc(t("safety.mode.dry.explain", lang))}</span>
+        </div>
+      </form>
+
+      <div id="search-indicator" class="htmx-indicator">{render_search_loading(lang)}</div>
+      <div id="step2"></div>
     </div>
+  </div>
+
+  <div id="map-shell">
+    <div class="panel" style="padding:0.5rem;">
+      <div id="map"></div>
+    </div>
+    {render_limits(lang)}
+  </div>
+</div>
+
+<script>
+window.HC = window.HC || {{}};
+HC.lang = "{lang}";
+HC.branch = "{branch.value}";
+HC.text = {json.dumps({
+    "budgetDelivery": t("food.budget.delivery", lang),
+    "budgetPickup": t("food.budget.pickup", lang),
+    "addressDelivery": t("form.address", lang),
+    "addressPickup": t("form.address.pickup", lang),
+    "canceled": t("cascade.canceled", lang),
+    "rejected": t("cascade.rejected", lang),
+}, ensure_ascii=False)};
+</script>
+<script src="/static/app.js" defer></script>
+"""
+
+
+def render_food_fields(lang: str) -> str:
+    """Delivery is the default; pickup is a real switch, not a label change."""
+    return f"""
+<hr class="hr" style="margin:1.2rem 0;">
+<h3 class="eyebrow">{esc(t("food.mode.title", lang))}</h3>
+<div class="switch" style="margin-top:0.6rem;">
+  <input type="radio" id="mode-delivery" name="mode" value="delivery" checked onchange="HC.onModeChange()">
+  <label for="mode-delivery">
+    <span class="t">{esc(t("food.mode.delivery", lang))}</span>
+    <span class="n">{esc(t("food.mode.delivery.note", lang))}</span>
+  </label>
+  <input type="radio" id="mode-pickup" name="mode" value="pickup" onchange="HC.onModeChange()">
+  <label for="mode-pickup">
+    <span class="t">{esc(t("food.mode.pickup", lang))}</span>
+    <span class="n">{esc(t("food.mode.pickup.note", lang))}</span>
+  </label>
+</div>
+
+<div class="grid3" style="margin-top:1rem;">
+  <div class="field wide">
+    <label for="food_prompt">{esc(t("food.prompt", lang))}</label>
+    <textarea id="food_prompt" name="food_prompt" rows="2" required>2x Cheeseburger, 1x große Pommes, 1x Cola Zero</textarea>
+    <span class="help">{esc(t("food.prompt.help", lang))}</span>
+  </div>
+  <div class="field">
+    <label for="customer_name">{esc(t("form.name", lang))}</label>
+    <input type="text" id="customer_name" name="customer_name" value="Lukas" required>
+  </div>
+  <div class="field">
+    <label for="max_budget_eur" id="budget-label">{esc(t("food.budget.delivery", lang))}</label>
+    <input type="number" id="max_budget_eur" name="max_budget_eur" value="35.00" step="0.50" min="1" required>
+  </div>
+  <div class="field" id="pickup-time-field" hidden>
+    <label for="pickup_time">{esc(t("food.pickup.time", lang))}</label>
+    <input type="time" id="pickup_time" name="pickup_time" value="19:30">
+  </div>
+  <div class="field wide">
+    <span class="help">{esc(t("food.budget.help", lang))}</span>
+  </div>
+  <div class="field" id="maxdist-field" hidden>
+    <label for="max_distance_km">{esc(t("food.maxdistance", lang))}</label>
+    <input type="number" id="max_distance_km" name="max_distance_km" step="0.5" min="0.5" placeholder="5.0">
+    <span class="help">{esc(t("food.maxdistance.help", lang))}</span>
+  </div>
+</div>
+"""
+
+
+TABLE_CONCESSIONS: List[Concession] = [
+    Concession(key="indoor_ok", label="an indoor table is acceptable instead of an outdoor one", tier=1),
+    Concession(key="time_flex", label="a table one hour earlier or later is acceptable", tier=2),
+    Concession(key="deposit_ok", label="a booking deposit of up to 15 EUR is acceptable", tier=3),
+]
+
+
+def render_table_fields(lang: str) -> str:
+    """The table branch asks about time, people and seating. No price anywhere."""
+    checks = ""
+    for concession in TABLE_CONCESSIONS:
+        checks += f"""
+    <label class="check">
+      <input type="checkbox" name="concessions" value="{concession.key}">
+      <span>{esc(t("table.concession." + concession.key, lang))}
+        <span class="tier">{esc(t("table.concession.order", lang, order=concession.tier))}</span>
+      </span>
+    </label>"""
+
+    return f"""
+<hr class="hr" style="margin:1.2rem 0;">
+<h3 class="eyebrow">{esc(t("table.when.title", lang))}</h3>
+<input type="hidden" name="mode" value="reservation">
+<div class="grid3" style="margin-top:0.6rem;">
+  <div class="field">
+    <label for="reservation_date">{esc(t("table.date", lang))}</label>
+    <input type="date" id="reservation_date" name="reservation_date" value="2026-08-07" required>
+  </div>
+  <div class="field">
+    <label for="reservation_time">{esc(t("table.time", lang))}</label>
+    <input type="time" id="reservation_time" name="reservation_time" value="19:00" required>
+  </div>
+  <div class="field">
+    <label for="party_size">{esc(t("table.party", lang))}</label>
+    <input type="number" id="party_size" name="party_size" value="4" min="1" max="40" required>
+    <span class="help">{esc(t("table.party.help", lang))}</span>
+  </div>
+  <div class="field">
+    <label for="seating">{esc(t("table.seating", lang))}</label>
+    <select id="seating" name="seating">
+      <option value="any" selected>{esc(t("table.seating.any", lang))}</option>
+      <option value="indoor">{esc(t("table.seating.indoor", lang))}</option>
+      <option value="outdoor">{esc(t("table.seating.outdoor", lang))}</option>
+    </select>
+    <span class="help">{esc(t("table.seating.help", lang))}</span>
+  </div>
+  <div class="field">
+    <label for="customer_name">{esc(t("form.name", lang))}</label>
+    <input type="text" id="customer_name" name="customer_name" value="Lukas" required>
+  </div>
+  <div class="field">
+    <label for="food_prompt">{esc(t("table.wish", lang))}</label>
+    <input type="text" id="food_prompt" name="food_prompt" value="Italienisch" required>
+    <span class="help">{esc(t("table.wish.help", lang))}</span>
+  </div>
+</div>
+
+<hr class="hr" style="margin:1.2rem 0;">
+<h3 class="eyebrow">{esc(t("table.concessions.title", lang))}</h3>
+<p class="help" style="margin:0.5rem 0 0.8rem;max-width:72ch;">{esc(t("table.concessions.help", lang))}</p>
+<div class="checks">{checks}</div>
+"""
+
+
+def render_limits(lang: str) -> str:
+    """What this build cannot do, stated where the user is working.
+
+    A control that looks live and is not is worse than a missing one. The
+    earlier header carried a "real call" switch that changed nothing about the
+    cascade; it is gone, and what replaced it says why.
     """
+    return f"""
+<div class="notice warn" style="margin-top:0.7rem;">
+  <strong>{esc(t("safety.live.locked", lang))}</strong><br>
+  {esc(t("safety.live.why", lang))}
+</div>
+<div class="notice" style="margin-top:0.5rem;">
+  <span class="tag">{esc(t("unverified.badge", lang))}</span> {esc(t("unverified.live.search", lang))}
+</div>
+<div class="notice" style="margin-top:0.5rem;">{esc(t("safety.dataflow", lang))}</div>
+<div class="notice" style="margin-top:0.5rem;">{esc(t("safety.tiles", lang))}</div>"""
 
 
-def render_restaurant_selection_step(
-    restaurants: List[Restaurant],
+def render_search_loading(lang: str) -> str:
+    return f"""
+<div class="loading">
+  <div class="ring" aria-hidden="true"></div>
+  <div>
+    <h3>{esc(t("search.loading.title", lang))}</h3>
+    <p class="muted small">{esc(t("search.loading.sub", lang))}</p>
+  </div>
+</div>"""
+
+
+# --------------------------------------------------------------------------
+# Step 2: candidates
+# --------------------------------------------------------------------------
+
+def render_candidate_step(
+    lang: str,
+    branch: Branch,
+    ranked: List[Restaurant],
+    skipped: List[tuple],
     lat: float,
     lon: float,
-    city: str,
-    delivery_address: str,
-    radius_km: float = 3.0
+    radius_km: float,
+    form_state: Dict[str, Any],
 ) -> str:
-    """Render Step 2: Map markers script + Restaurant Selection + Mode & Food form."""
-    
-    # Filter closed restaurants
-    open_restaurants = [r for r in restaurants if r.opening_hours.is_open("Fri", "19:00")]
-    closed_restaurants = [r for r in restaurants if not r.opening_hours.is_open("Fri", "19:00")]
-    
-    # Prepare JS array for Leaflet map markers
-    map_restaurants_js = []
-    for r in restaurants:
-        map_restaurants_js.append({
-            "id": r.id,
-            "name": r.name,
-            "cuisines": r.cuisines,
-            "masked_phone": mask_phone(r.phone),
-            "lat": r.lat,
-            "lon": r.lon
-        })
+    """The list we will work down, in the order we will work down it."""
+    if not ranked:
+        return f'<div class="notice warn" style="margin-top:1rem;">{esc(t("candidates.none", lang))}</div>'
 
-    import json
-    restaurants_json = json.dumps(map_restaurants_js)
+    cards = ""
+    for rank, restaurant in enumerate(ranked, start=1):
+        meta = [", ".join(restaurant.cuisines), mask_phone(restaurant.phone)]
+        if restaurant.distance_km is not None:
+            meta.append(f'{restaurant.distance_km:.1f} {t("candidates.distance", lang)}')
+        if branch is Branch.TABLE:
+            meta.append(t("candidates.seats", lang, n=restaurant.max_party_size))
+            if restaurant.has_outdoor_seating:
+                meta.append(t("candidates.outdoor", lang))
+        if restaurant.is_favorite:
+            meta.append("★ " + t("candidates.favorite", lang))
 
-    open_items_html = ""
-    for idx, r in enumerate(restaurants):
-        is_open = r.opening_hours.is_open("Fri", "19:00")
-        display_style = "" if is_open else "display: none;"
-        checked = "checked" if is_open else ""
-        class_disabled = "" if is_open else "disabled"
-        
-        open_items_html += f"""
-        <div class="restaurant-card {class_disabled}" id="rest-card-{r.id}" style="{display_style}">
-            <div style="display: flex; flex-direction: column; gap: 0.25rem; flex: 1;">
-                <div style="display: flex; align-items: center; gap: 0.75rem;">
-                    <div class="reorder-btns">
-                        <button type="button" class="btn-mini" onclick="moveCardUp('{r.id}')">▲</button>
-                        <button type="button" class="btn-mini" onclick="moveCardDown('{r.id}')">▼</button>
-                    </div>
-                    <input type="checkbox" name="selected_restaurants" value="{r.id}" {checked} onchange="toggleRestCard('{r.id}', this.checked)">
-                    <div class="restaurant-info">
-                        <div class="restaurant-name">{r.name}</div>
-                        <div class="restaurant-details">{', '.join(r.cuisines)} • {mask_phone(r.phone)}</div>
-                    </div>
-                </div>
-                <!-- Inline Rejection Reason Badge Container (Backflow from Video) -->
-                <div id="rejection-{r.id}" style="padding-left: 2.4rem;"></div>
-            </div>
-            <div id="handset-{r.id}">
-                <span class="handset-status" title="Wartezustand">📞</span>
-            </div>
-        </div>
-        """
+        cards += f"""
+      <div class="cand" id="cand-{esc(restaurant.id)}" data-id="{esc(restaurant.id)}">
+        <span class="cand-rank" data-rank>{rank}</span>
+        <input type="checkbox" name="selected_restaurants" value="{esc(restaurant.id)}" checked
+               aria-label="{esc(restaurant.name)}: {esc(t("candidates.include", lang))}"
+               onchange="HC.onToggle(this)">
+        <span class="cand-body">
+          <span class="cand-name">{esc(restaurant.name)}</span>
+          <span class="cand-meta">{esc(" · ".join(meta))}</span>
+          <span class="cand-reason" id="reason-{esc(restaurant.id)}"></span>
+        </span>
+        <span class="cand-tools">
+          <button type="button" class="mini" onclick="HC.move('{esc(restaurant.id)}',-1)"
+                  aria-label="{esc(t("candidates.order.up", lang))}">▲</button>
+          <button type="button" class="mini" onclick="HC.move('{esc(restaurant.id)}',1)"
+                  aria-label="{esc(t("candidates.order.down", lang))}">▼</button>
+        </span>
+        <span class="state" id="state-{esc(restaurant.id)}" aria-live="polite"></span>
+      </div>"""
 
-    closed_count = len(closed_restaurants)
+    skipped_html = ""
+    if skipped:
+        rows = "".join(
+            f"<div class='cand off'><span class='cand-rank'>—</span>"
+            f"<span class='cand-body'><span class='cand-name'>{esc(r.name)}</span>"
+            f"<span class='cand-meta'>{esc(reason)}</span></span></div>"
+            for r, reason in skipped
+        )
+        skipped_html = f"""
+      <div class="small muted" style="display:flex;justify-content:space-between;gap:1rem;align-items:center;margin-top:0.5rem;">
+        <span>{esc(t("candidates.closed.count", lang, n=len(skipped)))}</span>
+        <button type="button" class="mini" onclick="HC.toggleSkipped(this)"
+                data-show="{esc(t("candidates.closed.show", lang))}"
+                data-hide="{esc(t("candidates.closed.hide", lang))}">{esc(t("candidates.closed.show", lang))}</button>
+      </div>
+      <div id="skipped" hidden>{rows}</div>"""
+
+    hidden_state = "".join(
+        f'<input type="hidden" name="{esc(k)}" value="{esc(v)}">'
+        for k, v in form_state.items()
+        if v is not None and k != "concessions"
+    )
+    for key in form_state.get("concessions", []) or []:
+        hidden_state += f'<input type="hidden" name="concessions" value="{esc(key)}">'
+
+    start_key = "cascade.start.food" if branch is Branch.FOOD else "cascade.start.table"
 
     return f"""
-    <script>
-        // Update Leaflet map with searched restaurants & candidate radius circle
-        initLeafletMap({lat}, {lon}, 13, {radius_km});
-        updateMapMarkers({restaurants_json});
+<hr class="hr" style="margin:1.3rem 0 1rem;">
+<div class="panel-head" style="border:none;padding:0;">
+  <h3>{esc(t("candidates.title", lang))}</h3>
+  <span class="small muted mono">{len(ranked)}</span>
+</div>
+<p class="help" style="margin:0.4rem 0 0.9rem;">{esc(t("candidates.hint", lang))}</p>
 
-        function moveCardUp(id) {{
-            const card = document.getElementById('rest-card-' + id);
-            if (card && card.previousElementSibling) {{
-                card.parentNode.insertBefore(card, card.previousElementSibling);
-            }}
-        }}
+<form id="cascade-form" hx-post="/api/start-cascade?lang={lang}" hx-target="#monitor" hx-swap="innerHTML">
+  {hidden_state}
+  <input type="hidden" name="candidate_order" id="candidate_order" value="{esc(",".join(r.id for r in ranked))}">
+  <div class="candidates" id="candidate-list">{cards}</div>
+  {skipped_html}
 
-        function moveCardDown(id) {{
-            const card = document.getElementById('rest-card-' + id);
-            if (card && card.nextElementSibling) {{
-                card.parentNode.insertBefore(card.nextElementSibling, card);
-            }}
-        }}
-
-        function toggleRestCard(id, checked) {{
-            const card = document.getElementById('rest-card-' + id);
-            if (card) {{
-                if (checked) card.classList.remove('disabled');
-                else card.classList.add('disabled');
-            }}
-        }}
-
-        function toggleClosedRestaurants(btn) {{
-            const cards = document.querySelectorAll('.restaurant-card.disabled');
-            cards.forEach(c => {{
-                if (c.style.display === 'none') c.style.display = 'flex';
-                else c.style.display = 'none';
-            }});
-            btn.innerText = btn.innerText.includes('Einblenden') ? 'Geschlossene ausblenden' : 'Geschlossene einblenden';
-        }}
-    </script>
-
-    <div style="display: flex; flex-direction: column; gap: 1.5rem; margin-top: 1rem;">
-        
-        <!-- Hinweistext per UI-SPEC -->
-        <div style="background: rgba(245, 158, 11, 0.1); border-left: 4px solid #f59e0b; padding: 0.85rem 1rem; border-radius: 6px; font-size: 0.9rem; color: #fef08a;">
-            💬 <strong>Restaurantauswahl:</strong> Wir rufen alle an und prüfen zuerst, ob sie liefern können. Bitte wählen Sie diejenigen ab, die nicht angerufen werden sollen.
-        </div>
-
-        <form id="cascade-form" hx-post="/api/start-cascade" hx-target="#cascade-monitor">
-            <input type="hidden" name="city" value="{city}">
-            <input type="hidden" name="delivery_address" value="{delivery_address}">
-
-            <div class="restaurant-list" id="restaurant-sortable-list">
-                {open_items_html}
-            </div>
-
-            {f'''
-            <div style="font-size: 0.85rem; color: #94a3b8; margin-top: 0.5rem; display: flex; align-items: center; justify-content: space-between;">
-                <span>🕒 {closed_count} vermutlich geschlossene Restaurants ausgeblendet.</span>
-                <button type="button" class="btn-mini" onclick="toggleClosedRestaurants(this)">Geschlossene einblenden</button>
-            </div>
-            ''' if closed_count > 0 else ''}
-
-            <!-- Step 4: Modus, Essenswunsch & Höchstbetrag -->
-            <div style="border-top: 1px solid var(--card-border); padding-top: 1.25rem; margin-top: 1rem; display: flex; flex-direction: column; gap: 1rem;">
-                
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label for="mode">Modus wählen</label>
-                        <select id="mode" name="mode" onchange="updateModeFields(this.value)">
-                            <option value="delivery" selected>🍕 Lieferung</option>
-                            <option value="pickup">🛍️ Abholen</option>
-                            <option value="reservation">🍽️ Tisch reservieren</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="customer_name">Ihr Name</label>
-                        <input type="text" id="customer_name" name="customer_name" value="Lukas" required>
-                    </div>
-
-                    <div class="form-group" id="budget-group">
-                        <label for="max_budget_eur">Höchstbetrag (€ an Haustür)</label>
-                        <input type="number" id="max_budget_eur" name="max_budget_eur" value="35.00" step="1.0" min="5.0" required>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label for="food_prompt">Essenswunsch (Freitext)</label>
-                    <textarea id="food_prompt" name="food_prompt" rows="2" placeholder="z. B. 2x Cheeseburger, 1x Große Pommes, 1x Cola Zero" required>2x Cheeseburger, 1x Große Pommes, 1x Cola Zero</textarea>
-                </div>
-
-                <!-- Step 5: Transparency Prompt Preview -->
-                <div class="form-group">
-                    <label>🔍 CALL-E Prompt-Vorschau (Transparenz vor Absenden)</label>
-                    <div class="prompt-preview-box" id="prompt-preview">
-Click "Auftragstext prüfen" below to preview exact call goal sent to CALL-E.
-                    </div>
-                </div>
-
-                <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
-                    <button type="button" class="btn btn-secondary" onclick="updatePromptPreview()">
-                        📝 Auftragstext prüfen
-                    </button>
-                    <button type="submit" class="btn" style="flex: 1;">
-                        📞 Anruf-Kaskade starten
-                    </button>
-                </div>
-            </div>
-        </form>
-
-        <div id="cascade-monitor"></div>
+  <div class="panel" style="margin-top:1.1rem;background:var(--ink);">
+    <div class="panel-head" style="padding-bottom:0.5rem;">
+      <h3>{esc(t("goal.title", lang))}</h3>
+      <button type="button" class="mini" onclick="HC.previewGoal()">{esc(t("goal.show", lang))}</button>
     </div>
+    <p class="help">{esc(t("goal.help", lang))}</p>
+    <pre id="goal-preview" class="mono">{esc(t("goal.empty", lang))}</pre>
+  </div>
 
-    <script>
-        function updatePromptPreview() {{
-            const mode = document.getElementById('mode').value;
-            const name = document.getElementById('customer_name').value;
-            const address = "{delivery_address}";
-            const food = document.getElementById('food_prompt').value;
-            const budget = document.getElementById('max_budget_eur').value;
+  <div class="btn-row" style="margin-top:1.1rem;">
+    <button type="submit" class="btn">{esc(t(start_key, lang))}</button>
+  </div>
+</form>
 
-            let goalText = `Hello, I am an automated assistant calling on behalf of ${{name}}. We would like to order food for delivery to ${{address}}. Requested items: '${{food}}'. Please verify: 1. Do you deliver to this address? 2. What is the EXACT total price in EUR including delivery fee? 3. What is estimated delivery time in minutes? 4. If total price is within max budget limit of ${{budget}} EUR, place order and obtain direct callback number.`;
-            document.getElementById('prompt-preview').innerText = goalText;
-        }}
-    </script>
-    """
+<div id="monitor"></div>
+<script>HC.initCandidates({json.dumps([{"id": r.id, "name": r.name, "lat": r.lat, "lon": r.lon,
+                                        "phone": mask_phone(r.phone),
+                                        "cuisines": r.cuisines} for r in ranked])},
+                          {lat}, {lon}, {radius_km});</script>
+"""
 
 
-def render_cascade_monitor(order_id: str, dry_run: bool, max_budget_eur: Optional[float] = 35.00) -> str:
-    """Render SSE streaming cascade monitor container with cancel button and active budget band."""
-    budget_str = f"{max_budget_eur:.2f} €" if max_budget_eur is not None else "Kein Limit"
+# --------------------------------------------------------------------------
+# Cascade monitor
+# --------------------------------------------------------------------------
+
+def render_cascade_monitor(
+    lang: str,
+    order_id: str,
+    mode: Mode,
+    max_budget_eur: Optional[float],
+    criteria_line: str,
+    concession_keys: List[str],
+) -> str:
+    """The waiting screen. Waiting is not idleness, it is not knowing."""
+    if mode is Mode.RESERVATION:
+        band_key, band_value = t("cascade.band.criteria", lang), criteria_line
+    else:
+        band_key = t("cascade.band.budget", lang)
+        band_value = (
+            f"{max_budget_eur:.2f} €" if max_budget_eur is not None
+            else t("cascade.band.budget.none", lang)
+        )
+
+    concession_text = (
+        ", ".join(t("table.concession." + k, lang) for k in concession_keys)
+        if concession_keys else t("cascade.band.concessions.none", lang)
+    )
+
     return f"""
-    <div style="background: #090d16; border: 1px solid #334155; border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem;"
-         hx-ext="sse" sse-connect="/api/cascade-stream?order_id={order_id}&dry_run={str(dry_run).lower()}" sse-swap="message">
-        
-        <!-- Active Budget Band Header Banner (Backflow from Video) -->
-        <div style="background: linear-gradient(90deg, rgba(245, 158, 11, 0.15), rgba(15, 23, 42, 0.8)); border: 1px solid #f59e0b; border-radius: 8px; padding: 0.6rem 1rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.88rem;">
-            <span style="color: #fef08a; font-weight: 600; display: flex; align-items: center; gap: 0.4rem;">
-                <span>🛡️</span> FINANCIAL AUTHORITY CAP (Harte Grenze)
-            </span>
-            <span style="color: #ffffff; font-weight: 700; font-family: monospace; font-size: 0.95rem;">
-                Höchstbetrag: {budget_str}
-            </span>
-        </div>
+<div class="panel" style="margin-top:1.2rem;" id="monitor-panel">
+  <div class="band">
+    <span class="k">{esc(band_key)}</span>
+    <span class="v">{esc(band_value)}</span>
+  </div>
+  <div class="band">
+    <span class="k">{esc(t("cascade.band.concessions", lang))}</span>
+    <span class="v">{esc(concession_text)}</span>
+  </div>
 
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div style="font-weight: 600; color: #f59e0b; display: flex; align-items: center; gap: 0.5rem;">
-                <span class="spin-loader">⚡</span> Anruf-Kaskade läuft live...
-            </div>
-            <button type="button" class="btn btn-danger" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;" hx-post="/api/cancel-cascade?order_id={order_id}">
-                ⛔ Kaskade abbrechen
-            </button>
-        </div>
+  <div class="panel-head" style="padding-bottom:0.5rem;">
+    <h3>{esc(t("cascade.running", lang))}</h3>
+    <button type="button" class="btn danger" id="cancel-btn"
+            onclick="HC.cancel('{esc(order_id)}')">{esc(t("cascade.cancel", lang))}</button>
+  </div>
 
-        <div id="cascade-status-text" style="font-size: 0.9rem; color: #94a3b8;">
-            Initiere Anrufkaskade... ~40 Sekunden Vorlaufzeit pro Anruf.
-        </div>
+  <p class="status" id="cascade-status">{esc(t("cascade.init", lang))}</p>
 
-        <div id="live-activity-box" class="activity-log" style="display: none;">
-            <!-- Real-time STT turns stream here -->
-        </div>
-    </div>
+  <h4 class="eyebrow">{esc(t("cascade.activity", lang))}</h4>
+  <div class="log" id="activity-log" aria-live="polite"></div>
+
+  <div id="outcome"></div>
+</div>
+<script>HC.startStream("{esc(order_id)}");</script>
+"""
+
+
+# --------------------------------------------------------------------------
+# Result
+# --------------------------------------------------------------------------
+
+def render_result_sentence(
+    lang: str,
+    mode: Mode,
+    restaurant: Restaurant,
+    structured: Dict[str, Any],
+    food_prompt: str,
+    party_size: Optional[int],
+    reservation_date: Optional[str],
+    reservation_time: Optional[str],
+) -> str:
+    """The sentence a person could read out loud, in their language.
+
+    The engine builds an English one for the CLI and the library. The screen
+    needs the reader's language, so it is composed here instead of translating
+    a finished English sentence back.
     """
+    callback = mask_phone(structured.get("callback_number") or restaurant.phone)
+
+    if mode is Mode.DELIVERY:
+        return t(
+            "result.sentence.delivery", lang,
+            name=restaurant.name,
+            eta=structured.get("eta_minutes", 0),
+            items=food_prompt,
+            price=f'{structured.get("total_price_eur", 0.0):.2f}',
+            callback=callback,
+        )
+
+    if mode is Mode.PICKUP:
+        return t(
+            "result.sentence.pickup", lang,
+            name=restaurant.name,
+            prep=structured.get("prep_time_minutes", 0),
+            price=f'{structured.get("total_price_eur", 0.0):.2f}',
+            address=restaurant.address or restaurant.name,
+            callback=callback,
+        )
+
+    seating = structured.get("seating_confirmed")
+    return t(
+        "result.sentence.reservation", lang,
+        name=restaurant.name,
+        party=party_size or "?",
+        date=reservation_date or "?",
+        time=reservation_time or "?",
+        seating=t(f"result.sentence.seating.{seating}", lang) if seating else "",
+        callback=callback,
+    )
 
 
 def render_result_card(
-    restaurant_name: str,
-    callback_number: str,
-    total_price_eur: float,
-    eta_minutes: int,
+    lang: str,
+    mode: Mode,
+    restaurant: Restaurant,
+    structured: Dict[str, Any],
     post_summary: str,
     raw_transcript_text: str,
-    order_id: str
+    message: str,
+    order_id: str,
+    calls_made: int,
+    concession_used: Optional[str] = None,
 ) -> str:
-    """Render Step 9: Result Card with prominent callback number and summary per UI-SPEC."""
-    masked_cb = mask_phone(callback_number)
-    
+    """What came back, in the user's terms — and what it commits them to."""
+    title = t(f"result.title.{mode.value}", lang)
+    callback = structured.get("callback_number") or restaurant.phone
+
+    facts: List[tuple] = []
+    if mode in (Mode.DELIVERY, Mode.PICKUP):
+        facts.append((t("result.price", lang), f'{structured.get("total_price_eur", 0.0):.2f} €'))
+        if mode is Mode.DELIVERY:
+            facts.append((t("result.eta", lang), f'{structured.get("eta_minutes", 0)} {t("result.minutes", lang)}'))
+        else:
+            facts.append((t("result.prep", lang), f'{structured.get("prep_time_minutes", 0)} {t("result.minutes", lang)}'))
+            facts.append((t("result.pickup.at", lang), restaurant.address or restaurant.name))
+    else:
+        facts.append((t("result.when", lang), f'{structured.get("reservation_time_confirmed", "")}'.strip() or "—"))
+        facts.append((t("result.party", lang), str(structured.get("party_size_confirmed", "") or "—")))
+        seating = structured.get("seating_confirmed")
+        if seating:
+            facts.append((t("result.seating", lang), t(f"table.seating.{seating}", lang)))
+
+    facts_html = "".join(
+        f'<div class="fact"><div class="k">{esc(k)}</div><div class="v">{esc(v)}</div></div>'
+        for k, v in facts
+    )
+
+    concession_html = ""
+    if concession_used:
+        concession_html = f"""
+  <div class="notice">
+    <strong>{esc(t("result.concession", lang))}:</strong>
+    {esc(t("table.concession." + concession_used, lang))}<br>
+    <span class="small">{esc(t("result.concession.note", lang))}</span>
+  </div>"""
+
     return f"""
-    <div class="result-card" id="final-result-card">
-        <div style="display: flex; align-items: center; gap: 0.5rem; color: #10b981; font-weight: 600; font-size: 0.9rem; text-transform: uppercase;">
-            <span>🎉</span> Bestätigte Bestellung
-        </div>
+<div class="result" style="margin-top:1.1rem;">
+  <div class="panel-head" style="border:none;padding:0;">
+    <h2>{esc(title)}</h2>
+    <span class="small mono">{esc(calls_made_text(lang, calls_made))}</span>
+  </div>
 
-        <div class="result-sentence">
-            Erfolgreich bestellt bei {restaurant_name}! Das Essen kommt in ca. {eta_minutes} Minuten.
-        </div>
+  <p class="result-sentence">{esc(message)}</p>
+  <div class="facts">{facts_html}</div>
+  {concession_html}
 
-        <div class="result-meta-grid">
-            <div class="meta-item">
-                <span class="meta-label">Endbetrag (Haustür)</span>
-                <span class="meta-value">{total_price_eur:.2f} €</span>
-            </div>
-            <div class="meta-item">
-                <span class="meta-label">Lieferzeit (ETA)</span>
-                <span class="meta-value">{eta_minutes} Min.</span>
-            </div>
-            <div class="meta-item">
-                <span class="meta-label">Status</span>
-                <span class="meta-value" style="color: #34d399;">BESTÄTIGT</span>
-            </div>
-        </div>
+  <div class="callback">
+    <span>
+      <span class="eyebrow" style="display:block;">{esc(t("result.callback", lang))}</span>
+      <span class="small muted">{esc(t("result.callback.note", lang))}</span>
+    </span>
+    <span class="num">{esc(mask_phone(callback))}</span>
+  </div>
 
-        <!-- Prominente Rückrufnummer per UI-SPEC -->
-        <div class="callback-box">
-            <div>
-                <div style="font-size: 0.8rem; color: #6ee7b7; font-weight: 500;">RÜCKRUFNUMMER DES RESTAURANTS</div>
-                <div style="font-size: 0.75rem; color: #a7f3d0;">(Bestellung ist verbindlich — für Änderungen direkt anrufen)</div>
-            </div>
-            <div class="callback-number">{masked_cb}</div>
-        </div>
+  <details>
+    <summary>{esc(t("result.transcript", lang))}</summary>
+    <p class="small muted" style="margin-top:0.6rem;">{esc(t("result.transcript.note", lang))}</p>
+    <pre>{esc(raw_transcript_text or post_summary)}</pre>
+  </details>
 
-        <details style="background: rgba(15, 23, 42, 0.8); border: 1px solid #334155; border-radius: 8px; padding: 0.75rem;">
-            <summary style="cursor: pointer; font-weight: 600; color: #cbd5e1;">📜 Vollständiges Gesprächsprotokoll (Transkript)</summary>
-            <!-- Highlighted Price Verification Banner (Backflow from Video) -->
-            <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid #10b981; padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.85rem; color: #a7f3d0; margin-top: 0.75rem; display: flex; align-items: center; justify-content: space-between;">
-                <span>🏷️ <strong>Bestätigter Transkript-Endpreis:</strong> {total_price_eur:.2f} €</span>
-                <span style="color: #34d399; font-weight: 600;">✓ In Budget</span>
-            </div>
-            <pre style="margin-top: 0.5rem; font-family: monospace; font-size: 0.8rem; color: #a1a1aa; white-space: pre-wrap;">{raw_transcript_text}</pre>
-        </details>
-
-        <form hx-post="/api/save-result" hx-target="#save-status">
-            <input type="hidden" name="order_id" value="{order_id}">
-            <input type="hidden" name="restaurant_name" value="{restaurant_name}">
-            <input type="hidden" name="callback_number" value="{callback_number}">
-            <input type="hidden" name="total_price_eur" value="{total_price_eur}">
-            <input type="hidden" name="eta_minutes" value="{eta_minutes}">
-            <input type="hidden" name="post_summary" value="{post_summary}">
-            <input type="hidden" name="raw_transcript_text" value="{raw_transcript_text}">
-            
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 0.5rem;">
-                <button type="submit" class="btn" style="background: #10b981; color: #000;">
-                    💾 Ergebnis in Datenbank speichern
-                </button>
-                <span id="save-status" style="font-size: 0.9rem; color: #34d399; font-weight: 500;"></span>
-            </div>
-        </form>
+  <form hx-post="/api/save-result?lang={lang}" hx-target="#save-status" hx-swap="innerHTML">
+    <input type="hidden" name="order_id" value="{esc(order_id)}">
+    <input type="hidden" name="restaurant_id" value="{esc(restaurant.id)}">
+    <div class="btn-row">
+      <button type="submit" class="btn">{esc(t("result.save", lang))}</button>
+      <span id="save-status" class="small mono"></span>
     </div>
-    """
+  </form>
+</div>"""
+
+
+def calls_made_text(lang: str, calls_made: int) -> str:
+    """One call is not '1 Anrufe'."""
+    key = "result.calls.made.one" if calls_made == 1 else "result.calls.made"
+    return t(key, lang, n=calls_made)
+
+
+def render_failure(lang: str, calls_made: int) -> str:
+    return f"""
+<div class="notice warn" style="margin-top:1.1rem;">
+  {esc(t("cascade.exhausted", lang))}
+  <span class="small mono"> — {esc(calls_made_text(lang, calls_made))}</span>
+</div>"""
+
+
+# --------------------------------------------------------------------------
+# History
+# --------------------------------------------------------------------------
+
+def render_history(lang: str, rows: List[Dict[str, Any]]) -> str:
+    if not rows:
+        body = f'<p class="muted">{esc(t("history.empty", lang))}</p>'
+    else:
+        cells = ""
+        for row in rows:
+            price = row.get("total_price_eur")
+            price_text = f"{price:.2f} €" if price else "—"
+            cells += (
+                "<tr>"
+                f'<td class="num">{esc(row.get("created_at", ""))}</td>'
+                f'<td>{esc(row.get("restaurant_name", ""))}</td>'
+                f'<td class="num">{esc(row.get("mode", ""))}</td>'
+                f'<td class="num">{esc(price_text)}</td>'
+                f'<td class="num">{esc(row.get("masked_phone", ""))}</td>'
+                "</tr>"
+            )
+        body = f"""
+<table>
+  <thead><tr>
+    <th>{esc(t("result.when", lang))}</th><th>{esc(t("candidates.title", lang))}</th>
+    <th>{esc(t("food.mode.title", lang))}</th><th>{esc(t("result.price", lang))}</th>
+    <th>{esc(t("result.callback", lang))}</th>
+  </tr></thead>
+  <tbody>{cells}</tbody>
+</table>
+<p class="small muted" style="margin-top:0.8rem;">{esc(t("history.masked.note", lang))}</p>"""
+
+    return f"""
+<div class="panel">
+  <div class="panel-head">
+    <h2>{esc(t("history.title", lang))}</h2>
+    <a class="small" href="/?lang={lang}">← {esc(t("nav.back", lang))}</a>
+  </div>
+  {body}
+</div>"""

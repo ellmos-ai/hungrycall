@@ -52,6 +52,31 @@ def test_cli_budget_exceeded_scenario(capsys):
     assert "RESULT: SUCCESS" in captured.out
 
 
+def test_cli_reservation_accepts_seating_and_concessions(capsys):
+    """The table branch's own criteria are reachable from the CLI too.
+
+    Without the grant the same fixture is refused; with it, it goes through.
+    """
+    refused = main([
+        "reservation", "--food", "Italian", "--date", "2026-08-07",
+        "--time", "19:00", "--party", "4", "--seating", "outdoor",
+        "--scenario", "table_concession_cascade",
+    ])
+    assert refused == 1
+    assert "not authorised" in capsys.readouterr().out
+
+    granted = main([
+        "reservation", "--food", "Italian", "--date", "2026-08-07",
+        "--time", "19:00", "--party", "4", "--seating", "outdoor",
+        "--concession", "indoor_ok",
+        "--scenario", "table_concession_cascade",
+    ])
+    assert granted == 0
+    out = capsys.readouterr().out
+    assert "RESULT: SUCCESS" in out
+    assert "Gasthaus Zur Linde" in out
+
+
 def test_cli_reservation(capsys):
     ret = main([
         "reservation",

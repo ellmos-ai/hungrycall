@@ -147,28 +147,87 @@ In the official CALL-E repository, `apps/typescript/call-on-behalf` constrains a
 
 ## Web Interface (FastAPI + HTMX + SQLite + Leaflet)
 
-HungryCall includes a lightweight, zero-build Web UI based on **FastAPI, HTMX, SQLite, and Leaflet**:
+Zero build step, no bundler, no CDN. Two branches start from the landing page,
+and both end in the same cascade engine on different criteria.
 
-### Key Web Features:
-- **1. Location & Address**: International PLZ, Ort, and Country geocoding with radius search.
-- **2. Search State**: Smooth search animation with *"Wir suchen für Sie die besten Essenspunkte..."*.
-- **3. Always-Visible Map**: OpenStreetMap Leaflet map displaying the user's location as a glowing pulse marker surrounded by candidate restaurants.
-- **4. Restaurant Selection & Drag-and-Drop Prioritization**: Includes UI-SPEC guidance text, checkable cards, closed restaurant toggle, and priority ordering.
-- **5. Mode & Food Request**: Delivery, Pickup, and Table Reservation with free-text food prompt and maximum doorstep budget input.
-- **6. Prompt Transparency Preview**: Displays the exact CALL-E goal prompt text before starting calls.
-- **7. Live SSE Cascade**: Stationary restaurant list with moving 📞 telephone handset icon (gray preparing, green connected, red rejected, green checkmark success).
-- **8. Result Card**: Prominent summary sentence, total price, ETA, **prominently highlighted restaurant callback phone number**, expandable transcript, and SQLite persistence.
-- **9. 100% Offline Showcase**: Bundled local HTMX & Leaflet assets allow full offline demonstrations without internet or CALL-E accounts.
+### The two branches
+
+| | **Order food** (`/order`) | **Book a table** (`/reserve`) |
+|---|---|---|
+| Decides on | price, delivery, time | clock, party size, seating |
+| Hard gate | the doorstep total | a free table at that hour |
+| Switchable | delivery ⇄ pickup | indoor / outdoor / either |
+| Concessions | — | tiered, and authorised by you |
+
+The switch between **delivery and pickup is not cosmetic**. It changes the
+ranking (distance is weighted 12× higher when you are the one driving), it
+changes the gate (the budget is the doorstep total with delivery, the plain
+price without), it changes the shortlist (a pub that does not deliver is still
+a fine place to collect from), and it changes the goal text handed to the
+agent. `hungrycall/ranking.py` holds the weights; `tests/test_ranking.py`
+pins the behaviour.
+
+### Concessions: authority, not a hint
+
+The table branch implements the third kind of criterion from
+[`MUSTER.md`](MUSTER.md) — *something you are willing to give, but not yet*:
+
+* You grant concessions explicitly (`indoor_ok`, `time_flex`, `deposit_ok`).
+* They are handed over **in tier order**, with an instruction never to offer a
+  later step before an earlier one has failed.
+* The result reports which step was played, in `tier_applied`.
+* **A result that used a concession you did not grant is rejected**, exactly
+  the way an over-budget quote is. An agent that bought the table with money
+  you never offered has exceeded its mandate, and the yes it brought back does
+  not count. See `CascadeEngine.check_concession_authority`.
+
+### What the screen does
+
+1. **Landing** — two tiles; hovering (or tabbing to) one reveals what that
+   branch actually does. A CSS/SVG animation walks a call down four numbers:
+   two declines, one connection, and the fourth never dialled.
+2. **Location and criteria** — the branch's own questions. No budget field
+   exists in the table branch at all.
+3. **Candidates** — ranked, with distance, and reorderable. **The visible order
+   is the call order**: the arrows write a hidden `candidate_order` field and
+   the server calls exactly that sequence.
+4. **Goal text** — the complete text that will leave the building, produced by
+   the same `build_call_goal()` used for the real call, fetched from
+   `/api/preview-goal`. Not a copy maintained in JavaScript.
+5. **Cascade** — server-sent events carrying *data*, not markup: `dialing`,
+   `connected`, `activity`, `rejected`, `accepted`, `outcome`. The conversation
+   streams into a live log; each decline shows its reason on the candidate.
+6. **Result** — the sentence in your language, the binding commitment, the
+   masked callback number, the transcript, and which concession (if any) was
+   spent.
+
+### German and English
+
+Both complete. The interface uses the author's existing `TranslationSystem`
+(vendored unchanged in `hungrycall/translator.py`) with
+`hungrycall/locales/translations.json`. Language comes from an explicit choice,
+then a cookie, then `Accept-Language`, then German.
+`tests/test_i18n.py` fails the build if a key used in the code has no entry, if
+either language has a gap, or if a `{placeholder}` is lost in translation.
+
+### Honest about what it cannot do
+
+The interface states these where you are working, rather than hiding them:
+
+* **Real calls are locked.** There is no CALL-E account and the balance is
+  −0.05 USD. `LiveCallClient` raises rather than pretend. There is deliberately
+  no "go live" switch that does nothing.
+* **The live OpenStreetMap search is unverified.** The code exists; the dry run
+  never enters it.
+* **Map tiles come from OpenStreetMap.** The application logic runs with no
+  network; without one the map stays grey and everything else keeps working.
+  No fonts, scripts or styles are fetched from anywhere.
 
 ### Launching the Web UI
 ```bash
-# Option 1: Using the runner script
-python run_web.py
-
-# Option 2: Using the CLI entry point
-hungrycall-web
+python run_web.py          # or: hungrycall-web
 ```
-Access the interface in your browser at `http://127.0.0.1:8000`.
+Then open `http://127.0.0.1:8000`.
 
 ---
 
@@ -208,6 +267,15 @@ hungrycall delivery --food "2x Döner Kebab" --address "Dorfstrasse 1, 16321 Ber
 hungrycall reservation --food "Italian" --date "2026-08-05" --time "19:00" --party 4 --scenario reservation_cascade
 ```
 
+### 2a. A table outside — and what you would settle for
+```bash
+# Without the grant, the agent's indoor table is refused: it spent authority it did not have.
+hungrycall reservation --food "Italian" --date "2026-08-07" --time "19:00" --party 4   --seating outdoor --scenario table_concession_cascade
+
+# With it granted, the same call goes through, and the result says which step was used.
+hungrycall reservation --food "Italian" --date "2026-08-07" --time "19:00" --party 4   --seating outdoor --concession indoor_ok --scenario table_concession_cascade
+```
+
 ### 3. Pickup Mode
 ```bash
 hungrycall pickup --food "Pizza" --budget 25.0 --scenario pickup_cascade
@@ -227,11 +295,18 @@ hungrycall delivery --food "Burger" --address "Hauptstraße 12, 12345 Dorfstadt"
 
 ## Running Tests
 
-Run the full pytest suite (34 unit tests covering ranking, schemas, phone masking, safety, budget rejection, vague price rejection, tiered concessions, dynamic fixture rendering, STT deduplication, web routes, and CLI execution):
+85 tests, all in the dry run, no account and no network required:
 
 ```bash
 pytest -v
 ```
+
+They cover ranking and its per-mode distance weighting, opening hours across
+midnight, the schemas, phone masking, the safety gates, budget and vague-price
+rejection, concession authority in both directions, both branches end to end
+over the event stream, the candidate order the user arranged, the goal preview,
+cancellation, saving with the mode that actually happened, HTML escaping of
+free-text input, and the completeness of both languages.
 
 ---
 

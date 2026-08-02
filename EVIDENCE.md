@@ -490,4 +490,128 @@ For full judicial transparency (allowing any reviewer or hackathon juror to eval
 - **UNVERIFIED — Acoustic Speech & Tone Fidelity**: Transcripts were verified strictly as text payloads (`raw_transcript_text`). Audio synthesis tone, accent, speech cadence, and acoustic quality of the CALL-E Singapore voice bot were not acoustically listened to or measured via audio tools.
 - **NOT EXECUTED — Remote Repository Operations**: `git push` to remote `origin`, making the repository public, creating Pull Requests on `CALLE-AI/awesome-phone-call-agents`, or submitting forms on DevPost were strictly NOT EXECUTED per user gate rules.
 
+---
 
+## 9. Second Pass: Stubs Turned Into Functions (Claude Code, 2026-08-02)
+
+Agent rotation. This pass looked at the running interface with fresh eyes and
+asked one question of every control: *does it do what it looks like it does?*
+
+### 9.1 What WAS executed
+
+**Test suite** — real run, exact last line:
+
+```text
+85 passed, 1 warning in 17.13s
+```
+
+(35 before this pass, 85 after. The new tests cover both branches end to end
+over the event stream, the candidate order, the goal preview, cancellation,
+concession authority in both directions, per-mode distance weighting, opening
+hours across midnight, HTML escaping, and completeness of both languages.)
+
+**Browser run** — Playwright driving Microsoft Edge against a live server on
+`127.0.0.1:8011`, screenshots at every step. Measured, not assumed:
+
+```text
+budget label after pickup: HOECHSTBETRAG BEI ABHOLUNG (EUR)
+budget label back on delivery: HOECHSTBETRAG AN DER HAUSTUER (EUR)
+pickup-only fields hidden on delivery: True
+order before reorder: rest_burger_house,rest_trattoria_luigi
+order after moving rest_trattoria_luigi up: rest_trattoria_luigi,rest_burger_house
+order restored: rest_burger_house,rest_trattoria_luigi
+goal preview length: 723
+goal starts: Hello, I am an automated assistant calling on behalf of Lukas. We would like to order food
+DELIVERY outcome: Alle Kandidaten durch. Keiner hat die Bedingungen erfuellt - es wurde nichts bestellt und nichts zugesagt. - 2 Anrufe gefuehrt
+call counter: 2
+rejections shown: 2
+activity lines: 12
+PICKUP counter: 1
+PICKUP accepted: 1
+PICKUP activity lines: 6
+save status: Gesichert.
+EN result title: TABLE BOOKED
+--- console ---
+errors: 0
+```
+
+(The block above is transcribed with ASCII umlauts because it is a console
+capture; the interface itself uses real umlauts throughout.)
+
+Note the delivery run: at the wall-clock time of the run only two of the six
+places were open and deliver, and both declined. That is the correct answer,
+not a failure - and it is why opening hours are now checked against the actual
+requested time instead of a hardcoded "Fri 19:00".
+
+**CLI, concession authority, both directions** — exact output:
+
+```text
+$ hungrycall reservation --food Italian --date 2026-08-07 --time 19:00 --party 4     --seating outdoor --scenario table_concession_cascade
+  Attempt #2: Gasthaus Zur Linde (+491 ... ....555) -> [REJECTED]
+    Reason: Agent applied concession 'indoor_ok', which was not authorised. Result rejected.
+RESULT: FAILED
+
+$ hungrycall reservation ... --concession indoor_ok --scenario table_concession_cascade
+RESULT: SUCCESS
+SUMMARY: Table reserved at Gasthaus Zur Linde for 4 people on 2026-08-07 at 19:00,
+         seated indoor. Callback at +491 ... ....555.
+```
+
+### 9.2 Stubs found, and what they actually were
+
+Each of these looked functional in the running app and was not:
+
+| Control | What it actually did | Now |
+|---|---|---|
+| Candidate order arrows | moved DOM nodes; the server kept its own order | writes `candidate_order`; the server calls that sequence |
+| Goal preview | a hardcoded delivery sentence in JavaScript, ignoring the mode | `/api/preview-goal` returns `build_call_goal()` output |
+| Mode select | called `updateModeFields()`, a function that did not exist | branch-specific forms; delivery/pickup changes fields, ranking and gate |
+| Cancel button | posted `order_id` as a query parameter to a form endpoint, so it 422'd | works, and is checked during the wait as well |
+| Call counter | `callCount += idx + 1`, only on success | counts every call actually made, declines included |
+| "Real call" toggle | flipped a hidden field the cascade never read | removed; replaced by a stated, reasoned lock |
+| Live activity box | `display:none`, never written to | the conversation streams into it |
+| Search animation | defined, never wired to an indicator target | wired |
+| Opening hours | hardcoded `Fri 19:00` | derived from the requested date and time |
+| Save result | mode and restaurant id hardcoded | the mode and restaurant that actually happened |
+| `/api/saved-results` | JSON nobody fetched | a history page |
+| Tiered concessions | one string in one fixture; absent from model, prompt and evaluation | a granted authority, ordered in the prompt, enforced on the result |
+| Dry-run scenario | `vague_price_cascade` hardcoded for every mode | follows the branch, selectable |
+
+### 9.3 Defects found while doing it
+
+* **The locale file erased itself.** The vendored `TranslationSystem.t()`
+  registers an unknown German-looking key *and writes the whole table back to
+  disk*. One JSON syntax error meant every lookup missed, and a single page
+  load rewrote `translations.json` down to two junk entries. Saving is now
+  disabled on the web instances, and an empty table raises at import instead of
+  serving pages full of key names.
+* **The `hidden` attribute lost to `.field` setting `display: flex`.** The
+  pickup-only fields were on screen during every delivery - visible, and
+  submitted.
+* **Leaflet markers were 404s.** `images/marker-icon.png` is not in the offline
+  bundle, so every restaurant pin was invisible. Replaced with numbered CSS
+  pins; the number is the position in the call order.
+* **Delayed CSS animations show their end state first.** Every verdict in the
+  landing animation was on screen before the plug reached it, so the sequence
+  read backwards.
+* **Google Fonts.** The app claimed offline capability and fetched a font over
+  the network. The link is gone.
+* **`render_fixture_data` never rendered `structured_result`**, so a rejection
+  reason could reach the screen with a literal placeholder still in it.
+* **`OpeningHours.is_open` broke across midnight** - a place open 22:00-04:00
+  read as closed at 23:00.
+* **Free text went into HTML unescaped.** Now escaped at one chokepoint.
+* **The offline pool was shared, not copied**, so distance annotations leaked
+  between visitors. The module-level "latest search" slot had the same problem
+  and is gone entirely: state is rebuilt from the submitted form.
+
+### 9.4 What was NOT executed - unchanged from the previous pass
+
+* **A real CALL-E call.** Still not made. No account, balance -0.05 USD.
+* **Parallel calls.** Still sequential, still unverified upstream.
+* **Live Overpass/Nominatim search.** Code present, never exercised.
+* **`git push`, pull request, publication, upload.** Not done; out of scope per
+  AGENTS.md.
+* **Screen reader testing.** Focus order, ARIA labels and reduced-motion
+  handling are implemented and were verified only by reading the markup and by
+  keyboard, not with an actual assistive tool.
