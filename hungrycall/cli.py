@@ -5,8 +5,10 @@ import json
 import sys
 from typing import List, Optional
 
-from hungrycall.models import Mode, UserRequest
+from hungrycall.models import Mode, Seating, UserRequest
+from hungrycall.templates import TABLE_CONCESSIONS
 from hungrycall.fixtures import SAMPLE_RESTAURANTS, SCENARIO_FIXTURES
+from hungrycall.geo import weekday_key
 from hungrycall.call_client import DryRunCallClient, LiveCallClient
 from hungrycall.engine import CascadeEngine
 from hungrycall.phone_utils import mask_phone
@@ -43,6 +45,12 @@ def build_parser() -> argparse.ArgumentParser:
     res_parser.add_argument("--time", required=True, help="Reservation time (HH:MM)")
     res_parser.add_argument("--party", type=int, required=True, help="Number of guests")
     res_parser.add_argument("--customer-name", default="Alex", help="Name under which to reserve")
+    res_parser.add_argument("--seating", default="any", choices=[s.value for s in Seating], help="Where you want to sit")
+    res_parser.add_argument(
+        "--concession", action="append", default=[], choices=[c.key for c in TABLE_CONCESSIONS],
+        help="Authorise a fallback the agent may play, but only after the plain attempt failed. "
+             "Repeatable; the tier order decides which is played first."
+    )
     res_parser.add_argument("--scenario", default="reservation_cascade", choices=list(SCENARIO_FIXTURES.keys()), help="Dry-run scenario preset")
 
     # Pickup subcommand
@@ -105,7 +113,10 @@ def main(argv: Optional[List[str]] = None) -> int:
             food_prompt=args.food,
             reservation_date=args.date,
             reservation_time=args.time,
-            party_size=args.party
+            party_size=args.party,
+            seating=Seating(args.seating),
+            concessions=[c for c in TABLE_CONCESSIONS if c.key in args.concession],
+            day_of_week=weekday_key(args.date),
         )
     elif args.subcommand == "pickup":
         req = UserRequest(

@@ -1,20 +1,134 @@
-HUNGRYCALL AUFGABEN-LOG (RÜCKFLUSS VIDEO -> SOFTWARE)
-=====================================================
-Datum: 2026-08-02
-Regel: "Erfundene Dinge können auch Ideen sein, wenn sie gut sind." (LEARNINGS.md)
+HUNGRYCALL — AUFGABEN
+=====================
 
-1. [ERLEDIGT] Kandidatenradius auf der Karte
-   - Grund: Macht die räumliche Suchgrenze (z. B. 3.0 km) für den Nutzer direkt auf der Karte sichtbar.
-   - Datei: hungrycall/templates.py (initLeafletMap draw circle)
+---------------------------------------------------------------------------
+NUTZER-FEEDBACK 2026-08-02 (wörtlich, nach Sichtung der laufenden App)
+---------------------------------------------------------------------------
 
-2. [ERLEDIGT] Ablehnungsgründe auf Restaurant-Karten
-   - Grund: Zeigt im Live-Kaskaden-Stream sofort an der Karte, WARUM ein Kandidat abgelehnt wurde (z. B. "🔴 Abgelehnt: 42.00 € > 35.00 € Budget").
-   - Datei: hungrycall/templates.py & hungrycall/web.py (SSE call_failed event DOM update)
+  "okay ja der kreis ist gut, aber bisher nur stubs das heißt jetzt
+   funktionen ausbauen das sie funktionieren. erste Startseite prominent
+   zwei Möglichkeiten als Kacheln Essen bestellen, Tisch reservieren. Wenn
+   man mit der Maus darüber fährt wird Erklärung angezeigt. Du sagst was du
+   brauchst und wir finden wer dir das liefert oder wo du das abholen kannst
+   zu deinen Konditionen und Prioritäten. Im Essenszweig liefern standard
+   und umschaltbar auf abholen. Auf der Startseite eine Animation wie es
+   funktioniert oder ein Erklärvideo muss nicht das vom Wettbewerb sein es
+   geht um den Prozess visualisieren."
 
-3. [ERLEDIGT] Budget-Band mit Höchstbetrag
-   - Grund: Hebt die finanzielle Grenze (Financial Authority Cap) während der Kaskadenausführung permanent als Shield-Banner hervor.
-   - Datei: hungrycall/templates.py (render_cascade_monitor banner)
+Daraus abgeleitete Punkte (A1–A7) und der Stub-Durchgang (S1–S14).
 
-4. [ERLEDIGT] Transkriptansicht mit Preis-Highlight
-   - Grund: Setzt die verifizierte Preisaussage aus dem Transkript als visuellen Beleg für die Jury in den Vordergrund.
-   - Datei: hungrycall/templates.py (render_result_card price badge)
+---------------------------------------------------------------------------
+A — AUS DEM FEEDBACK
+---------------------------------------------------------------------------
+
+A1 [ERLEDIGT] Startseite mit zwei Kacheln: "Essen bestellen" / "Tisch reservieren"
+   - prominent, Erklärung erscheint beim Überfahren mit der Maus
+   - Kernsatz des Nutzers auf der Startseite
+   - Datei: hungrycall/templates.py (render_landing_page), web.py ("/")
+
+A2 [ERLEDIGT] Prozess-Animation auf der Startseite (reines SVG/CSS, kein Video)
+   - zeigt die Kaskade: Absage -> nächster -> Zusage -> Rest gestoppt
+   - respektiert prefers-reduced-motion (Endzustand statisch)
+   - Datei: hungrycall/templates.py (render_landing_page)
+
+A3 [ERLEDIGT] Essenszweig: Lieferung ist Standard, umschaltbar auf Abholung
+   - Datei: hungrycall/templates.py (render_food_branch), web.py ("/order")
+
+A4 [ERLEDIGT] Umschaltung bis in die Entscheidungsregeln durchgezogen
+   - Abholung: Entfernung geht in die Rangfolge ein (man fährt selbst hin),
+     Budget ist der Abholpreis ohne Liefergebühr
+   - Lieferung: Entfernung ist dem Nutzer egal, Budget ist der Endbetrag
+     an der Haustür inkl. Liefergebühr
+   - Datei: hungrycall/ranking.py, engine.py, geo.py
+
+A5 [ERLEDIGT] Tischreservierung als zweiter Zweig mit eigenen Kriterien
+   - Uhrzeit, Personenzahl, drinnen/draußen statt Preis
+   - gleiche Kaskadenmechanik -> Beleg für MUSTER.md
+   - Datei: hungrycall/templates.py (render_table_branch), web.py ("/reserve")
+
+A6 [ERLEDIGT] Deutsch und Englisch, beides vollständig
+   - vorhandenes Übersetzungssystem genutzt (TranslationSystem aus
+     .SOFTWARE/CODING/REL_Editor_PythonBox/translator.py), kein Neubau
+   - Datei: hungrycall/translator.py (vendored), i18n.py, locales/translations.json
+
+A7 [ERLEDIGT] Design überarbeitet
+   - Gestaltung aus der Sache heraus: Vermittlungsschrank statt Dashboard
+   - Google-Fonts-Abhängigkeit entfernt (die App behauptete Offline-Fähigkeit
+     und lud trotzdem eine Schrift aus dem Netz)
+
+---------------------------------------------------------------------------
+S — STUB-DURCHGANG (Oberfläche Stelle für Stelle geprüft)
+---------------------------------------------------------------------------
+
+S1 [ERLEDIGT] Reihenfolge der Kandidaten (Knöpfe ▲▼)
+   war: verschob nur DOM-Knoten, der Server ignorierte die Reihenfolge
+   jetzt: verstecktes Feld candidate_order, Server ruft in dieser Reihenfolge
+
+S2 [ERLEDIGT] Prompt-Vorschau
+   war: fest verdrahteter Lieferungs-Text im JavaScript, unabhängig vom Modus
+   jetzt: /api/preview-goal liefert den echten Text aus build_call_goal()
+
+S3 [ERLEDIGT] Modus-Umschaltung im Formular
+   war: onchange rief updateModeFields() — diese Funktion existierte nicht
+   jetzt: Zweig-eigene Formulare, Umschalter Lieferung/Abholung ist echt
+
+S4 [ERLEDIGT] Abbrechen-Knopf
+   war: schickte order_id als Query-Parameter an einen Form-Endpunkt (422)
+   jetzt: hx-vals + hx-target, Abbruch greift auch während des Wartens
+
+S5 [ERLEDIGT] Anrufzähler im Kopfbereich
+   war: callCount += idx+1 nur bei Erfolg (falsche Arithmetik, zählte Absagen nicht)
+   jetzt: zählt jeden tatsächlich geführten Anruf, auch abgelehnte
+
+S6 [ERLEDIGT] Live-Schalter "Echter Anruf"
+   war: sah aus wie ein Scharfschalter, hatte auf die Kaskade keine Wirkung
+   jetzt: als gesperrt gekennzeichnet und begründet; Server weist live hart ab
+
+S7 [ERLEDIGT] Live-Gesprächsprotokoll (live-activity-box)
+   war: display:none, es floss nie etwas hinein
+   jetzt: die Aktivitätszeilen laufen während des Anrufs sichtbar durch
+
+S8 [ERLEDIGT] Suchanimation
+   war: render_search_loading() existierte, wurde nie eingebunden (Ziel fehlte)
+   jetzt: als hx-indicator eingehängt und sichtbar
+
+S9 [ERLEDIGT] Öffnungszeiten-Prüfung
+   war: fest auf "Fr 19:00" verdrahtet, unabhängig von der Anfrage
+   jetzt: aus Datum/Uhrzeit der Anfrage abgeleitet
+
+S10 [ERLEDIGT] Ergebnis speichern
+    war: mode="delivery" und restaurant_id="rest_saved" fest verdrahtet,
+         Rufnummernmaskierung per String-Schnitt
+    jetzt: echte Werte, mask_phone()
+
+S11 [ERLEDIGT] Gespeicherte Ergebnisse
+    war: /api/saved-results lieferte JSON, das keine Oberfläche abholte
+    jetzt: Verlaufsansicht in der Oberfläche
+
+S12 [ERLEDIGT] Platzhalter in Fixture-Ergebnissen
+    war: render_fixture_data() rendert structured_result nicht — Ablehnungs-
+         gründe konnten wörtlich "{max_budget_eur}" enthalten
+    jetzt: wird mitgerendert
+
+S13 [ERLEDIGT] Gestufte Zugeständnisse (MUSTER.md)
+    war: nur ein Textfeld "tier_applied" in einer Fixture — im Modell, im
+         Auftragstext und in der Bewertung kam der Begriff nicht vor
+    jetzt: eigenes Feld, geht in den Auftragstext, wird bewertet und angezeigt
+
+S14 [ERLEDIGT] Fest verdrahtetes Szenario im Web-Zweig
+    war: DryRunCallClient(scenario_name="vague_price_cascade") für jeden Modus
+    jetzt: Szenario folgt dem Zweig und ist in der Oberfläche wählbar
+
+---------------------------------------------------------------------------
+NOCH NICHT FUNKTIONSFÄHIG (in der Oberfläche als solches gekennzeichnet)
+---------------------------------------------------------------------------
+
+N1 Echter Anruf über CALL-E. Kein Konto, Guthaben -0,05 USD. LiveCallClient
+   wirft bewusst NotImplementedError. In der Oberfläche gesperrt und begründet.
+
+N2 Live-Restaurantsuche über Overpass/Nominatim. Der Code dafür steht in
+   location.py und ist nicht abgeschaltet, aber ungeprüft — im Trockenlauf
+   wird er nie betreten. In der Oberfläche als ungeprüft gekennzeichnet.
+
+N3 Parallele Anrufe. Die Kaskade läuft streng nacheinander. Ob CALL-E
+   Parallelität erlaubt, ist nicht verifiziert (siehe AGENTS.md).

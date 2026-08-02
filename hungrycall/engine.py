@@ -1,27 +1,59 @@
-"""Cascade Execution Engine for HungryCall sequential phone calls.
+"""Cascade execution engine for HungryCall.
 
-Executes candidate calls sequentially until one succeeds or all candidates are exhausted.
-Enforces budget limits, exact price quotes, opening hours, and safety rules.
+Calls candidates one after another until one satisfies every criterion, then
+stops. Enforces the budget cap, the exact-quote rule, opening hours, the
+seating wish and — the part that makes this reusable beyond food — the rule
+that the agent may only play concessions the user actually granted.
 """
 
 import time
 from typing import List, Optional, Tuple
+
+from hungrycall.call_client import CallClient, DryRunCallClient
 from hungrycall.models import (
     AttemptRecord, CallResult, CallStatus, CascadeSummary,
-    Mode, Restaurant, UserRequest
-)
-from hungrycall.ranking import filter_and_rank_restaurants
-from hungrycall.safety import (
-    generate_idempotency_key, verify_content_safety, verify_phone_safety
+    Concession, Mode, Restaurant, Seating, UserRequest
 )
 from hungrycall.phone_utils import mask_phone
-from hungrycall.call_client import CallClient, DryRunCallClient
+from hungrycall.ranking import filter_and_rank_restaurants
+from hungrycall.safety import generate_idempotency_key, verify_content_safety
+
+
+def _concession_clause(concessions: List[Concession]) -> str:
+    """Turn granted concessions into an ordered instruction for the voice agent.
+
+    The order is the point. Bundling them into one sentence would make the
+    agent offer everything at once, which is how a machine gives away money a
+    human would have kept.
+    """
+    if not concessions:
+        return (
+            " Do not offer anything beyond what is stated above. If the request "
+            "cannot be met as stated, thank them politely and end the call."
+        )
+
+    ordered = sorted(concessions, key=lambda c: c.tier)
+    steps = " ".join(
+        f"Step {idx}: only if the previous attempt failed, {c.label}"
+        for idx, c in enumerate(ordered, start=1)
+    )
+    keys = ", ".join(f"'{c.key}'" for c in ordered)
+    return (
+        f" If the plain request is refused, you may fall back in this order, one step at a time. {steps} "
+        f"Never offer a later step before an earlier one has failed, and never offer anything not listed. "
+        f"Report which step you used in the field 'tier_applied' (one of: {keys}), or leave it empty if none was needed."
+    )
 
 
 def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
-    """Build clear, explicit CALL-E goal text disclosing AI identity and task details."""
+    """Build the CALL-E goal text: identity disclosure, task, limits, fallbacks.
+
+    Everything the agent needs must be in here. Once this leaves, there is no
+    second chance to add a condition (AGENTS.md, control boundary).
+    """
     intro = f"Hello, I am an automated assistant calling on behalf of {request.customer_name}."
-    
+    fallback = _concession_clause(request.concessions)
+
     if request.mode == Mode.DELIVERY:
         return (
             f"{intro} We would like to order food for delivery to {request.delivery_address}. "
@@ -29,44 +61,72 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
             f"Please verify: 1. Do you deliver to this address? "
             f"2. What is the EXACT total price in EUR including delivery fee and minimum order? "
             f"3. What is the estimated delivery time in minutes? "
-            f"4. If total price is within our maximum budget limit of {request.max_budget_eur:.2f} EUR, "
-            f"place the order and obtain a direct callback number."
+            f"4. If the total price is within our maximum budget limit of {request.max_budget_eur:.2f} EUR, "
+            f"place the order and obtain a direct callback number. "
+            f"An approximate price is not acceptable: if no exact total is given, do not order."
+            f"{fallback}"
         )
-    elif request.mode == Mode.RESERVATION:
+
+    if request.mode == Mode.PICKUP:
         return (
-            f"{intro} We would like to reserve a table on {request.reservation_date} "
-            f"at {request.reservation_time} for {request.party_size} people. "
-            f"Requested area/cuisine preference: '{request.food_prompt}'. "
-            f"Please verify table availability and confirm the reservation under the name {request.customer_name}. "
-            f"Also obtain a direct callback phone number in case of modifications."
-        )
-    elif request.mode == Mode.PICKUP:
-        return (
-            f"{intro} We would like to place a pickup order. "
+            f"{intro} We would like to place a pickup order to collect in person. "
             f"Requested items: '{request.food_prompt}'. Preferred pickup time: {request.pickup_time}. "
             f"Please verify: 1. Can you prepare this for pickup? "
-            f"2. What is the EXACT total price in EUR? "
-            f"3. When will the order be ready? "
-            f"4. If total price is within our limit of {request.max_budget_eur:.2f} EUR, confirm the pickup order."
+            f"2. What is the EXACT total price in EUR? There is no delivery fee, we collect ourselves. "
+            f"3. When exactly will the order be ready for collection? "
+            f"4. If the total price is within our limit of {request.max_budget_eur:.2f} EUR, "
+            f"confirm the pickup order and obtain a direct callback number. "
+            f"An approximate price is not acceptable: if no exact total is given, do not order."
+            f"{fallback}"
         )
+
+    if request.mode == Mode.RESERVATION:
+        seating_clause = ""
+        if request.seating == Seating.OUTDOOR:
+            seating_clause = " We would like to sit outside."
+        elif request.seating == Seating.INDOOR:
+            seating_clause = " We would like to sit inside."
+        return (
+            f"{intro} We would like to reserve a table on {request.reservation_date} "
+            f"at {request.reservation_time} for {request.party_size} people.{seating_clause} "
+            f"Please verify that a table is free at that time for that number of people, "
+            f"then confirm the reservation under the name {request.customer_name}. "
+            f"Also obtain a direct callback number in case we need to cancel."
+            f"{fallback}"
+        )
+
     return intro
 
 
 class CascadeEngine:
-    """Orchestrates sequential calling cascade across ranked candidates."""
+    """Runs the sequential calling cascade across ranked candidates."""
 
-    def __init__(self, candidate_pool: List[Restaurant], call_client: Optional[CallClient] = None):
+    def __init__(
+        self,
+        candidate_pool: List[Restaurant],
+        call_client: Optional[CallClient] = None,
+        preserve_order: bool = False,
+    ):
+        """
+        preserve_order keeps the pool exactly as handed in. The web interface
+        lets the user drag candidates into their own order; silently re-ranking
+        that away would make the drag handles a lie.
+        """
         self.candidate_pool = candidate_pool
         self.call_client = call_client or DryRunCallClient()
+        self.preserve_order = preserve_order
+
+    def plan(self, request: UserRequest) -> List[Tuple[Restaurant, float]]:
+        """The call order this run would use, without calling anyone."""
+        if self.preserve_order:
+            return [(r, 0.0) for r in self.candidate_pool]
+        return filter_and_rank_restaurants(self.candidate_pool, request)
 
     def run(self, request: UserRequest) -> CascadeSummary:
         """Run the sequential calling cascade for the given user request."""
-        # 1. Content Safety Check
         verify_content_safety(request.food_prompt)
 
-        # 2. Filter & Rank Candidates
-        ranked_candidates = filter_and_rank_restaurants(self.candidate_pool, request)
-        
+        ranked_candidates = self.plan(request)
         if not ranked_candidates:
             return CascadeSummary(
                 success=False,
@@ -78,16 +138,13 @@ class CascadeEngine:
 
         attempts: List[AttemptRecord] = []
 
-        # 3. Sequential Cascade
-        for restaurant, score in ranked_candidates:
-            # Generate idempotency key
+        for restaurant, _score in ranked_candidates:
             ts = time.time()
             idempotency_key = generate_idempotency_key(request.mode.value, restaurant.id, ts)
-            
-            # Execute call via CallClient
+
             result = self.call_client.execute_candidate_call(restaurant, request, idempotency_key)
-            
             passed, rejection_reason = self.evaluate_result(request, result)
+            concession_used = result.structured_result.get("tier_applied") or None
 
             attempts.append(
                 AttemptRecord(
@@ -95,37 +152,12 @@ class CascadeEngine:
                     call_result=result,
                     passed_criteria=passed,
                     rejection_reason=rejection_reason,
-                    timestamp=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts))
+                    timestamp=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts)),
+                    concession_used=concession_used if passed else None,
                 )
             )
 
             if passed:
-                # Criteria met! Stop cascade immediately and return success.
-                cb_number = result.structured_result.get("callback_number") or restaurant.phone
-                masked_cb = mask_phone(cb_number)
-                
-                if request.mode == Mode.DELIVERY:
-                    price = result.structured_result.get("total_price_eur", 0.0)
-                    eta = result.structured_result.get("eta_minutes", 0)
-                    success_msg = (
-                        f"Ordered from {restaurant.name}: delivers in {eta} minutes, "
-                        f"items '{request.food_prompt}', total {price:.2f} EUR. "
-                        f"Callback at {masked_cb}."
-                    )
-                elif request.mode == Mode.RESERVATION:
-                    success_msg = (
-                        f"Table reserved at {restaurant.name} for {request.party_size} people "
-                        f"on {request.reservation_date} at {request.reservation_time}. "
-                        f"Callback at {masked_cb}."
-                    )
-                else:  # PICKUP
-                    price = result.structured_result.get("total_price_eur", 0.0)
-                    prep = result.structured_result.get("prep_time_minutes", 0)
-                    success_msg = (
-                        f"Pickup order placed at {restaurant.name}: ready in {prep} minutes, "
-                        f"total {price:.2f} EUR. Callback at {masked_cb}."
-                    )
-
                 return CascadeSummary(
                     success=True,
                     mode=request.mode,
@@ -133,10 +165,10 @@ class CascadeEngine:
                     attempts=attempts,
                     successful_restaurant=restaurant,
                     final_result=result,
-                    message=success_msg
+                    message=self.success_message(request, restaurant, result),
+                    concession_used=concession_used,
                 )
 
-        # 4. Exhausted list without success
         return CascadeSummary(
             success=False,
             mode=request.mode,
@@ -145,70 +177,110 @@ class CascadeEngine:
             message="Attempted all available candidates, but none satisfied the criteria."
         )
 
+    def success_message(
+        self, request: UserRequest, restaurant: Restaurant, result: CallResult
+    ) -> str:
+        """The one sentence a person could read out loud."""
+        struct = result.structured_result
+        masked_cb = mask_phone(struct.get("callback_number") or restaurant.phone)
+
+        if request.mode == Mode.DELIVERY:
+            return (
+                f"Ordered from {restaurant.name}: delivers in "
+                f"{struct.get('eta_minutes', 0)} minutes, items '{request.food_prompt}', "
+                f"total {struct.get('total_price_eur', 0.0):.2f} EUR. Callback at {masked_cb}."
+            )
+        if request.mode == Mode.PICKUP:
+            return (
+                f"Pickup order placed at {restaurant.name}: ready in "
+                f"{struct.get('prep_time_minutes', 0)} minutes, total "
+                f"{struct.get('total_price_eur', 0.0):.2f} EUR. Collect at {restaurant.address}. "
+                f"Callback at {masked_cb}."
+            )
+        seated = struct.get("seating_confirmed")
+        seating_note = f", seated {seated}" if seated else ""
+        return (
+            f"Table reserved at {restaurant.name} for {request.party_size} people "
+            f"on {request.reservation_date} at {request.reservation_time}{seating_note}. "
+            f"Callback at {masked_cb}."
+        )
+
     def evaluate_result(self, request: UserRequest, result: CallResult) -> Tuple[bool, Optional[str]]:
-        """Evaluate call result against mode criteria and budget limits."""
+        """Evaluate one call result against the criteria of this request."""
         if result.status != CallStatus.COMPLETED:
             return False, f"Call failed with status '{result.status.value}'"
 
         struct = result.structured_result
 
+        # Authority check, before any mode-specific criterion: an agent that
+        # bought the result with a concession we never granted has exceeded its
+        # mandate, and a yes obtained that way is not a yes we accept.
+        unauthorised = self.check_concession_authority(request, struct)
+        if unauthorised:
+            return False, unauthorised
+
         if request.mode == Mode.DELIVERY:
-            # 1. Delivers to address
             if not struct.get("delivers_to_address", False):
                 return False, "Restaurant does not deliver to specified address"
-                
-            # 2. Price known (EXACT quote rule)
-            if not struct.get("price_known", False):
-                reason = struct.get("rejection_reason") or "Unclear price statement (vague or missing exact quote)"
-                return False, reason
+            return self.check_price_and_order(request, struct)
 
-            # 3. Maximum total budget limit rule
-            total_price = struct.get("total_price_eur")
-            if total_price is None:
-                return False, "Unclear price statement: total_price_eur missing"
-                
-            if request.max_budget_eur is not None and total_price > request.max_budget_eur:
-                return False, (
-                    f"Total price {total_price:.2f} EUR exceeds maximum budget limit "
-                    f"of {request.max_budget_eur:.2f} EUR"
-                )
+        if request.mode == Mode.PICKUP:
+            if not struct.get("pickup_available", False):
+                return False, "Pickup not available at restaurant"
+            return self.check_price_and_order(request, struct)
 
-            # 4. Order placed
-            if not struct.get("order_placed", False):
-                return False, struct.get("rejection_reason") or "Order was not placed"
-
-            return True, None
-
-        elif request.mode == Mode.RESERVATION:
+        if request.mode == Mode.RESERVATION:
             if not struct.get("table_available", False):
                 return False, struct.get("rejection_reason") or "No table available for requested date and time"
-
             if not struct.get("reservation_confirmed", False):
                 return False, struct.get("rejection_reason") or "Reservation was not confirmed"
 
-            return True, None
-
-        elif request.mode == Mode.PICKUP:
-            if not struct.get("pickup_available", False):
-                return False, "Pickup not available at restaurant"
-
-            if not struct.get("price_known", False):
-                reason = struct.get("rejection_reason") or "Unclear price statement"
-                return False, reason
-
-            total_price = struct.get("total_price_eur")
-            if total_price is None:
-                return False, "Unclear price statement: total_price_eur missing"
-
-            if request.max_budget_eur is not None and total_price > request.max_budget_eur:
-                return False, (
-                    f"Total price {total_price:.2f} EUR exceeds maximum budget limit "
-                    f"of {request.max_budget_eur:.2f} EUR"
-                )
-
-            if not struct.get("order_placed", False):
-                return False, struct.get("rejection_reason") or "Pickup order was not placed"
-
+            # An outdoor wish granted indoors is not the reservation that was
+            # asked for — unless the user allowed that as a concession.
+            if request.seating != Seating.ANY:
+                confirmed = struct.get("seating_confirmed")
+                if confirmed and confirmed != request.seating.value:
+                    if not struct.get("tier_applied"):
+                        return False, (
+                            f"Table is {confirmed}, but {request.seating.value} was requested"
+                        )
             return True, None
 
         return False, f"Unknown mode {request.mode}"
+
+    def check_concession_authority(self, request: UserRequest, struct: dict) -> Optional[str]:
+        """Reject results that used a concession the user never granted."""
+        tier_applied = struct.get("tier_applied")
+        if not tier_applied:
+            return None
+        if tier_applied not in request.granted_concession_keys():
+            return (
+                f"Agent applied concession '{tier_applied}', which was not authorised. "
+                f"Result rejected."
+            )
+        return None
+
+    def check_price_and_order(self, request: UserRequest, struct: dict) -> Tuple[bool, Optional[str]]:
+        """The money gate, shared by delivery and pickup.
+
+        Deliberately strict: a vague quote is a rejection, never an estimate.
+        The code must not believe a price the agent guessed.
+        """
+        if not struct.get("price_known", False):
+            return False, struct.get("rejection_reason") or "Unclear price statement (vague or missing exact quote)"
+
+        total_price = struct.get("total_price_eur")
+        if total_price is None:
+            return False, "Unclear price statement: total_price_eur missing"
+
+        if request.max_budget_eur is not None and total_price > request.max_budget_eur:
+            label = "Doorstep total" if request.mode == Mode.DELIVERY else "Pickup total"
+            return False, (
+                f"{label} {total_price:.2f} EUR exceeds maximum budget limit of "
+                f"{request.max_budget_eur:.2f} EUR"
+            )
+
+        if not struct.get("order_placed", False):
+            return False, struct.get("rejection_reason") or "Order was not placed"
+
+        return True, None

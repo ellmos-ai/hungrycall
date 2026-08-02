@@ -1,0 +1,272 @@
+/* HungryCall client.
+ *
+ * The server sends structured events over SSE and this file decides what they
+ * look like. The earlier build shipped <script> fragments inside the event
+ * payloads, which meant the wire format and the presentation were the same
+ * thing — you could not change one without breaking the other, and nothing
+ * could be tested without a browser.
+ */
+(function () {
+  "use strict";
+
+  var HC = (window.HC = window.HC || {});
+
+  HC.map = null;
+  HC.markers = [];
+  HC.stream = null;
+  HC.callCount = 0;
+  HC.canceled = false;
+
+  // ---------------------------------------------------------------- helpers
+  function $(id) { return document.getElementById(id); }
+
+  function setStatus(text) {
+    var el = $("cascade-status");
+    if (el) el.textContent = text;
+  }
+
+  function bumpCallCounter() {
+    HC.callCount += 1;
+    var el = $("call-counter");
+    if (el) el.textContent = String(HC.callCount);
+  }
+
+  function logLine(text) {
+    var log = $("activity-log");
+    if (!log) return;
+    var row = document.createElement("div");
+    row.textContent = text;
+    log.appendChild(row);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  // ------------------------------------------------------------------- map
+  HC.initMap = function (lat, lon, radiusKm, restaurants) {
+    if (typeof L === "undefined" || !$("map")) return;
+    if (HC.map) { HC.map.remove(); HC.map = null; }
+
+    HC.map = L.map("map").setView([lat, lon], 13);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(HC.map);
+
+    L.circleMarker([lat, lon], {
+      radius: 7, color: "#C9A227", fillColor: "#C9A227", fillOpacity: 1, weight: 2
+    }).addTo(HC.map);
+
+    if (radiusKm > 0) {
+      L.circle([lat, lon], {
+        radius: radiusKm * 1000,
+        color: "#C9A227", fillColor: "#C9A227", fillOpacity: 0.06,
+        weight: 1.5, dashArray: "5 6"
+      }).addTo(HC.map);
+    }
+
+    /* Numbered pins drawn in CSS rather than L.marker: the default marker
+       needs images/marker-icon.png, which this offline bundle does not carry,
+       so every restaurant pin was silently a 404 and invisible. The number
+       also does real work here — it is the position in the call order. */
+    HC.markers = [];
+    (restaurants || []).forEach(function (r, i) {
+      var pin = L.divIcon({
+        className: "map-pin",
+        html: '<span>' + (i + 1) + "</span>",
+        iconSize: [26, 26],
+        iconAnchor: [13, 13]
+      });
+      var marker = L.marker([r.lat, r.lon], { icon: pin, title: r.name }).addTo(HC.map);
+      marker.bindPopup(
+        "<b>" + (i + 1) + ". " + r.name + "</b><br>" +
+        (r.cuisines || []).join(", ") + "<br>" + r.phone
+      );
+      HC.markers.push(marker);
+    });
+  };
+
+  HC.initCandidates = function (restaurants, lat, lon, radiusKm) {
+    HC.initMap(lat, lon, radiusKm, restaurants);
+    HC.syncOrder();
+  };
+
+  // ------------------------------------------------------- candidate order
+  /* The arrows used to move DOM nodes while the server called in its own
+     order. Now the visible order is the order: it is written into a hidden
+     field on every change, and the server calls exactly that sequence. */
+  HC.syncOrder = function () {
+    var list = $("candidate-list");
+    var field = $("candidate_order");
+    if (!list || !field) return;
+
+    var ids = [];
+    var rank = 1;
+    Array.prototype.forEach.call(list.querySelectorAll(".cand"), function (card) {
+      var box = card.querySelector('input[type="checkbox"]');
+      var label = card.querySelector("[data-rank]");
+      if (box && box.checked) {
+        ids.push(card.dataset.id);
+        if (label) label.textContent = String(rank++);
+      } else if (label) {
+        label.textContent = "—";
+      }
+    });
+    field.value = ids.join(",");
+  };
+
+  HC.move = function (id, delta) {
+    var card = $("cand-" + id);
+    if (!card) return;
+    var sibling = delta < 0 ? card.previousElementSibling : card.nextElementSibling;
+    if (!sibling || !sibling.classList.contains("cand")) return;
+    if (delta < 0) card.parentNode.insertBefore(card, sibling);
+    else card.parentNode.insertBefore(sibling, card);
+    HC.syncOrder();
+  };
+
+  HC.onToggle = function (box) {
+    var card = box.closest(".cand");
+    if (card) card.classList.toggle("off", !box.checked);
+    HC.syncOrder();
+  };
+
+  HC.toggleSkipped = function (btn) {
+    var box = $("skipped");
+    if (!box) return;
+    box.hidden = !box.hidden;
+    btn.textContent = box.hidden ? btn.dataset.show : btn.dataset.hide;
+  };
+
+  // ------------------------------------------------------------ food modes
+  /* Delivery and pickup are two different errands, so the form has to change
+     shape, not just its wording: a pickup needs a collection time and a
+     distance you are willing to drive; a delivery needs neither. */
+  HC.onModeChange = function () {
+    var pickup = document.querySelector('input[name="mode"][value="pickup"]');
+    var isPickup = !!(pickup && pickup.checked);
+
+    var label = $("budget-label");
+    if (label) label.textContent = isPickup ? HC.text.budgetPickup : HC.text.budgetDelivery;
+
+    var timeField = $("pickup-time-field");
+    if (timeField) timeField.hidden = !isPickup;
+
+    var distField = $("maxdist-field");
+    if (distField) distField.hidden = !isPickup;
+
+    var addr = document.querySelector('label[for="delivery_address"]');
+    if (addr) addr.textContent = isPickup ? HC.text.addressPickup : HC.text.addressDelivery;
+  };
+
+  // ---------------------------------------------------------- goal preview
+  HC.previewGoal = function () {
+    var form = $("cascade-form");
+    var target = $("goal-preview");
+    if (!form || !target) return;
+
+    target.textContent = "…";
+    fetch("/api/preview-goal?lang=" + encodeURIComponent(HC.lang), {
+      method: "POST",
+      body: new FormData(form)
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) { target.textContent = data.goal || data.error || ""; })
+      .catch(function (err) { target.textContent = String(err); });
+  };
+
+  // --------------------------------------------------------------- cascade
+  HC.startStream = function (orderId) {
+    HC.canceled = false;
+    if (HC.stream) { HC.stream.close(); HC.stream = null; }
+
+    HC.stream = new EventSource(
+      "/api/cascade-stream?order_id=" + encodeURIComponent(orderId) +
+      "&lang=" + encodeURIComponent(HC.lang)
+    );
+    HC.stream.onmessage = function (evt) {
+      var data;
+      try { data = JSON.parse(evt.data); } catch (e) { return; }
+      HC.handleEvent(data);
+    };
+    HC.stream.onerror = function () {
+      if (HC.stream) { HC.stream.close(); HC.stream = null; }
+    };
+  };
+
+  function setState(id, cls, glyph, title) {
+    var el = $("state-" + id);
+    if (!el) return;
+    el.className = "state " + cls;
+    el.textContent = glyph;
+    if (title) el.title = title;
+  }
+
+  HC.handleEvent = function (data) {
+    switch (data.type) {
+      case "status":
+        setStatus(data.text);
+        break;
+
+      case "dialing":
+        setStatus(data.text);
+        setState(data.id, "dialing", "◌", data.text);
+        break;
+
+      case "connected":
+        bumpCallCounter();
+        setStatus(data.text);
+        setState(data.id, "live", "●", data.text);
+        break;
+
+      case "activity":
+        logLine(data.line);
+        break;
+
+      case "rejected": {
+        setState(data.id, "no", "✕", data.reason);
+        var card = $("cand-" + data.id);
+        if (card) card.classList.add("rejected");
+        var reason = $("reason-" + data.id);
+        if (reason) reason.textContent = data.label + ": " + data.reason;
+        break;
+      }
+
+      case "accepted": {
+        setState(data.id, "yes", "✓", data.text || "");
+        var okCard = $("cand-" + data.id);
+        if (okCard) okCard.classList.add("accepted");
+        break;
+      }
+
+      case "outcome": {
+        var out = $("outcome");
+        if (out) {
+          out.innerHTML = data.html;
+          if (window.htmx) window.htmx.process(out);
+        }
+        setStatus(data.text || "");
+        var cancel = $("cancel-btn");
+        if (cancel) cancel.disabled = true;
+        break;
+      }
+
+      case "canceled":
+        setStatus(data.text);
+        if (HC.stream) { HC.stream.close(); HC.stream = null; }
+        break;
+
+      case "done":
+        if (HC.stream) { HC.stream.close(); HC.stream = null; }
+        break;
+    }
+  };
+
+  HC.cancel = function (orderId) {
+    HC.canceled = true;
+    var body = new FormData();
+    body.append("order_id", orderId);
+    fetch("/api/cancel-cascade", { method: "POST", body: body });
+    setStatus(HC.text.canceled);
+    var btn = $("cancel-btn");
+    if (btn) btn.disabled = true;
+  };
+})();

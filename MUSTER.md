@@ -78,6 +78,33 @@ Der CALL-E-Chat erledigt **einen** Anruf mit **einem** Ziel. Hier geht es um:
 
 Das ist der Unterschied zwischen einem Anruf und einer Suche.
 
+## Stand: das Muster ist jetzt im Code, nicht nur im Text [2026-08-02]
+
+Bis hierhin war dieses Dokument eine Beschreibung. Der zweite Zweig der App —
+**Tisch reservieren** — ist der Beleg, dass die Kaskade über Essen hinausträgt:
+dieselbe Mechanik, kein einziges gemeinsames Kriterium. Statt Preis, Lieferung
+und Zeitfenster entscheidet dort die Uhrzeit, die Personenzahl und drinnen
+gegen draußen.
+
+**Zugeständnisse sind eine Vollmacht, kein Hinweis.** Das ist der Punkt, an dem
+sich die Umsetzung von der bloßen Idee unterscheidet:
+
+- Der Nutzer erteilt sie ausdrücklich (`indoor_ok`, `time_flex`, `deposit_ok`).
+- Sie gehen **in Stufenreihenfolge** in den Auftragstext, mit der Anweisung,
+  keine spätere Stufe vor einer gescheiterten früheren anzubieten.
+- Das Ergebnis muss melden, welche Stufe gezogen wurde (`tier_applied`).
+- **Ein Ergebnis, das eine nicht erteilte Stufe verwendet hat, wird
+  zurückgewiesen** — genau wie ein Angebot über dem Höchstbetrag. Ein Agent,
+  der den Tisch mit Geld gekauft hat, das ihm niemand angeboten hat, hat sein
+  Mandat überschritten; sein Ja zählt nicht.
+
+Damit ist die Zugeständnisstufe symmetrisch zur Preisgrenze: beides sind
+Vollmachten des Nutzers, und beide werden nach dem Gespräch geprüft, nicht
+vorher geglaubt. Code: `CascadeEngine.check_concession_authority`,
+`engine._concession_clause`. Belege in beide Richtungen:
+`tests/test_cascade.py::test_unauthorised_concession_is_rejected` und
+`tests/test_cli.py::test_cli_reservation_accepts_seating_and_concessions`.
+
 ## Offene Frage
 
 Der Zahnarztfall braucht **Bewertungsrecherche vor dem Anruf** („besser als vier Sterne").
