@@ -90,7 +90,8 @@ async def api_search(
         lat=lat,
         lon=lon,
         city=city,
-        delivery_address=delivery_address
+        delivery_address=delivery_address,
+        radius_km=radius_km
     )
 
 
@@ -145,7 +146,7 @@ async def start_cascade(
         "chosen_pool": chosen_pool
     }
 
-    return render_cascade_monitor(order_id=order_id, dry_run=True)
+    return render_cascade_monitor(order_id=order_id, dry_run=True, max_budget_eur=max_budget_eur)
 
 
 @app.get("/api/cascade-stream")
@@ -277,7 +278,7 @@ async def cascade_stream(order_id: str = Query(...), dry_run: str = Query("true"
                 return
 
             else:
-                # REJECTED / FAILED: Strike through card and move handset to next
+                # REJECTED / FAILED: Strike through card, display inline rejection badge, move handset to next
                 yield "data: " + json.dumps({
                     "type": "call_failed",
                     "restaurant_id": restaurant.id,
@@ -289,6 +290,9 @@ async def cascade_stream(order_id: str = Query(...), dry_run: str = Query("true"
                         
                         const card = document.getElementById('rest-card-{restaurant.id}');
                         if (card) card.classList.add('struck-through');
+
+                        const rejBox = document.getElementById('rejection-{restaurant.id}');
+                        if (rejBox) rejBox.innerHTML = '<div style="color: #f87171; font-size: 0.78rem; font-weight: 500;">🔴 Abgelehnt: {rejection_reason}</div>';
                     </script>
                     """
                 }) + "\n\n"
