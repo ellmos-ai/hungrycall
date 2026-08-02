@@ -29,40 +29,15 @@ def esc(value: Any) -> str:
     return html.escape(str(value), quote=True)
 
 
-# The brand mark: a pie with one slice taken out — many candidates were
-# called, exactly one was ordered from. Same shape as logo.svg, banner.png and
-# the video thumbnail; generated from
-# _calle-videos/_assets/logos/logos.py, so the app icon cannot drift away from
-# the artwork.
+# The approved empty-fridge motif is the product mark across the web UI. The
+# accompanying wordmark remains real text, so the decorative image stays
+# hidden from assistive technology instead of being announced twice.
 BRAND_MARK = (
-    '<svg class="brand-mark" xmlns="http://www.w3.org/2000/svg" '
-    'viewBox="0 0 100 100" aria-hidden="true" focusable="false">'
-    '<defs><linearGradient id="hc-mark" x1="0.1" y1="1" x2="0.9" y2="0.1">'
-    '<stop offset="0" stop-color="#2563EB"/>'
-    '<stop offset="0.52" stop-color="#7C3AED"/>'
-    '<stop offset="1" stop-color="#EC4899"/></linearGradient></defs>'
-    '<path d="M50 50 L91.9 40.33 A43 43 0 1 1 62.57 8.88 Z" fill="url(#hc-mark)"/>'
-    '<path d="M55.85 44.54 L68.42 3.42 A43 43 0 0 1 97.75 34.87 Z" fill="#A78BFA"/>'
-    "</svg>"
+    '<img class="brand-mark" src="/static/brand/motiv.png" alt="" '
+    'width="1024" height="1024" aria-hidden="true">'
 )
 
-# The same mark on the brand plate, inline. Keeps the tab icon from being a 404
-# without adding a binary to a repo that is meant to run with no external
-# fetches.
-FAVICON = (
-    "data:image/svg+xml,"
-    "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E"
-    "%3Crect width='512' height='512' rx='106' fill='%23FFFFFF'/%3E"
-    "%3Cdefs%3E%3ClinearGradient id='f' x1='0.1' y1='1' x2='0.9' y2='0.1'%3E"
-    "%3Cstop offset='0' stop-color='%232563EB'/%3E"
-    "%3Cstop offset='0.52' stop-color='%237C3AED'/%3E"
-    "%3Cstop offset='1' stop-color='%23EC4899'/%3E"
-    "%3C/linearGradient%3E%3C/defs%3E"
-    "%3Cg transform='translate(97.28 97.28) scale(3.17)'%3E"
-    "%3Cpath d='M50 50 L91.9 40.33 A43 43 0 1 1 62.57 8.88 Z' fill='url(%23f)'/%3E"
-    "%3Cpath d='M55.85 44.54 L68.42 3.42 A43 43 0 0 1 97.75 34.87 Z' fill='%23A78BFA'/%3E"
-    "%3C/g%3E%3C/svg%3E"
-)
+FAVICON = "/static/brand/logo-square.png"
 
 
 # --------------------------------------------------------------------------
@@ -195,7 +170,7 @@ header {
   display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;
 }
 .brand { display: flex; align-items: center; gap: 0.7rem; text-decoration: none; color: inherit; }
-.brand-mark { width: 30px; height: 30px; flex: none; display: block; }
+.brand-mark { width: 42px; height: 42px; flex: none; display: block; object-fit: contain; }
 .brand-name { font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.14em; font-weight: 700; font-size: 1.05rem; }
 .brand-sub { font-size: 0.7rem; color: var(--dim); letter-spacing: 0.04em; text-transform: none; }
 .header-spacer { flex: 1 1 auto; }
@@ -241,7 +216,14 @@ main { flex: 1; width: 100%; max-width: 1180px; margin: 0 auto; padding: 2rem 1.
 .hr { border: none; border-top: 1px solid var(--line); }
 
 /* ---------- landing ---------- */
-.hero { padding: 1rem 0 2rem; max-width: 62ch; }
+.fridge-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.78fr);
+  gap: clamp(1.5rem, 5vw, 4.5rem);
+  align-items: center;
+  padding: 0.5rem 0 2rem;
+}
+.hero { padding: 1rem 0; max-width: 62ch; }
 .hero h1 { margin-bottom: 0.9rem; }
 .claim {
   font-size: clamp(1.05rem, 2.2vw, 1.3rem);
@@ -253,6 +235,70 @@ main { flex: 1; width: 100%; max-width: 1180px; margin: 0 auto; padding: 2rem 1.
   padding-bottom: 0.35rem;
 }
 .hero .muted { margin-top: 0.9rem; }
+
+.fridge-reveal {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #1C2552;
+  box-shadow: var(--shadow);
+}
+.fridge-stage {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  isolation: isolate;
+  background: #1C2552;
+}
+.fridge-stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+}
+.fridge-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  will-change: opacity;
+}
+.fridge-layer-off {
+  z-index: 0;
+  opacity: 1;
+  animation: fridge-dark-out 1.35s cubic-bezier(0.45, 0, 0.2, 1) 0.65s forwards;
+}
+.fridge-layer-on {
+  z-index: 1;
+  opacity: 0;
+  animation: fridge-light-on 1.35s cubic-bezier(0.45, 0, 0.2, 1) 0.65s forwards;
+}
+.fridge-caption {
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--paper);
+  padding: 0.85rem 1rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+@keyframes fridge-dark-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes fridge-light-on {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (max-width: 820px) {
+  .fridge-hero { grid-template-columns: 1fr; }
+  .fridge-reveal { width: min(100%, 32rem); justify-self: center; }
+}
 
 .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
 @media (max-width: 800px) { .tiles { grid-template-columns: 1fr; } }
@@ -352,6 +398,8 @@ main { flex: 1; width: 100%; max-width: 1180px; margin: 0 auto; padding: 2rem 1.
 .legend .k-off { background: var(--line); }
 
 @media (prefers-reduced-motion: reduce) {
+  .fridge-layer-off { opacity: 0; animation: none !important; }
+  .fridge-layer-on { opacity: 1; animation: none !important; }
   .cord { transform: translateX(440px); }
   .cord, .s1 .station-ring, .s2 .station-ring, .s3 .station-ring,
   .v1, .v2, .v3, .v4, .s4, .pulse, .dialing { animation: none !important; }
@@ -556,7 +604,7 @@ def render_page(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{esc(page_title)} — {esc(t("app.name", lang))}</title>
-<link rel="icon" href="{FAVICON}">
+<link rel="icon" type="image/png" href="{FAVICON}">
 <script>
 try {{
   if (localStorage.getItem("hc-theme") === "dark") document.documentElement.dataset.theme = "dark";
@@ -629,11 +677,22 @@ def render_landing(lang: str) -> str:
         </g>"""
 
     return f"""
-<section class="hero">
-  <p class="eyebrow">{esc(t("app.tagline", lang))}</p>
-  <h1>{esc(t("landing.choose", lang))}</h1>
-  <p class="claim">{esc(t("landing.claim", lang))}</p>
-  <p class="muted">{esc(t("landing.lead", lang))}</p>
+<section class="fridge-hero">
+  <div class="hero">
+    <p class="eyebrow">{esc(t("app.tagline", lang))}</p>
+    <h1>{esc(t("landing.choose", lang))}</h1>
+    <p class="claim">{esc(t("landing.claim", lang))}</p>
+    <p class="muted">{esc(t("landing.lead", lang))}</p>
+  </div>
+  <figure class="fridge-reveal">
+    <div class="fridge-stage" role="img" aria-label="{esc(t("landing.fridge.alt", lang))}">
+      <img class="fridge-layer fridge-layer-off" src="/static/brand/motiv-aus.png"
+           alt="" width="1024" height="1024" aria-hidden="true">
+      <img class="fridge-layer fridge-layer-on" src="/static/brand/motiv-an.png"
+           alt="" width="1024" height="1024" aria-hidden="true">
+    </div>
+    <figcaption class="fridge-caption">{esc(t("landing.fridge.caption", lang))}</figcaption>
+  </figure>
 </section>
 
 <section class="tiles" aria-label="{esc(t("landing.choose", lang))}">
@@ -744,6 +803,15 @@ def render_branch_page(
             <select id="scenario" name="scenario">{_scenario_options(scenarios, default_scenario)}</select>
             <span class="help">{esc(t("form.scenario.help", lang))}</span>
           </div>
+        </div>
+
+        <div class="notice" style="margin-top:0.9rem;">
+          <label class="check" for="test-mode">
+            <input type="checkbox" id="test-mode" name="test_mode" value="yes">
+            <span><strong>{esc(t("search.test_mode.option", lang))}</strong><br>
+              <span class="small">{esc(t("search.test_mode.help", lang))}</span>
+            </span>
+          </label>
         </div>
 
         {detail}
@@ -939,7 +1007,7 @@ def render_limits(lang: str) -> str:
   {esc(t("safety.live.why", lang))}
 </div>
 <div class="notice" style="margin-top:0.5rem;">
-  <span class="tag">{esc(t("unverified.badge", lang))}</span> {esc(t("unverified.live.search", lang))}
+  <span class="tag">{esc(t("search.source.badge", lang))}</span> {esc(t("search.mode.explain", lang))}
 </div>
 <div class="notice" style="margin-top:0.5rem;">{esc(t("safety.dataflow", lang))}</div>
 <div class="notice" style="margin-top:0.5rem;">{esc(t("safety.tiles", lang))}</div>"""
@@ -960,6 +1028,26 @@ def render_search_loading(lang: str) -> str:
 # Step 2: candidates
 # --------------------------------------------------------------------------
 
+def render_search_error(lang: str, error_code: str, radius_km: float) -> str:
+    """Render a failed search without inventing a candidate list."""
+    if error_code == "address_not_found":
+        title = t("search.error.address.title", lang)
+        body = t("search.error.address.body", lang)
+    elif error_code == "no_restaurants":
+        title = t("search.error.none.title", lang)
+        body = t("search.error.none.body", lang, radius=f"{radius_km:g}")
+    else:
+        error_code = "service_unavailable"
+        title = t("search.error.service.title", lang)
+        body = t("search.error.service.body", lang)
+
+    return f"""
+<hr class="hr" style="margin:1.3rem 0 1rem;">
+<div class="notice warn" role="alert" data-search-error="{esc(error_code)}">
+  <strong>{esc(title)}</strong><br>
+  <span class="small">{esc(body)}</span>
+</div>"""
+
 def render_candidate_step(
     lang: str,
     branch: Branch,
@@ -969,6 +1057,8 @@ def render_candidate_step(
     lon: float,
     radius_km: float,
     form_state: Dict[str, Any],
+    source_count: int,
+    test_mode: bool,
 ) -> str:
     """The list we will work down, in the order we will work down it."""
     if not ranked:
@@ -1032,6 +1122,21 @@ def render_candidate_step(
         hidden_state += f'<input type="hidden" name="concessions" value="{esc(key)}">'
 
     start_key = "cascade.start.food" if branch is Branch.FOOD else "cascade.start.table"
+    if test_mode:
+        source_banner = (
+            '<div class="notice warn" role="status" data-test-mode="active" '
+            'style="margin-bottom:0.9rem;">'
+            f'<strong>{esc(t("search.test_mode.active.title", lang))}</strong><br>'
+            f'<span class="small">{esc(t("search.test_mode.active.body", lang, n=source_count))}</span>'
+            '</div>'
+        )
+    else:
+        source_banner = (
+            '<div class="notice" role="status" data-search-source="overpass" '
+            'style="margin-bottom:0.9rem;">'
+            f'{esc(t("search.source.overpass", lang, n=source_count, radius=f"{radius_km:g}"))}'
+            '</div>'
+        )
     transport_banner = ""
     if form_state.get("transport") == "live":
         transport_banner = (
@@ -1051,6 +1156,7 @@ def render_candidate_step(
 
 <form id="cascade-form" hx-post="/api/start-cascade?lang={lang}" hx-target="#monitor" hx-swap="innerHTML">
   {hidden_state}
+  {source_banner}
   {transport_banner}
   <input type="hidden" name="candidate_order" id="candidate_order" value="{esc(",".join(r.id for r in ranked))}">
   <div class="candidates" id="candidate-list">{cards}</div>

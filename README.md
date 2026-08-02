@@ -1,4 +1,4 @@
-![HungryCall](banner.png)
+![I am hungry](banner.png)
 
 # HungryCall 🍕📞
 
@@ -131,7 +131,7 @@ HungryCall incorporates empirical findings measured against the live CALL-E serv
 
 HungryCall adheres strictly to the CALL-E repository safety guidelines:
 
-- **Dry-Run by Default**: Unless `--live` and `--confirm-live` flags are explicitly supplied, HungryCall runs 100% locally against dry-run fixtures. No CALL-E account or network access is required.
+- **Call Dry-Run by Default**: Unless `--live` and `--confirm-live` are explicitly supplied, the call cascade uses local fixtures and needs no CALL-E account. Restaurant discovery is a separate boundary: normal web searches use OpenStreetMap, while an explicit, clearly labelled restaurant test mode is fully local.
 - **Explicit User Intent**: Calls are only initiated upon direct user action.
 - **E.164 Validation**: All target phone numbers are validated against standard E.164 format (`+491701234567`) prior to dialing.
 - **Phone Number Masking**: All phone numbers in console logs, JSON reports, and summaries are masked (e.g. `+49 ••• ••••123`).
@@ -233,11 +233,17 @@ The interface states these where you are working, rather than hiding them:
   and tick a second confirmation; CLI users need both `--live` and `--confirm-live`.
   The UI states **“Real calls — cost money”**. The current balance is −0.05 USD,
   so CALL-E currently rejects a real call.
-* **The live OpenStreetMap search is unverified.** The code exists; the dry run
-  never enters it.
-* **Map tiles come from OpenStreetMap.** The application logic runs with no
-  network; without one the map stays grey and everything else keeps working.
-  No fonts, scripts or styles are fetched from anywhere.
+* **Restaurant sources are explicit.** Normal mode geocodes through Nominatim and
+  searches OpenStreetMap via Overpass. The candidate page names that source and
+  reports the number of results within the selected radius. An unavailable service,
+  an unresolved address, and zero usable results are separate visible errors; none
+  of them substitutes example restaurants.
+* **Restaurant examples require explicit test mode.** The checkbox is off by
+  default and the result panel says **“Test mode — example data, no real
+  restaurants”**. It performs no restaurant-network request.
+* **Map tiles come from OpenStreetMap.** Without a connection the map stays grey
+  and a normal restaurant search reports the network failure; explicit test mode
+  remains available. No fonts, scripts or styles are fetched from anywhere.
 
 ### Launching the Web UI
 ```bash
@@ -340,7 +346,7 @@ hungrycall delivery ... --live --confirm-live
 
 ## Running Tests
 
-99 tests. The product tests use fixtures and mocked transports; no test places a real call:
+The product tests use fixtures and mocked transports; no test places a real call:
 
 ```bash
 pytest -v

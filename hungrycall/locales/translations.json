@@ -47,6 +47,14 @@
     "de": "Auf dem Land ist kein Restaurant bei einem Lieferportal. Um herauszufinden, wer überhaupt liefert, muss man anrufen. Und nochmal. Und nochmal.",
     "en": "In a village no restaurant is on a delivery portal. To find out who delivers at all, you have to call. And call again. And again."
   },
+  "landing.fridge.caption": {
+    "de": "Der Kühlschrank ist leer — und auf dem Land weißt du nicht einmal, wer überhaupt liefert.",
+    "en": "The fridge is empty — and out here, you do not even know who delivers."
+  },
+  "landing.fridge.alt": {
+    "de": "Ein leerer Kühlschrank im Dunkeln; dann geht das Licht an und zeigt die leeren Fächer.",
+    "en": "An empty fridge in the dark; then the light comes on and reveals the empty shelves."
+  },
   "landing.choose": {
     "de": "Was brauchst du?",
     "en": "What do you need?"
@@ -187,13 +195,57 @@
     "de": "Wie soll getestet werden?",
     "en": "How should this be tested?"
   },
-  "unverified.badge": {
-    "de": "ungeprüft",
-    "en": "unverified"
+  "search.source.badge": {
+    "de": "Restaurantquelle",
+    "en": "Restaurant source"
   },
-  "unverified.live.search": {
-    "de": "Die Live-Suche über OpenStreetMap ist eingebaut, aber nie unter echten Bedingungen gelaufen. Im Trockenlauf wird sie nicht betreten.",
-    "en": "The live OpenStreetMap search is wired up but has never run under real conditions. The dry run never enters it."
+  "search.mode.explain": {
+    "de": "Im Normalbetrieb stammen die Restaurants aus OpenStreetMap via Overpass. Nur der ausdrücklich gewählte Testmodus verwendet klar gekennzeichnete Beispieldaten.",
+    "en": "In normal operation, restaurants come from OpenStreetMap via Overpass. Only the explicitly selected test mode uses clearly labelled example data."
+  },
+  "search.test_mode.option": {
+    "de": "Testmodus für die Restaurantsuche",
+    "en": "Restaurant search test mode"
+  },
+  "search.test_mode.help": {
+    "de": "Ausdrücklich einschalten: Kein Netzwerkzugriff; die Kandidaten sind lokale Beispieldaten und werden als solche gekennzeichnet.",
+    "en": "Enable explicitly: no network access; candidates are local example data and are labelled as such."
+  },
+  "search.test_mode.active.title": {
+    "de": "Testmodus — Beispieldaten, keine echten Restaurants",
+    "en": "Test mode — example data, no real restaurants"
+  },
+  "search.test_mode.active.body": {
+    "de": "Quelle: lokale Fixtures · {n} Beispieleinträge.",
+    "en": "Source: local fixtures · {n} example entries."
+  },
+  "search.source.overpass": {
+    "de": "Quelle: OpenStreetMap via Overpass · {n} Treffer im Umkreis von {radius} km.",
+    "en": "Source: OpenStreetMap via Overpass · {n} results within a {radius} km radius."
+  },
+  "search.error.service.title": {
+    "de": "Restaurantdienst nicht erreichbar oder Zeitüberschreitung",
+    "en": "Restaurant service unavailable or timed out"
+  },
+  "search.error.service.body": {
+    "de": "Nominatim oder Overpass hat nicht zuverlässig geantwortet. Es werden keine Beispieldaten angezeigt. Bitte versuche es später erneut.",
+    "en": "Nominatim or Overpass did not respond reliably. No example data is shown. Please try again later."
+  },
+  "search.error.none.title": {
+    "de": "Keine Restaurants im gewählten Umkreis gefunden",
+    "en": "No restaurants found within the selected radius"
+  },
+  "search.error.none.body": {
+    "de": "OpenStreetMap via Overpass lieferte im Umkreis von {radius} km keine nutzbaren Restauranttreffer. Vergrößere den Umkreis und suche erneut.",
+    "en": "OpenStreetMap via Overpass returned no usable restaurant results within {radius} km. Increase the radius and search again."
+  },
+  "search.error.address.title": {
+    "de": "Adresse nicht gefunden",
+    "en": "Address not found"
+  },
+  "search.error.address.body": {
+    "de": "Nominatim konnte PLZ und Ort nicht zuordnen. Prüfe die Eingabe und suche erneut; es werden keine Beispieldaten angezeigt.",
+    "en": "Nominatim could not resolve the postcode and town. Check the entry and search again; no example data is shown."
   },
   "form.where.title": {
     "de": "Wo bist du?",
@@ -650,6 +702,10 @@
   "error.live.transport": {
     "de": "CALL-E hat den Live-Versuch abgelehnt. Die Kaskade wurde gestoppt.",
     "en": "CALL-E rejected the live attempt. The cascade was stopped."
+  },
+  "error.test_mode.live": {
+    "de": "Restaurant-Beispieldaten dürfen nicht für echte Anrufe verwendet werden. Schalte den Restaurant-Testmodus aus oder bleibe beim Anruf-Trockenlauf.",
+    "en": "Restaurant example data must not be used for real calls. Turn off restaurant test mode or keep the call dry-run selected."
   },
   "error.unsafe.content": {
     "de": "Dieser Wunsch berührt einen Bereich, in dem ein Sprachagent nicht in deinem Namen sprechen darf.",

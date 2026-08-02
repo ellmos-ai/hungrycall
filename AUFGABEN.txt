@@ -139,3 +139,66 @@ N3 Parallele Anrufe. Die Kaskade läuft streng nacheinander. Ob CALL-E
 - [ ] **Countdown** bis zur Lieferung anzeigen (Ergebnis nennt Minuten, Restaurant und
       bereitzuhaltenden Betrag: "Lieferung in 40 Minuten, Restaurant AA, halte 40 Euro
       bereit").
+
+## Bestellwunschketten — Konzept des Nutzers [U 2026-08-02]
+
+Der Essensteil ist bisher weit weniger ausgebaut als urspruenglich gedacht. Das hier ist
+der Kern, den er nachgereicht hat.
+
+### Der Grundgedanke: Bedingungen, nicht nur Wuensche
+
+**Man weiss oft gar nicht, wer ueberhaupt liefert.** Liefern ist bereits eine Bedingung —
+und die zweite ist, dass es das Bestellte dort ueberhaupt gibt. Beides gehoert ins Video
+betont, weil es das Problem erklaert, das die Kaskade loest.
+
+### Bestellzeilen mit Ersatzketten
+
+Jedes Produkt (Essen wie Getraenk) steht in einer Zeile mit **Mengenzaehler**, dahinter
+beliebig viele **Ersatzwuensche** als weitere Zellen:
+
+```
+(1) Burger  →  [+]  (1) Burger   (3) Toast   [+ weitere Zellen moeglich]
+```
+
+Gelesen als: *Wenn es das nicht gibt, dann das. Wenn es das nicht gibt, dann das.*
+
+**RULE je Zeile** (Dropdown mit Vorgabewert): Wenn nach dem x-ten Ersatzwunsch nichts
+davon verfuegbar ist —
+- **hartes Abbruchkriterium:** ganze Bestellung abbrechen, oder
+- **weiches Abbruchkriterium:** nur diesen Posten weglassen und weitermachen (Akzeptanz)
+
+### Zusatzbedingungen je Feld — jede weich oder hart
+
+Rechtsklick auf eine Zelle → Zusatzkriterium festlegen:
+- **Preis:** Einzelpreis fuer dieses Produkt nicht hoeher als X
+- **Sonderwunsch** als Freitext, z. B. „ohne Gurken"
+  - bestaetigt → kein Abbruch
+  - nicht bestaetigt → Kriterium **hart** (Abbruch) / **weich** (trotzdem) / **Sprung zum
+    naechsten Ersatzwunsch**
+- **Ja-Nein-Abfrage** ans Restaurant, z. B. „Haben Sie den Burger glutenfrei?"
+  - JA → hart/weich hinterlegbar
+  - NEIN → hart/weich hinterlegbar
+
+### Tags statt Kontaktseite
+
+Die urspruenglich geplante Profil-/Kontaktseite ist vermutlich noch nicht gebaut — und
+sinnvoller waere ohnehin ein **Vorlagenspeicher**:
+- **Tags frei anlegen**, z. B. eine Familie: `Lukas`, `Simon`, `Claud`, `Renate`
+- Jedes Essen und jedes Getraenk mit Tag versehen
+- **Beim Bestellabschluss: Uebersicht nach Tags geordnet** — wer bekommt was
+- **Profil speichert** bisherige Bestellungen als Vorlagen und die Tags als Vorlagen
+- Bestellungen bleiben im **Verlauf**, wiederverwendbar und anpassbar
+
+### Der Kern in einem Satz
+
+**Bestellwunschketten sind Entscheidungslogik — und diese Logik laesst sich in Textketten
+uebersetzen.** Damit ist es exakt der Fall aus dem Skill `software-in-worten`: Was in der
+Oberflaeche eine Zelle mit Rechtsklick-Kriterium ist, ist im Gespraech eine Frage mit
+Verzweigung und in der Config ein Eintrag. Eine Definition, drei Zugaenge — hier wird sie
+zur Anrufsteuerung.
+
+### Tischreservierung — der Anwendungsfall
+
+*„Tisch vergessen zu reservieren und heute Abend Weihnachtsessen — lass es den Agenten
+loesen, er findet einen Tisch zu deinen Konditionen, wenn es einen gibt."*
+Dieselbe Kaskadenmechanik, andere Kriterien.

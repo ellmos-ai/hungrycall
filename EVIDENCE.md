@@ -720,3 +720,133 @@ fatal: Unable to create 'C:/_Local_DEV/repos/hungrycall/.git/index.lock': Permis
 
 Result: no files staged, no local commit created, no retry made without restored
 Git write access, and no push attempted.
+
+---
+
+## 11. Approved fridge brand and one-shot light reveal (Codex, 2026-08-02)
+
+### 11.1 What was implemented
+
+* The approved `motiv.png` is the web-header mark; the approved square mark is
+  served locally as the favicon.
+* The approved `motiv-aus.png` and `motiv-an.png` are aligned as two layers in
+  the landing-page hero. CSS starts the crossfade on page load after 0.65 s,
+  runs it once for 1.35 s, and retains the bright end state.
+* `prefers-reduced-motion: reduce` disables both animations and shows the
+  bright image immediately.
+* The fridge caption and accessible image description use the existing German
+  and English translation system.
+* The approved root `banner.png` replaced the previous file and is the first
+  line of both READMEs. The approved thumbnail is packaged with the other
+  local brand assets.
+* SHA-256 comparison confirmed that all six copied PNG files match their
+  approved source files byte for byte.
+
+### 11.2 Tests — executed
+
+The unchanged first baseline command reached 55 passes and 44 setup errors
+because this sandbox denied pytest's default Windows temp root with `WinError
+5`; it did not report a product assertion failure. A first focused attempt
+under `C:/tmp` reached 10 passes and two errors for the same permission reason.
+
+The focused rerun used a fresh repo-local temporary directory and completed:
+
+```text
+............                                                             [100%]
+12 passed, 1 warning in 3.70s
+```
+
+The complete final command was:
+
+```text
+python -m pytest -q -p no:cacheprovider --basetemp=C:/_Local_DEV/repos/hungrycall/.codex-pytest-final-1785690103749
+```
+
+Literal summary:
+
+```text
+........................................................................ [ 64%]
+........................................                                 [100%]
+112 passed, 1 warning in 17.79s
+```
+
+The logo work added exactly two regression tests: before the independent
+fallback work entered the shared tree, the complete count was the original 99
+plus two, or 101. The final stable shared-tree run also includes eleven
+independent fallback tests and therefore reports 112. The fresh repo-local
+pytest directory was removed after the run. No product test was skipped. The
+warning is Starlette's existing `TestClient` / `httpx` deprecation warning.
+
+### 11.3 Not executed
+
+* No real CALL-E call and no `POST /v1/calls`.
+* No live network search.
+* No push, pull request, publication or upload.
+* No browser screenshot or assistive-technology session is claimed; the
+  final page behavior is covered by markup, static-asset and CSS regressions.
+
+## 12. Fail-closed restaurant discovery and explicit test mode (2026-08-02)
+
+### 12.1 Implemented behavior
+
+* Normal restaurant discovery no longer returns local fixtures after a failed
+  Nominatim or Overpass request.
+* Nominatim/Overpass unavailability or timeout, an unresolved address, and zero
+  usable restaurant results are typed separately and rendered as separate German
+  and English messages.
+* Zero results explicitly recommends increasing the radius.
+* Local restaurant fixtures require the explicit `test_mode=yes` form value.
+  The candidate panel labels that state as example data and not real restaurants.
+  The server rejects any attempt to combine restaurant test mode with live calls.
+* A normal candidate panel names `OpenStreetMap via Overpass` and reports the
+  number of usable results within the selected radius.
+* An Overpass element without a real phone tag is not assigned an invented phone
+  number and is not admitted to the callable candidate pool.
+
+### 12.2 Tests — executed
+
+The first attempts against the default Windows temp root and `C:/tmp` were not
+product-test results: pytest setup was denied with `PermissionError: [WinError 5]`.
+The focused run in a fresh repo-local base directory completed with `62 passed, 1
+warning in 15.68s`.
+
+The complete final command used an equally fresh repo-local base directory:
+
+```text
+python -X utf8 -m pytest -q -p no:cacheprovider --basetemp C:\_Local_DEV\repos\hungrycall\.tmp-pytest-final-1785689882743
+```
+
+Literal summary:
+
+```text
+........................................................................ [ 64%]
+........................................                                 [100%]
+112 passed, 1 warning in 18.54s
+```
+
+This count covers the complete shared working tree, including the concurrently
+present branding regressions. The temporary directory was removed after the run.
+The warning is Starlette's existing `TestClient` / `httpx` deprecation warning.
+
+### 12.3 Not executed
+
+* No real Nominatim or Overpass request; failure and success responses were mocked.
+* No real CALL-E call and no `POST /v1/calls`.
+* No push, pull request, publication or upload.
+
+### 12.4 Local commit attempt — blocked by repository permissions
+
+The exact staging command was:
+
+```text
+git add -- hungrycall/location.py hungrycall/web.py tests/test_location_fallback.py _CODEX-FALLBACK-REPORT.md
+```
+
+Literal result:
+
+```text
+fatal: Unable to create 'C:/_Local_DEV/repos/hungrycall/.git/index.lock': Permission denied
+```
+
+Result: no fallback-fix file was staged, no local commit was created, and no
+second write attempt or push was made.
