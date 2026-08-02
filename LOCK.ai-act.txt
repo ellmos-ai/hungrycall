@@ -1,0 +1,8 @@
+owner: Codex GPT-5.6 Sol (ai-act-stellungnahme)
+created: 2026-08-02T20:47:02.775Z
+host: ASUS-GEI
+expires_after: 24h
+mode: soft
+scope: component:ai-act
+purpose: AI-Act-Stellungnahmen und zugehörige Aufgaben dokumentieren
+paths: AI-ACT-STELLUNGNAHME.md, AI-ACT-STATEMENT.md, AUFGABEN.txt
