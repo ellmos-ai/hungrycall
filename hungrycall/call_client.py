@@ -18,7 +18,7 @@ from hungrycall.fixtures import (
 )
 from hungrycall.models import CallResult, CallStatus, Mode, Restaurant, UserRequest
 from hungrycall.order_chains import simulate_order_chain_result
-from hungrycall.phone_utils import mask_phones_in_text
+from hungrycall.phone_utils import mask_phones_in_text, normalize_e164
 from hungrycall.safety import SafetyError, verify_phone_safety
 from hungrycall.schemas import get_result_schema
 
@@ -214,7 +214,8 @@ class DryRunCallClient(CallClient):
         user_request: UserRequest,
         idempotency_key: str,
     ) -> CallResult:
-        verify_phone_safety(restaurant.phone)
+        normalized_phone = normalize_e164(restaurant.phone)
+        verify_phone_safety(normalized_phone)
         raw_mock_entry = self.scenario_data.get(restaurant.id)
 
         if not raw_mock_entry:
@@ -395,7 +396,8 @@ class LiveCallClient(CallClient):
         user_request: UserRequest,
         idempotency_key: str,
     ) -> CallResult:
-        verify_phone_safety(restaurant.phone)
+        normalized_phone = normalize_e164(restaurant.phone)
+        verify_phone_safety(normalized_phone)
 
         # Imported lazily to avoid a module cycle: engine owns the canonical
         # goal builder and imports the transport abstraction above.
@@ -405,7 +407,7 @@ class LiveCallClient(CallClient):
             "task": build_call_goal(restaurant, user_request),
             "recipients": [
                 {
-                    "phones": [restaurant.phone],
+                    "phones": [normalized_phone],
                     "region": "DE",
                     "locale": "de",
                 }

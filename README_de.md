@@ -263,10 +263,14 @@ Die Oberfläche schreibt das dort hin, wo man arbeitet, statt es zu verstecken:
   die Trefferzahl im gewählten Umkreis. Nicht erreichbarer Dienst, nicht gefundene Adresse
   und null nutzbare Treffer sind getrennte Fehlermeldungen; keine davon ersetzt das
   Ergebnis durch Beispieldaten.
-* **Restaurant-Beispieldaten gibt es nur im ausdrücklich gewählten Testmodus.** Das
-  Kontrollkästchen ist zunächst aus. Die Ergebnisfläche sagt deutlich: **„Testmodus —
-  Beispieldaten, keine echten Restaurants“**. Dabei findet kein Netzwerkzugriff für die
-  Restaurantsuche statt.
+* **Restaurant-Beispieldaten gibt es nur in einem getrennten Testmodus.** Der
+  Seitenbanner startet im ausgeschalteten Zustand und bietet ausdrücklich
+  **„Testmodus einschalten“** und **„Testmodus verlassen“**; der Modus ist kein Feld des
+  Bestellformulars. Die Ergebnisfläche sagt deutlich: **„Testmodus — Beispieldaten,
+  keine echten Restaurants“**. Dabei findet kein Netzwerkzugriff für die Restaurantsuche
+  statt. `HUNGRYCALL_RESTAURANT_TEST_MODE=off` entfernt den Schalter installationsweit
+  und ignoriert eine frühere Browserauswahl; `on` schaltet ihn ausdrücklich frei. Ohne
+  gesetzte Variable bleibt er im Evaluations-Build verfügbar.
 * **Kartenkacheln kommen von OpenStreetMap.** Ohne Verbindung bleibt die Karte grau und
   eine normale Restaurantsuche meldet den Netzwerkfehler; der ausdrückliche Testmodus
   bleibt verfügbar. Schriften, Skripte und Stile werden von nirgendwo nachgeladen.

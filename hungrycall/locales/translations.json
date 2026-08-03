@@ -219,6 +219,26 @@
     "de": "Quelle: lokale Fixtures · {n} Beispieleinträge.",
     "en": "Source: local fixtures · {n} example entries."
   },
+  "search.test_mode.banner.active": {
+    "de": "Die Restaurantsuche nutzt ausschließlich lokale Beispieldaten. Netzwerkzugriffe und echte Anrufe bleiben gesperrt.",
+    "en": "Restaurant search uses local example data only. Network lookups and real calls remain blocked."
+  },
+  "search.test_mode.off.title": {
+    "de": "Restaurant-Testmodus ist aus",
+    "en": "Restaurant test mode is off"
+  },
+  "search.test_mode.off.body": {
+    "de": "Aktiviere einen getrennten Fixture-Modus, ohne das Bestellformular zu verändern.",
+    "en": "Enable a separate fixture mode without changing the order form."
+  },
+  "search.test_mode.enable": {
+    "de": "Testmodus einschalten",
+    "en": "Enable test mode"
+  },
+  "search.test_mode.leave": {
+    "de": "Testmodus verlassen",
+    "en": "Leave test mode"
+  },
   "search.source.overpass": {
     "de": "Quelle: OpenStreetMap via Overpass · {n} Treffer im Umkreis von {radius} km.",
     "en": "Source: OpenStreetMap via Overpass · {n} results within a {radius} km radius."

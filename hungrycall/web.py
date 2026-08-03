@@ -20,7 +20,7 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, Form, Query, Request, Response
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from hungrycall import huckepack_storage, huckepack_web
@@ -45,6 +45,7 @@ from hungrycall.order_chains import (
     default_order_chain, evaluate_order_chain, order_chain_json, parse_order_chain
 )
 from hungrycall.phone_utils import mask_phone, mask_phones_in_text
+from hungrycall import restaurant_test_mode
 from hungrycall.server_mode import current_mode
 from hungrycall.ranking import filter_and_rank_restaurants, filter_candidate
 from hungrycall.safety import SafetyError, generate_idempotency_key, verify_content_safety
@@ -135,7 +136,15 @@ async def order_page(
         order_templates=list_order_templates(),
         defaults=defaults,
     )
-    return html_page(body, lang, path="/order", with_map=True, title=t("food.title", lang))
+    mode_banner = ""
+    if restaurant_test_mode.feature_enabled():
+        mode_banner = restaurant_test_mode.banner(
+            restaurant_test_mode.active(request.cookies), lang, "/order"
+        )
+    return html_page(
+        body, lang, path="/order", with_map=True, title=t("food.title", lang),
+        mode_banner=mode_banner,
+    )
 
 
 @app.get("/reserve", response_class=HTMLResponse)
@@ -144,7 +153,38 @@ async def reserve_page(request: Request):
     body = render_branch_page(
         Branch.TABLE, lang, sorted(SCENARIO_FIXTURES.keys()), DEFAULT_SCENARIOS[Mode.RESERVATION]
     )
-    return html_page(body, lang, path="/reserve", with_map=True, title=t("table.title", lang))
+    mode_banner = ""
+    if restaurant_test_mode.feature_enabled():
+        mode_banner = restaurant_test_mode.banner(
+            restaurant_test_mode.active(request.cookies), lang, "/reserve"
+        )
+    return html_page(
+        body, lang, path="/reserve", with_map=True, title=t("table.title", lang),
+        mode_banner=mode_banner,
+    )
+
+
+@app.post("/restaurant-test-mode/toggle")
+async def toggle_restaurant_test_mode(request: Request):
+    """Switch the fixture-only restaurant workspace on or off for this browser."""
+    lang = lang_of(request)
+    target = restaurant_test_mode.safe_return_path(request.query_params.get("next"))
+    separator = "&" if "?" in target else "?"
+    response = RedirectResponse(f"{target}{separator}lang={lang}", status_code=303)
+    if not restaurant_test_mode.feature_enabled():
+        response.delete_cookie(restaurant_test_mode.COOKIE_NAME)
+        return response
+    if restaurant_test_mode.active(request.cookies):
+        response.delete_cookie(restaurant_test_mode.COOKIE_NAME)
+    else:
+        response.set_cookie(
+            restaurant_test_mode.COOKIE_NAME,
+            "on",
+            max_age=60 * 60 * 24 * 365,
+            httponly=True,
+            samesite="lax",
+        )
+    return response
 
 
 @app.get("/history", response_class=HTMLResponse)
@@ -169,7 +209,12 @@ def current_day() -> str:
     return today_weekday_key()
 
 
-def build_user_request(fields: Dict[str, Any]) -> UserRequest:
+def build_user_request(
+    fields: Dict[str, Any],
+    *,
+    day_override: Optional[str] = None,
+    time_override: Optional[str] = None,
+) -> UserRequest:
     """Turn one submitted form into the request the engine works from."""
     mode = Mode(fields.get("mode") or "delivery")
 
@@ -177,9 +222,10 @@ def build_user_request(fields: Dict[str, Any]) -> UserRequest:
     concessions = [c for c in TABLE_CONCESSIONS if c.key in concession_keys]
 
     reservation_date = fields.get("reservation_date")
+    current_day_value = day_override or current_day()
     day = (
-        weekday_key(reservation_date, current_day())
-        if mode is Mode.RESERVATION else current_day()
+        weekday_key(reservation_date, current_day_value)
+        if mode is Mode.RESERVATION else current_day_value
     )
 
     def as_float(key: str) -> Optional[float]:
@@ -211,7 +257,7 @@ def build_user_request(fields: Dict[str, Any]) -> UserRequest:
         pickup_time=fields.get("pickup_time") or "19:30",
         max_distance_km=as_float("max_distance_km"),
         day_of_week=day,
-        time_of_request=fields.get("reservation_time") or current_clock(),
+        time_of_request=fields.get("reservation_time") or time_override or current_clock(),
         concessions=concessions,
         order_chain=chain,
     )
@@ -264,7 +310,7 @@ async def api_search(request: Request):
     city = fields.get("city") or "Dorfstadt"
     postcode = fields.get("postcode") or ""
     radius_km = float(fields.get("radius_km") or 3.0)
-    test_mode = fields.get("test_mode") == "yes"
+    test_mode = restaurant_test_mode.active(request.cookies)
     transport = fields.get("transport") or "dry_run"
 
     if transport == "live" and fields.get("confirm_live") != "yes":
@@ -282,13 +328,25 @@ async def api_search(request: Request):
         lat, lon = geocode_location(
             postcode, city, "Deutschland", test_mode=test_mode
         )
-        pool = rebuild_pool(city, lat, lon, radius_km, test_mode=test_mode)
     except RestaurantSearchError as exc:
         return HTMLResponse(render_search_error(lang, exc.code, radius_km))
 
+    try:
+        pool = rebuild_pool(city, lat, lon, radius_km, test_mode=test_mode)
+    except RestaurantSearchError as exc:
+        return HTMLResponse(
+            render_search_error(
+                lang, exc.code, radius_km, lat=lat, lon=lon
+            )
+        )
+
     fields["concessions"] = form.getlist("concessions")
     try:
-        user_request = build_user_request(fields)
+        user_request = build_user_request(
+            fields,
+            day_override=restaurant_test_mode.FIXTURE_DAY if test_mode else None,
+            time_override=restaurant_test_mode.FIXTURE_TIME if test_mode else None,
+        )
     except ValueError as exc:
         return HTMLResponse(
             f'<div class="notice warn">{html.escape(t("order.error.invalid", lang, detail=str(exc)))}</div>',
@@ -326,7 +384,6 @@ async def api_search(request: Request):
         "concessions": [c.key for c in user_request.concessions],
         "transport": transport,
         "confirm_live": "yes" if fields.get("confirm_live") == "yes" else None,
-        "test_mode": "yes" if test_mode else None,
     }
 
     return HTMLResponse(render_candidate_step(
@@ -344,9 +401,14 @@ async def api_preview_goal(request: Request):
     fields = {k: form.get(k) for k in form.keys()}
     fields["concessions"] = form.getlist("concessions")
     lang = lang_of(request)
+    test_mode = restaurant_test_mode.active(request.cookies)
 
     try:
-        user_request = build_user_request(fields)
+        user_request = build_user_request(
+            fields,
+            day_override=restaurant_test_mode.FIXTURE_DAY if test_mode else None,
+            time_override=restaurant_test_mode.FIXTURE_TIME if test_mode else None,
+        )
         verify_content_safety(user_request.food_prompt)
     except SafetyError:
         return JSONResponse({"error": t("error.unsafe.content", lang)}, status_code=400)
@@ -355,7 +417,6 @@ async def api_preview_goal(request: Request):
 
     city = fields.get("city") or "Dorfstadt"
     radius_km = float(fields.get("radius_km") or 3.0)
-    test_mode = fields.get("test_mode") == "yes"
     try:
         lat, lon = geocode_location(
             fields.get("postcode") or "", city, "Deutschland", test_mode=test_mode
@@ -385,7 +446,7 @@ async def start_cascade(request: Request):
     branch = Branch(fields.get("branch") or "food")
     city = fields.get("city") or "Dorfstadt"
     radius_km = float(fields.get("radius_km") or 3.0)
-    test_mode = fields.get("test_mode") == "yes"
+    test_mode = restaurant_test_mode.active(request.cookies)
     live_mode = fields.get("transport") == "live"
 
     if live_mode and fields.get("confirm_live") != "yes":
@@ -408,7 +469,11 @@ async def start_cascade(request: Request):
         return HTMLResponse(render_search_error(lang, exc.code, radius_km))
 
     try:
-        user_request = build_user_request(fields)
+        user_request = build_user_request(
+            fields,
+            day_override=restaurant_test_mode.FIXTURE_DAY if test_mode else None,
+            time_override=restaurant_test_mode.FIXTURE_TIME if test_mode else None,
+        )
         verify_content_safety(user_request.food_prompt)
     except SafetyError:
         return HTMLResponse(

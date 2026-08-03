@@ -54,7 +54,13 @@ def fixed_clock(monkeypatch):
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    test_client = TestClient(app)
+    response = test_client.post(
+        "/restaurant-test-mode/toggle?lang=en&next=%2Forder",
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    return test_client
 
 
 def sse_events(text):
@@ -273,6 +279,12 @@ def test_live_transport_needs_the_second_confirmation(client):
 
 
 def test_confirmed_live_transport_reaches_the_real_client_seam(client, monkeypatch):
+    # Live calls and restaurant fixtures cannot be combined. Leave the fixture
+    # workspace before exercising the real-client seam.
+    client.post(
+        "/restaurant-test-mode/toggle?lang=de&next=%2Forder",
+        follow_redirects=False,
+    )
     # The seam is web.live_call_client(): one function decides whose key pays
     # for a live call, so this is where a test stands in for the real client.
     monkeypatch.setattr(web, "live_call_client", lambda: DryRunCallClient("jury_30s_demo"))
@@ -317,7 +329,6 @@ def search_form(**overrides):
         "food_prompt": "Burger",
         "max_budget_eur": "35.00",
         "scenario": "jury_30s_demo",
-        "test_mode": "yes",
     }
     form.update(overrides)
     return form
@@ -371,7 +382,7 @@ def test_table_search_filters_by_party_size(client):
         "delivery_address": "Dorfstraße 10", "customer_name": "Lukas",
         "food_prompt": "Italienisch", "reservation_date": "2026-08-07",
         "reservation_time": "19:00", "party_size": "12", "seating": "any",
-        "scenario": "table_cascade", "test_mode": "yes",
+        "scenario": "table_cascade",
     }
     page = client.post("/api/search", data=form).text
     order = page.split('id="candidate_order" value="')[1].split('"')[0].split(",")
@@ -412,7 +423,6 @@ def test_goal_preview_carries_concessions_in_order(client):
         "reservation_date": "2026-08-07", "reservation_time": "19:00",
         "party_size": "4", "seating": "outdoor",
         "candidate_order": "rest_trattoria_luigi",
-        "test_mode": "yes",
         "concessions": ["deposit_ok", "indoor_ok"],
     }
     goal = client.post("/api/preview-goal", data=form).json()["goal"]
@@ -553,7 +563,7 @@ def test_table_cascade_books_a_table_and_names_the_seating(client):
         "delivery_address": "Dorfstraße 10", "customer_name": "Lukas",
         "food_prompt": "Italienisch", "reservation_date": "2026-08-07",
         "reservation_time": "19:00", "party_size": "4", "seating": "outdoor",
-        "scenario": "table_cascade", "test_mode": "yes",
+        "scenario": "table_cascade",
         "candidate_order": "rest_trattoria_luigi,rest_gasthaus_linde",
         "selected_restaurants": ["rest_trattoria_luigi", "rest_gasthaus_linde"],
     }
@@ -575,7 +585,7 @@ def test_table_cascade_refuses_a_concession_that_was_not_granted(client):
         "delivery_address": "Dorfstraße 10", "customer_name": "Lukas",
         "food_prompt": "Italienisch", "reservation_date": "2026-08-07",
         "reservation_time": "19:00", "party_size": "4", "seating": "outdoor",
-        "scenario": "table_concession_cascade", "test_mode": "yes",
+        "scenario": "table_concession_cascade",
         "candidate_order": "rest_trattoria_luigi,rest_gasthaus_linde",
         "selected_restaurants": ["rest_trattoria_luigi", "rest_gasthaus_linde"],
     }
@@ -607,7 +617,7 @@ def test_saved_result_keeps_the_mode_that_actually_happened(client):
         "delivery_address": "Dorfstraße 10", "customer_name": "Lukas",
         "food_prompt": "Italienisch", "reservation_date": "2026-08-07",
         "reservation_time": "19:00", "party_size": "4", "seating": "any",
-        "scenario": "table_cascade", "test_mode": "yes",
+        "scenario": "table_cascade",
         "candidate_order": "rest_gasthaus_linde",
         "selected_restaurants": ["rest_gasthaus_linde"],
     }

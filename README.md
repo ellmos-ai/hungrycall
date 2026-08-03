@@ -244,9 +244,14 @@ The interface states these where you are working, rather than hiding them:
   reports the number of results within the selected radius. An unavailable service,
   an unresolved address, and zero usable results are separate visible errors; none
   of them substitutes example restaurants.
-* **Restaurant examples require explicit test mode.** The checkbox is off by
-  default and the result panel says **“Test mode — example data, no real
-  restaurants”**. It performs no restaurant-network request.
+* **Restaurant examples require a separate test mode.** The page banner starts
+  with test mode off and provides explicit **Enable test mode** and **Leave test
+  mode** actions; it is not an order-form field. The result panel says **“Test
+  mode — example data, no real restaurants”** and performs no restaurant-network
+  request. Set `HUNGRYCALL_RESTAURANT_TEST_MODE=off` to remove the switch for the
+  whole installation and ignore any previously stored browser choice; set it to
+  `on` to expose the switch explicitly. If unset, it remains available for the
+  evaluation build.
 * **Map tiles come from OpenStreetMap.** Without a connection the map stays grey
   and a normal restaurant search reports the network failure; explicit test mode
   remains available. No fonts, scripts or styles are fetched from anywhere.

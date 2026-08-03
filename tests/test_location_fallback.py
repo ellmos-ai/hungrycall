@@ -100,6 +100,53 @@ def test_empty_overpass_result_has_its_own_failure(monkeypatch):
     assert error.value.code == "no_restaurants"
 
 
+def test_overpass_identifies_hungrycall_and_requests_json(monkeypatch):
+    captured = {}
+
+    def fake_post(url, **kwargs):
+        captured["url"] = url
+        captured.update(kwargs)
+        return StubResponse({"elements": []})
+
+    monkeypatch.setattr(location.httpx, "post", fake_post)
+
+    with pytest.raises(NoRestaurantsFound):
+        search_overpass_restaurants(52.52, 13.405, radius_km=3.0)
+
+    assert captured["url"] == "https://overpass-api.de/api/interpreter"
+    assert captured["headers"] == {
+        "User-Agent": location.OSM_USER_AGENT,
+        "Accept": "application/json",
+    }
+    assert captured["data"]["data"].strip().startswith("[out:json]")
+
+
+def test_overpass_normalizes_formatted_german_phone_for_calling(monkeypatch):
+    monkeypatch.setattr(
+        location.httpx,
+        "post",
+        lambda *args, **kwargs: StubResponse(
+            {
+                "elements": [
+                    {
+                        "id": 42,
+                        "lat": 52.52,
+                        "lon": 13.405,
+                        "tags": {
+                            "name": "Fixture Bistro",
+                            "phone": "03338 / 60 49 63",
+                        },
+                    }
+                ]
+            }
+        ),
+    )
+
+    restaurants = search_overpass_restaurants(52.52, 13.405)
+
+    assert restaurants[0].phone == "+493338604963"
+
+
 def test_empty_geocoding_result_means_address_not_found(monkeypatch):
     monkeypatch.setattr(
         location.httpx, "get", lambda *args, **kwargs: StubResponse([])
@@ -123,12 +170,31 @@ def test_search_page_marks_example_restaurants_in_both_languages(monkeypatch):
         ("en", "Test mode — example data, no real restaurants"),
     ):
         with TestClient(web.app) as client:
+            client.post(
+                f"/restaurant-test-mode/toggle?lang={lang}&next=%2Forder",
+                follow_redirects=False,
+            )
             page = client.post(
-                f"/api/search?lang={lang}", data=search_form(test_mode="yes")
+                f"/api/search?lang={lang}", data=search_form()
             ).text
         assert label in page
         assert 'data-test-mode="active"' in page
         assert 'data-search-source="overpass"' not in page
+
+
+def test_test_mode_stays_demonstrable_when_real_restaurants_would_be_closed(monkeypatch):
+    monkeypatch.setattr(web, "current_clock", lambda: "03:00")
+    monkeypatch.setattr(web, "current_day", lambda: "Sun")
+
+    with TestClient(web.app) as client:
+        client.post(
+            "/restaurant-test-mode/toggle?lang=de&next=%2Forder",
+            follow_redirects=False,
+        )
+        page = client.post("/api/search?lang=de", data=search_form()).text
+
+    assert 'name="candidate_order"' in page
+    assert "Kein Kandidat erfüllt die Vorbedingungen" not in page
 
 
 def test_normal_search_page_names_overpass_and_hit_count(monkeypatch):
@@ -145,6 +211,24 @@ def test_normal_search_page_names_overpass_and_hit_count(monkeypatch):
     assert f"{len(pool)} Treffer im Umkreis von 3 km" in page
     assert 'data-search-source="overpass"' in page
     assert "Testmodus — Beispieldaten" not in page
+
+
+def test_all_filtered_restaurants_keep_radius_map_and_exclusion_reasons(monkeypatch):
+    pool = search_overpass_restaurants(
+        52.52, 13.405, radius_km=3.0, test_mode=True, city="Dorfstadt"
+    )
+    monkeypatch.setattr(web, "current_clock", lambda: "03:00")
+    monkeypatch.setattr(web, "current_day", lambda: "Sun")
+    monkeypatch.setattr(web, "geocode_location", lambda *args, **kwargs: (52.52, 13.405))
+    monkeypatch.setattr(web, "rebuild_pool", lambda *args, **kwargs: pool)
+
+    with TestClient(web.app) as client:
+        page = client.post("/api/search?lang=de", data=search_form()).text
+
+    assert "Kein Kandidat erfüllt die Vorbedingungen" in page
+    assert "closed at the requested time" in page
+    assert "HC.initMap(52.52, 13.405, 3.0, []);" in page
+    assert 'data-search-source="overpass"' in page
 
 
 @pytest.mark.parametrize(
@@ -187,22 +271,68 @@ def test_no_restaurant_error_suggests_a_larger_radius(monkeypatch):
     assert "Vergrößere den Umkreis" in page
     assert "1.5 km" in page
     assert 'name="candidate_order"' not in page
+    assert "HC.initMap(52.52, 13.405, 1.5, []);" in page
 
 
-def test_restaurant_test_mode_control_is_off_by_default():
+def test_restaurant_service_error_keeps_resolved_radius_map(monkeypatch):
+    monkeypatch.setattr(web, "geocode_location", lambda *args, **kwargs: (52.52, 13.405))
+
+    def service_failure(*args, **kwargs):
+        raise SearchServiceUnavailable("Overpass returned HTTP 406")
+
+    monkeypatch.setattr(web, "rebuild_pool", service_failure)
+
+    with TestClient(web.app) as client:
+        page = client.post(
+            "/api/search?lang=de", data=search_form(radius_km="4.5")
+        ).text
+
+    assert "Restaurantdienst nicht erreichbar oder Zeitüberschreitung" in page
+    assert "HC.initMap(52.52, 13.405, 4.5, []);" in page
+    assert 'name="candidate_order"' not in page
+
+
+def test_restaurant_test_mode_has_separate_on_and_off_controls():
     with TestClient(web.app) as client:
         page = client.get("/order?lang=en").text
+        assert 'name="test_mode"' not in page
+        assert 'data-test-mode="off"' in page
+        assert "Enable test mode" in page
 
-    assert 'name="test_mode" value="yes"' in page
-    assert 'name="test_mode" value="yes" checked' not in page
-    assert "Restaurant search test mode" in page
+        enabled = client.post(
+            "/restaurant-test-mode/toggle?lang=en&next=%2Forder"
+        ).text
+        assert 'data-test-mode="active"' in enabled
+        assert "Leave test mode" in enabled
+
+        disabled = client.post(
+            "/restaurant-test-mode/toggle?lang=en&next=%2Forder"
+        ).text
+        assert 'data-test-mode="off"' in disabled
+        assert "Enable test mode" in disabled
+
+
+def test_installation_can_remove_restaurant_test_mode(monkeypatch):
+    monkeypatch.setenv("HUNGRYCALL_RESTAURANT_TEST_MODE", "off")
+
+    with TestClient(web.app) as client:
+        client.cookies.set("hungrycall_restaurant_test_mode", "on")
+        page = client.get("/order?lang=de").text
+
+    assert 'data-test-mode=' not in page
+    assert 'name="test_mode"' not in page
+    assert "Testmodus einschalten" not in page
 
 
 def test_restaurant_examples_cannot_be_combined_with_live_calls():
     with TestClient(web.app) as client:
+        client.post(
+            "/restaurant-test-mode/toggle?lang=de&next=%2Forder",
+            follow_redirects=False,
+        )
         response = client.post(
             "/api/search?lang=de",
-            data=search_form(test_mode="yes", transport="live", confirm_live="yes"),
+            data=search_form(transport="live", confirm_live="yes"),
         )
 
     assert response.status_code == 400

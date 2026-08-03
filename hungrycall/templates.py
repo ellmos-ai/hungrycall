@@ -544,6 +544,9 @@ pre { white-space: pre-wrap; word-break: break-word; font-size: 0.78rem; color: 
 
 .notice { border: 1px solid var(--line); border-left: 3px solid var(--dim); border-radius: var(--radius); padding: 0.7rem 0.9rem; font-size: 0.85rem; color: var(--dim); }
 .notice.warn { border-left-color: var(--busy); color: var(--warning-text); }
+.test-mode-banner { max-width: 1180px; margin: 0 auto 1rem; padding: 0.75rem 1rem; border: 1px solid var(--line); border-left: 4px solid var(--azure); border-radius: var(--radius); background: var(--panel); display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.test-mode-banner.active { border-left-color: var(--grass); }
+.test-mode-banner form { margin: 0; }
 .tag { font-family: var(--font-mono); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; border: 1px solid var(--line); border-radius: 3px; padding: 0.05rem 0.35rem; color: var(--dim); }
 
 .loading { display: flex; flex-direction: column; align-items: center; gap: 1rem; padding: 2.5rem 1rem; text-align: center; }
@@ -614,6 +617,7 @@ def render_page(
     path: str = "/",
     with_map: bool = False,
     title: Optional[str] = None,
+    mode_banner: str = "",
 ) -> str:
     """Wrap page content in the shared shell."""
     page_title = title or t("app.name", lang)
@@ -677,6 +681,7 @@ try {{
   </div>
 </header>
 <main id="content">
+{mode_banner}
 {body}
 </main>
 <footer><div class="footer-inner">
@@ -848,15 +853,6 @@ def render_branch_page(
             <select id="scenario" name="scenario">{_scenario_options(scenarios, default_scenario)}</select>
             <span class="help">{esc(t("form.scenario.help", lang))}</span>
           </div>
-        </div>
-
-        <div class="notice" style="margin-top:0.9rem;">
-          <label class="check" for="test-mode">
-            <input type="checkbox" id="test-mode" name="test_mode" value="yes">
-            <span><strong>{esc(t("search.test_mode.option", lang))}</strong><br>
-              <span class="small">{esc(t("search.test_mode.help", lang))}</span>
-            </span>
-          </label>
         </div>
 
         {detail}
@@ -1203,8 +1199,21 @@ def render_search_loading(lang: str) -> str:
 # Step 2: candidates
 # --------------------------------------------------------------------------
 
-def render_search_error(lang: str, error_code: str, radius_km: float) -> str:
-    """Render a failed search without inventing a candidate list."""
+def render_search_error(
+    lang: str,
+    error_code: str,
+    radius_km: float,
+    *,
+    lat: Optional[float] = None,
+    lon: Optional[float] = None,
+) -> str:
+    """Render a failed search without inventing a candidate list.
+
+    When geocoding already succeeded, keep the resolved search area visible.
+    Restaurant discovery and map display are separate capabilities: an
+    Overpass outage must not make the user wonder whether their location or
+    radius was accepted.
+    """
     if error_code == "address_not_found":
         title = t("search.error.address.title", lang)
         body = t("search.error.address.body", lang)
@@ -1216,12 +1225,21 @@ def render_search_error(lang: str, error_code: str, radius_km: float) -> str:
         title = t("search.error.service.title", lang)
         body = t("search.error.service.body", lang)
 
+    map_script = ""
+    if lat is not None and lon is not None:
+        map_script = (
+            "<script>HC.initMap("
+            f"{json.dumps(lat)}, {json.dumps(lon)}, {json.dumps(radius_km)}, []"
+            ");</script>"
+        )
+
     return f"""
 <hr class="hr" style="margin:1.3rem 0 1rem;">
 <div class="notice warn" role="alert" data-search-error="{esc(error_code)}">
   <strong>{esc(title)}</strong><br>
   <span class="small">{esc(body)}</span>
-</div>"""
+</div>
+{map_script}"""
 
 def render_candidate_step(
     lang: str,
@@ -1236,8 +1254,21 @@ def render_candidate_step(
     test_mode: bool,
 ) -> str:
     """The list we will work down, in the order we will work down it."""
-    if not ranked:
-        return f'<div class="notice warn" style="margin-top:1rem;">{esc(t("candidates.none", lang))}</div>'
+    if test_mode:
+        source_banner = (
+            '<div class="notice warn" role="status" data-test-mode="active" '
+            'style="margin-bottom:0.9rem;">'
+            f'<strong>{esc(t("search.test_mode.active.title", lang))}</strong><br>'
+            f'<span class="small">{esc(t("search.test_mode.active.body", lang, n=source_count))}</span>'
+            '</div>'
+        )
+    else:
+        source_banner = (
+            '<div class="notice" role="status" data-search-source="overpass" '
+            'style="margin-bottom:0.9rem;">'
+            f'{esc(t("search.source.overpass", lang, n=source_count, radius=f"{radius_km:g}"))}'
+            '</div>'
+        )
 
     cards = ""
     for rank, restaurant in enumerate(ranked, start=1):
@@ -1288,6 +1319,15 @@ def render_candidate_step(
       </div>
       <div id="skipped" hidden>{rows}</div>"""
 
+    if not ranked:
+        return f"""
+<hr class="hr" style="margin:1.3rem 0 1rem;">
+{source_banner}
+<div class="notice warn" style="margin-top:1rem;">{esc(t("candidates.none", lang))}</div>
+{skipped_html}
+<script>HC.initMap({lat}, {lon}, {radius_km}, []);</script>
+"""
+
     hidden_state = "".join(
         f'<input type="hidden" name="{esc(k)}" value="{esc(v)}">'
         for k, v in form_state.items()
@@ -1297,21 +1337,6 @@ def render_candidate_step(
         hidden_state += f'<input type="hidden" name="concessions" value="{esc(key)}">'
 
     start_key = "cascade.start.food" if branch is Branch.FOOD else "cascade.start.table"
-    if test_mode:
-        source_banner = (
-            '<div class="notice warn" role="status" data-test-mode="active" '
-            'style="margin-bottom:0.9rem;">'
-            f'<strong>{esc(t("search.test_mode.active.title", lang))}</strong><br>'
-            f'<span class="small">{esc(t("search.test_mode.active.body", lang, n=source_count))}</span>'
-            '</div>'
-        )
-    else:
-        source_banner = (
-            '<div class="notice" role="status" data-search-source="overpass" '
-            'style="margin-bottom:0.9rem;">'
-            f'{esc(t("search.source.overpass", lang, n=source_count, radius=f"{radius_km:g}"))}'
-            '</div>'
-        )
     transport_banner = ""
     if form_state.get("transport") == "live":
         transport_banner = (
