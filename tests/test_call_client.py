@@ -1,6 +1,7 @@
 """Credential loading and live REST tests; every network operation is mocked."""
 
 import urllib.error
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -141,7 +142,7 @@ def test_live_rest_payload_polls_and_masks_phone_numbers():
         requests.append((method, path, payload, idempotency_key))
         return next(responses)
 
-    restaurant = SAMPLE_RESTAURANTS[0]
+    restaurant = replace(SAMPLE_RESTAURANTS[0], phone="+44 1632 960090")
     request = UserRequest(
         mode=Mode.DELIVERY,
         customer_name="Test User",
@@ -154,7 +155,7 @@ def test_live_rest_payload_polls_and_masks_phone_numbers():
 
     assert requests[0][0:2] == ("POST", "/v1/calls")
     assert requests[0][3] == "stable-key"
-    assert requests[0][2]["recipients"][0]["phones"] == [restaurant.phone]
+    assert requests[0][2]["recipients"][0]["phones"] == ["+441632960090"]
     assert "recipient_result_schema" in requests[0][2]
     assert requests[1][0:2] == ("GET", "/v1/calls/rest-call-1")
     assert result.status is CallStatus.COMPLETED

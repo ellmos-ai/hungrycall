@@ -280,6 +280,7 @@ def test_web_dry_run_uses_chain_and_renders_grouped_tag_summary(chain_db, monkey
     monkeypatch.setattr(web, "current_clock", lambda: "19:00")
     monkeypatch.setattr(web, "current_day", lambda: "Fri")
     client = TestClient(web.app)
+    client.cookies.set("hungrycall_restaurant_test_mode", "on")
     chain = make_chain()
     form = {
         "branch": "food",
@@ -293,7 +294,6 @@ def test_web_dry_run_uses_chain_and_renders_grouped_tag_summary(chain_db, monkey
         "order_chain_json": order_chain_json(chain),
         "max_budget_eur": "35.00",
         "scenario": "success_direct",
-        "test_mode": "yes",
         "candidate_order": "rest_burger_house",
         "selected_restaurants": ["rest_burger_house"],
     }

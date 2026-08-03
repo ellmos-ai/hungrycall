@@ -18,7 +18,13 @@ def validate_e164(phone: str) -> bool:
 
 def normalize_e164(phone: str, default_country: str = "+49") -> str:
     """Normalize a phone number string into strict E.164 format."""
-    cleaned = phone.strip().replace(" ", "").replace("-", "")
+    # OSM commonly contains display formatting (spaces, slashes, parentheses)
+    # and occasionally an optional German trunk marker such as ``+49 (0)``.
+    # A semicolon means multiple numbers; HungryCall calls only the first one.
+    first = re.split(r"[;,]", phone, maxsplit=1)[0].strip().replace("(0)", "")
+    cleaned = re.sub(r"[^0-9+]", "", first)
+    if cleaned.count("+") > 1 or ("+" in cleaned and not cleaned.startswith("+")):
+        return cleaned
     if cleaned.startswith("00"):
         cleaned = "+" + cleaned[2:]
     elif cleaned.startswith("0"):

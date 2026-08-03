@@ -6,8 +6,14 @@ from typing import Dict, List, Tuple, Optional
 import httpx
 from hungrycall.models import Restaurant, OpeningHours
 from hungrycall.fixtures import SAMPLE_RESTAURANTS
+from hungrycall.phone_utils import normalize_e164, validate_e164
 
 logger = logging.getLogger(__name__)
+
+# Both public OpenStreetMap services require callers to identify their
+# application.  Overpass rejects the generic httpx default user agent with
+# HTTP 406, so keep one honest identifier on every request.
+OSM_USER_AGENT = "HungryCall/0.1.0 (+https://github.com/lukisch/hungrycall)"
 
 
 class RestaurantSearchError(RuntimeError):
@@ -141,7 +147,7 @@ def geocode_location(
     query = f"{postcode} {city} {country}".strip()
     try:
         url = "https://nominatim.openstreetmap.org/search"
-        headers = {"User-Agent": "HungryCallWebAgent/1.0"}
+        headers = {"User-Agent": OSM_USER_AGENT, "Accept": "application/json"}
         params = {"q": query, "format": "json", "limit": 1}
         resp = httpx.get(url, headers=headers, params=params, timeout=3.0)
     except (httpx.TimeoutException, httpx.RequestError) as exc:
@@ -201,7 +207,12 @@ def search_overpass_restaurants(
     out center 15;
     """
     try:
-        resp = httpx.post(overpass_url, data={"data": query}, timeout=5.0)
+        resp = httpx.post(
+            overpass_url,
+            headers={"User-Agent": OSM_USER_AGENT, "Accept": "application/json"},
+            data={"data": query},
+            timeout=5.0,
+        )
     except (httpx.TimeoutException, httpx.RequestError) as exc:
         logger.warning("Overpass request failed: %s", exc)
         raise SearchServiceUnavailable("Overpass request failed") from exc
@@ -231,6 +242,10 @@ def search_overpass_restaurants(
         phone = tags.get("phone") or tags.get("contact:phone")
         if not name or not phone:
             continue
+        normalized_phone = normalize_e164(str(phone))
+        if not validate_e164(normalized_phone):
+            logger.info("Skipping OSM restaurant %s with unusable phone metadata", elem.get("id", idx))
+            continue
                     
         elem_lat = elem.get("lat") or elem.get("center", {}).get("lat", lat)
         elem_lon = elem.get("lon") or elem.get("center", {}).get("lon", lon)
@@ -246,7 +261,7 @@ def search_overpass_restaurants(
             Restaurant(
                 id=f"osm_{elem.get('id', idx)}",
                 name=name,
-                phone=phone,
+                phone=normalized_phone,
                 cuisines=cuisines,
                 opening_hours=OpeningHours(
                     days=["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],

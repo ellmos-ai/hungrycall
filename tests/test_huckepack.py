@@ -240,6 +240,7 @@ def test_the_visitors_key_reaches_no_store_and_no_log(monkeypatch, caplog):
 
     with caplog.at_level(logging.DEBUG):
         with TestClient(web.app) as client:
+            client.cookies.set("hungrycall_restaurant_test_mode", "on")
             response = client.post(
                 "/api/search?lang=de",
                 data={
@@ -250,7 +251,6 @@ def test_the_visitors_key_reaches_no_store_and_no_log(monkeypatch, caplog):
                     "city": "Dorfstadt",
                     "postcode": "12345",
                     "radius_km": "3",
-                    "test_mode": "yes",
                     "transport": "dry_run",
                 },
                 headers={calle_key.KEY_HEADER: VISITOR_KEY, SESSION_HEADER: TOKEN},
@@ -395,7 +395,6 @@ def cascade_form(**overrides):
         "city": "Dorfstadt",
         "postcode": "12345",
         "radius_km": "3",
-        "test_mode": "yes",
         "transport": "dry_run",
         "scenario": "jury_30s_demo",
     }
@@ -406,8 +405,10 @@ def cascade_form(**overrides):
 def start_a_cascade(client, token):
     """Start one cascade as the given browser session; returns its order id."""
     from hungrycall.location import search_overpass_restaurants
+    from hungrycall.restaurant_test_mode import COOKIE_NAME
 
     pool = search_overpass_restaurants(52.52, 13.405, test_mode=True, city="Dorfstadt")
+    client.cookies.set(COOKIE_NAME, "on")
     form = cascade_form()
     form["candidate_order"] = ",".join(r.id for r in pool)
     form["selected_restaurants"] = [r.id for r in pool]
