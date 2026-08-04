@@ -490,6 +490,24 @@ def test_unselected_candidates_are_never_called(client):
     assert dialed == ["rest_asian_wok"]
 
 
+def test_cascade_cannot_restore_a_candidate_filtered_from_delivery(client):
+    """A modified POST must not revive a restaurant that does not deliver.
+
+    The search screen reports Gasthaus Zur Linde as skipped for delivery.  The
+    cascade endpoint rebuilds its pool, so it must apply the same eligibility
+    rule before accepting browser-supplied ids; otherwise a crafted form can
+    dial a place that the visible product explicitly ruled out.
+    """
+    started = client.post("/api/start-cascade", data=cascade_form(
+        candidate_order="rest_gasthaus_linde",
+        selected_restaurants=["rest_gasthaus_linde"],
+    ))
+
+    assert started.status_code == 200
+    assert "HC.startStream(" not in started.text
+    assert "Kein Kandidat erfüllt die Vorbedingungen" in started.text
+
+
 def test_cascade_streams_the_conversation_while_it_happens(client):
     events, _ = run_cascade(client, cascade_form())
     activity = [e for e in events if e["type"] == "activity"]

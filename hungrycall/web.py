@@ -488,10 +488,21 @@ async def start_cascade(request: Request):
 
     by_id = {r.id: r for r in pool}
 
-    # The order the user sees is the order we call. Anything unchecked is gone.
+    # The order the user sees is the order we call. Browser fields are not an
+    # authority boundary, though: a crafted POST must not revive a restaurant
+    # that search pre-filtered as closed, incompatible, too far away, or too
+    # small for the party.
+    eligible_ids = {
+        restaurant.id
+        for restaurant, _score in filter_and_rank_restaurants(pool, user_request)
+    }
     selected = set(form.getlist("selected_restaurants"))
     ordered_ids = [i for i in (fields.get("candidate_order") or "").split(",") if i]
-    call_order = [by_id[i] for i in ordered_ids if i in by_id and i in selected]
+    call_order = [
+        by_id[i]
+        for i in ordered_ids
+        if i in eligible_ids and i in selected
+    ]
 
     if not call_order:
         return HTMLResponse(
