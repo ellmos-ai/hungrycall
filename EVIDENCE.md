@@ -888,3 +888,42 @@ separate logo-only commit that was intended. No history rewrite, split, push or
 publication was performed. The present readback clarification remains a
 working-tree documentation delta because this agent still cannot write
 `.git/index.lock`.
+
+---
+
+## 14. Server-side cascade eligibility recheck (2026-08-04)
+
+### 14.1 Implemented behavior
+
+`POST /api/start-cascade` now intersects browser-supplied restaurant IDs with
+the server-side eligibility result before constructing the call order. A
+modified form can no longer restore a restaurant that the search path excluded
+as closed, incompatible with delivery/reservation, outside the radius, or too
+small for the requested party.
+
+The regression posts the delivery-incompatible fixture restaurant directly to
+the cascade endpoint. Before the fix the response started a cascade; after the
+fix it reports that no candidate satisfies the preconditions and contains no
+`HC.startStream(` call.
+
+### 14.2 Tests and dry-run — executed independently by the operator
+
+```text
+python -m pytest tests/test_web.py -q
+43 passed, 1 warning in 15.13s
+
+python -m pytest -q
+170 passed, 1 warning in 18.35s
+
+python -m hungrycall.cli demo
+RESULT: SUCCESS
+```
+
+The demo used the local fixture dry-run path. The only warning in both pytest
+runs is the pre-existing Starlette `TestClient` / `httpx` deprecation warning.
+
+### 14.3 Not executed
+
+* No live restaurant lookup and no network request.
+* No real CALL-E call and no `POST /v1/calls`.
+* No push, pull request, publication or upload.
