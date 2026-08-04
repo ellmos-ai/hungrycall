@@ -256,6 +256,8 @@ The interface states these where you are working, rather than hiding them:
   and a normal restaurant search reports the network failure; explicit test mode
   remains available. No fonts, scripts or styles are fetched from anywhere.
 
+* **No field trial with real restaurants has taken place.**
+
 ### Launching the Web UI
 ```bash
 python run_web.py          # or: hungrycall-web
@@ -273,7 +275,7 @@ Then open `http://127.0.0.1:8000`.
 ### Installation
 ```bash
 # Clone the repository
-git clone https://github.com/user/hungrycall.git
+git clone https://github.com/lukisch/hungrycall.git
 cd hungrycall
 
 # Install in editable mode
