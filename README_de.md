@@ -124,7 +124,7 @@ mehr angerufen — und am Ende steht das Transkript als Bestellbeleg.
 Voraussetzungen: Python 3.11+, für die Testsuite `pytest`.
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/lukisch/hungrycall.git
 cd hungrycall
 pip install -e .
 ```
