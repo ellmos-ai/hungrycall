@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 # Both public OpenStreetMap services require callers to identify their
 # application.  Overpass rejects the generic httpx default user agent with
 # HTTP 406, so keep one honest identifier on every request.
-OSM_USER_AGENT = "HungryCall/0.1.0 (+https://github.com/lukisch/hungrycall)"
+OSM_USER_AGENT = "HungryCall/0.1.0 (+https://github.com/ellmos-ai/hungrycall)"
 
 
 class RestaurantSearchError(RuntimeError):
