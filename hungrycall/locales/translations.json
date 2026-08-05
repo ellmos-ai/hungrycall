@@ -132,8 +132,8 @@
     "en": "MUSTER.md in the repo"
   },
   "safety.mode.dry": {
-    "de": "Trockenlauf",
-    "en": "Dry run"
+    "de": "Keine Anrufe",
+    "en": "No calls"
   },
   "safety.mode.dry.explain": {
     "de": "Es wird nicht telefoniert. Jede Antwort kommt aus einer lokalen Fixture — kein Konto, kein Netz, keine Kosten.",
@@ -156,8 +156,8 @@
     "en": "Real calls — cost money"
   },
   "safety.live.balance": {
-    "de": "Guthaben aktuell −0,05 USD; der Dienst lehnt Anrufe derzeit ab",
-    "en": "Balance currently −0.05 USD; the service currently rejects calls"
+    "de": "Vor jeder Freigabe Dienstbereitschaft und Guthaben aktuell prüfen.",
+    "en": "Check current service readiness and account balance before every approval."
   },
   "safety.live.confirm": {
     "de": "Ich bestätige diese angezeigte Anrufkaskade und akzeptiere mögliche Kosten.",
@@ -172,8 +172,8 @@
     "en": "Live was explicitly selected and confirmed. Starting now may really call the displayed restaurants."
   },
   "safety.live.why": {
-    "de": "Die Schlüsselanbindung ist vorhanden, aber Live bleibt aus, bis du den Modus wählst und die Kaskade ausdrücklich bestätigst. Bei −0,05 USD lehnt der Dienst echte Anrufe derzeit ab.",
-    "en": "Credential loading is wired, but live stays off until you select the mode and explicitly confirm the cascade. At −0.05 USD the service currently rejects real calls."
+    "de": "Die Schlüsselanbindung ist vorhanden, aber Live bleibt aus, bis du den Modus wählst und die Kaskade ausdrücklich bestätigst. Dienstbereitschaft und Guthaben sind vor jedem Lauf neu zu prüfen.",
+    "en": "Credential loading is wired, but live stays off until you select the mode and explicitly confirm the cascade. Service readiness and account balance must be checked again before every run."
   },
   "safety.calls": {
     "de": "Anrufe",
@@ -192,8 +192,12 @@
     "en": "The code runs without a network. The map tiles come from OpenStreetMap — with no connection the map stays grey, everything else keeps working."
   },
   "transport.title": {
-    "de": "Wie soll getestet werden?",
-    "en": "How should this be tested?"
+    "de": "Echte Anrufe (optional)",
+    "en": "Live calls (optional)"
+  },
+  "transport.default": {
+    "de": "Ohne Live-Freigabe bleibt der Ablauf eine lokale Simulation. Der Testmodus oben steuert zusätzlich, ob Restaurant-Beispieldaten verwendet werden.",
+    "en": "Without live approval, the flow remains a local simulation. The test mode above additionally controls whether restaurant example data is used."
   },
   "search.source.badge": {
     "de": "Restaurantquelle",
@@ -287,6 +291,26 @@
     "de": "Dein Name",
     "en": "Your name"
   },
+  "form.contact.title": {
+    "de": "Name und Rückruf",
+    "en": "Name and callback"
+  },
+  "form.first_name": {
+    "de": "Vorname",
+    "en": "First name"
+  },
+  "form.last_name": {
+    "de": "Nachname",
+    "en": "Last name"
+  },
+  "form.callback_number": {
+    "de": "Rückrufnummer",
+    "en": "Callback number"
+  },
+  "form.callback_number.help": {
+    "de": "Pflichtfeld: Diese Nummer wird zum Abschluss genannt und bei Rückfragen verwendet.",
+    "en": "Required: this number is given at the end of the call and used for follow-up questions."
+  },
   "form.address": {
     "de": "Lieferadresse",
     "en": "Delivery address"
@@ -304,12 +328,12 @@
     "en": "Find candidates"
   },
   "form.scenario": {
-    "de": "Trockenlauf-Szenario",
-    "en": "Dry-run scenario"
+    "de": "Test-Szenario",
+    "en": "Test scenario"
   },
   "form.scenario.help": {
-    "de": "Welche Antworten die Restaurants im Trockenlauf geben. Nichts davon ist ein echtes Gespräch.",
-    "en": "Which answers the restaurants give in the dry run. None of this is a real conversation."
+    "de": "Nur im aktivierten Testmodus: Welche lokalen Beispielantworten die Restaurants geben. Nichts davon ist ein echtes Gespräch.",
+    "en": "Only in active test mode: which local example answers the restaurants give. None of this is a real conversation."
   },
   "search.loading.title": {
     "de": "Wir sammeln die Kandidaten",
@@ -467,9 +491,25 @@
     "de": "Draußen",
     "en": "Outdoors"
   },
+  "food.price_range.title": {
+    "de": "Preisbereich",
+    "en": "Price range"
+  },
+  "table.seating.custom": {
+    "de": "Eigener Wunsch",
+    "en": "A specific request"
+  },
+  "table.seating.custom.input": {
+    "de": "Eigener Tischwunsch",
+    "en": "Specific seating request"
+  },
+  "table.seating.custom.placeholder": {
+    "de": "Unser Standardtisch unter der Palme bitte, danke.",
+    "en": "Our usual table under the palm tree, please — thank you."
+  },
   "table.seating.help": {
-    "de": "Ein Tisch drinnen ist nicht der Tisch, nach dem gefragt wurde — außer du erlaubst es unten als Zugeständnis.",
-    "en": "A table indoors is not the table that was asked for — unless you allow it below as a concession."
+    "de": "Eine konkrete Auswahl ist verbindlich. Wähle ‚Eigener Wunsch‘, um einen bestimmten Tisch zu beschreiben.",
+    "en": "A specific selection is binding. Choose ‘A specific request’ to describe a particular table."
   },
   "table.wish": {
     "de": "Küche oder Anlass",
@@ -484,8 +524,60 @@
     "en": "What would you settle for, if you had to?"
   },
   "table.concessions.help": {
-    "de": "Was du hier erlaubst, wird erst ausgespielt, wenn der reguläre Versuch gescheitert ist — eins nach dem anderen, nie alles auf einmal. Was du nicht erlaubst, darf der Agent auch nicht anbieten: ein Ja, das er sich damit erkauft hat, wird zurückgewiesen.",
-    "en": "Whatever you allow here is played only after the plain attempt has failed — one step at a time, never all at once. What you do not allow, the agent may not offer: a yes bought that way is rejected."
+    "de": "Diese Werte sind Obergrenzen. Sie werden erst vorgeschlagen, wenn der reguläre Versuch gescheitert ist; 0 bedeutet: nicht erlauben.",
+    "en": "These values are upper limits. They are offered only after the plain attempt has failed; 0 means: do not allow it."
+  },
+  "table.concession.earlier_hours": {
+    "de": "Bis zu X Stunden früher",
+    "en": "Up to X hours earlier"
+  },
+  "table.concession.later_hours": {
+    "de": "Bis zu X Stunden später",
+    "en": "Up to X hours later"
+  },
+  "table.concession.earlier_minutes": {
+    "de": "Zusätzlich X Minuten früher",
+    "en": "Additional X minutes earlier"
+  },
+  "table.concession.later_minutes": {
+    "de": "Zusätzlich X Minuten später",
+    "en": "Additional X minutes later"
+  },
+  "table.concession.booking_fee": {
+    "de": "Höchste Reservierungsgebühr (€)",
+    "en": "Maximum booking fee (€)"
+  },
+  "table.authority.earlier": {
+    "de": "bis {minutes} Min. früher",
+    "en": "up to {minutes} min earlier"
+  },
+  "table.authority.later": {
+    "de": "bis {minutes} Min. später",
+    "en": "up to {minutes} min later"
+  },
+  "table.authority.fee": {
+    "de": "Gebühr höchstens {fee} €",
+    "en": "fee no higher than €{fee}"
+  },
+  "table.authority.step.earlier_time": {
+    "de": "frühere Uhrzeit",
+    "en": "earlier time"
+  },
+  "table.authority.step.later_time": {
+    "de": "spätere Uhrzeit",
+    "en": "later time"
+  },
+  "table.authority.step.booking_fee": {
+    "de": "Buchungsgebühr",
+    "en": "booking fee"
+  },
+  "table.special_instructions": {
+    "de": "Noch etwas, das gesagt werden soll?",
+    "en": "Anything else we should mention?"
+  },
+  "table.special_instructions.placeholder": {
+    "de": "Zum Beispiel: Unser Standardtisch unter der Palme bitte, danke.",
+    "en": "For example: Our usual table under the palm tree, please — thank you."
   },
   "table.concession.indoor_ok": {
     "de": "Notfalls auch drinnen",
@@ -638,6 +730,14 @@
   "result.seating": {
     "de": "Sitzplatz",
     "en": "Seating"
+  },
+  "result.booking_fee": {
+    "de": "Buchungsgebühr",
+    "en": "Booking fee"
+  },
+  "result.authority.used": {
+    "de": "Genutzte Vollmacht",
+    "en": "Authority used"
   },
   "result.concession": {
     "de": "Zugeständnis eingelöst",
@@ -794,6 +894,10 @@
   "order.template.load": {
     "de": "Vorlage laden",
     "en": "Load template"
+  },
+  "order.template.section": {
+    "de": "Vorlagenbereich",
+    "en": "Templates"
   },
   "order.template.load.button": {
     "de": "Laden",

@@ -14,6 +14,7 @@ import asyncio
 import html
 import json
 import logging
+import math
 import os
 import time
 import uuid
@@ -44,7 +45,9 @@ from hungrycall.models import (
 from hungrycall.order_chains import (
     default_order_chain, evaluate_order_chain, order_chain_json, parse_order_chain
 )
-from hungrycall.phone_utils import mask_phone, mask_phones_in_text
+from hungrycall.phone_utils import (
+    mask_phone, mask_phones_in_text, normalize_e164, validate_e164,
+)
 from hungrycall import restaurant_test_mode
 from hungrycall.server_mode import current_mode
 from hungrycall.ranking import filter_and_rank_restaurants, filter_candidate
@@ -129,17 +132,19 @@ async def order_page(
         or (loaded_template or {}).get("order_chain")
     ) or default_order_chain()
     defaults = loaded_order or {}
+    test_mode_active = restaurant_test_mode.active(request.cookies)
     body = render_branch_page(
         Branch.FOOD, lang, sorted(SCENARIO_FIXTURES.keys()), DEFAULT_SCENARIOS[Mode.DELIVERY],
         order_chain=initial_chain,
         tags=list_tags(),
         order_templates=list_order_templates(),
         defaults=defaults,
+        test_mode_active=test_mode_active,
     )
     mode_banner = ""
     if restaurant_test_mode.feature_enabled():
         mode_banner = restaurant_test_mode.banner(
-            restaurant_test_mode.active(request.cookies), lang, "/order"
+            test_mode_active, lang, "/order"
         )
     return html_page(
         body, lang, path="/order", with_map=True, title=t("food.title", lang),
@@ -150,13 +155,15 @@ async def order_page(
 @app.get("/reserve", response_class=HTMLResponse)
 async def reserve_page(request: Request):
     lang = lang_of(request)
+    test_mode_active = restaurant_test_mode.active(request.cookies)
     body = render_branch_page(
-        Branch.TABLE, lang, sorted(SCENARIO_FIXTURES.keys()), DEFAULT_SCENARIOS[Mode.RESERVATION]
+        Branch.TABLE, lang, sorted(SCENARIO_FIXTURES.keys()), DEFAULT_SCENARIOS[Mode.RESERVATION],
+        test_mode_active=test_mode_active,
     )
     mode_banner = ""
     if restaurant_test_mode.feature_enabled():
         mode_banner = restaurant_test_mode.banner(
-            restaurant_test_mode.active(request.cookies), lang, "/reserve"
+            test_mode_active, lang, "/reserve"
         )
     return html_page(
         body, lang, path="/reserve", with_map=True, title=t("table.title", lang),
@@ -219,7 +226,10 @@ def build_user_request(
     mode = Mode(fields.get("mode") or "delivery")
 
     concession_keys = fields.get("concessions") or []
-    concessions = [c for c in TABLE_CONCESSIONS if c.key in concession_keys]
+    concessions = (
+        [] if mode is Mode.RESERVATION
+        else [c for c in TABLE_CONCESSIONS if c.key in concession_keys]
+    )
 
     reservation_date = fields.get("reservation_date")
     current_day_value = day_override or current_day()
@@ -241,25 +251,96 @@ def build_user_request(
         value = as_float(key)
         return int(value) if value is not None else None
 
+    def bounded_int(key: str, maximum: int) -> int:
+        raw = fields.get(key)
+        if raw in (None, "", "None"):
+            return 0
+        try:
+            value = int(raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{key} must be a whole number") from exc
+        if value < 0 or value > maximum:
+            raise ValueError(f"{key} must be between 0 and {maximum}")
+        return value
+
+    legacy_name = str(fields.get("customer_name") or "").strip()
+    first_name = str(fields.get("first_name") or "").strip()
+    last_name = str(fields.get("last_name") or "").strip()
+    if not first_name and not last_name and legacy_name:
+        name_parts = legacy_name.split(maxsplit=1)
+        first_name = name_parts[0]
+        last_name = name_parts[1] if len(name_parts) > 1 else ""
+    if not first_name:
+        raise ValueError("first_name is required")
+    customer_name = " ".join(part for part in (first_name, last_name) if part)
+
+    raw_callback = str(fields.get("requester_callback_number") or "").strip()
+    requester_callback_number = normalize_e164(raw_callback) if raw_callback else ""
+    if not validate_e164(requester_callback_number):
+        raise ValueError("requester_callback_number must use a valid E.164 phone number")
+
+    earlier_hours = bounded_int("earlier_hours", 3)
+    later_hours = bounded_int("later_hours", 3)
+    earlier_minutes = bounded_int("earlier_minutes", 59)
+    later_minutes = bounded_int("later_minutes", 59)
+
+    raw_booking_fee = fields.get("max_booking_fee_eur")
+    if raw_booking_fee in (None, "", "None"):
+        max_booking_fee_eur = 0.0
+    else:
+        try:
+            max_booking_fee_eur = float(raw_booking_fee)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("max_booking_fee_eur must be numeric") from exc
+    if (
+        not math.isfinite(max_booking_fee_eur)
+        or max_booking_fee_eur < 0
+        or max_booking_fee_eur > 1000
+    ):
+        raise ValueError("max_booking_fee_eur must be between 0 and 1000")
+
+    def optional_text(key: str, maximum: int) -> Optional[str]:
+        value = str(fields.get(key) or "").strip()
+        if len(value) > maximum:
+            raise ValueError(f"{key} must be at most {maximum} characters")
+        return value or None
+
     chain = parse_order_chain(fields.get("order_chain_json")) if mode is not Mode.RESERVATION else None
     food_prompt = chain.summary() if chain else (fields.get("food_prompt") or "").strip()
 
+    seating = Seating(fields.get("seating") or "any")
+    seating_custom = optional_text("seating_custom", 200)
+    if seating is Seating.CUSTOM and not seating_custom:
+        raise ValueError("seating_custom is required when custom seating is selected")
+    if seating is not Seating.CUSTOM and seating_custom:
+        raise ValueError("seating_custom requires custom seating to be selected")
+
     return UserRequest(
         mode=mode,
-        customer_name=(fields.get("customer_name") or "").strip() or "Guest",
+        customer_name=customer_name,
         food_prompt=food_prompt,
         max_budget_eur=as_float("max_budget_eur") if mode is not Mode.RESERVATION else None,
         delivery_address=fields.get("delivery_address"),
         reservation_date=reservation_date,
         reservation_time=fields.get("reservation_time"),
         party_size=as_int("party_size"),
-        seating=Seating(fields.get("seating") or "any"),
+        seating=seating,
         pickup_time=fields.get("pickup_time") or "19:30",
         max_distance_km=as_float("max_distance_km"),
         day_of_week=day,
         time_of_request=fields.get("reservation_time") or time_override or current_clock(),
         concessions=concessions,
         order_chain=chain,
+        first_name=first_name,
+        last_name=last_name,
+        requester_callback_number=requester_callback_number,
+        seating_custom=seating_custom,
+        special_instructions=optional_text("special_instructions", 500),
+        earlier_hours=earlier_hours if mode is Mode.RESERVATION else 0,
+        later_hours=later_hours if mode is Mode.RESERVATION else 0,
+        earlier_minutes=earlier_minutes if mode is Mode.RESERVATION else 0,
+        later_minutes=later_minutes if mode is Mode.RESERVATION else 0,
+        max_booking_fee_eur=max_booking_fee_eur if mode is Mode.RESERVATION else 0.0,
     )
 
 
@@ -291,8 +372,25 @@ def criteria_line(request: UserRequest, lang: str) -> str:
         f'{request.reservation_time or "?"}',
         t("candidates.seats", lang, n=request.party_size or 0),
     ]
-    if request.seating is not Seating.ANY:
+    if request.seating is Seating.CUSTOM:
+        parts.append(request.seating_custom or t("table.seating.custom", lang))
+    elif request.seating is not Seating.ANY:
         parts.append(t(f"table.seating.{request.seating.value}", lang))
+    if request.earlier_tolerance_minutes():
+        parts.append(t(
+            "table.authority.earlier", lang,
+            minutes=request.earlier_tolerance_minutes(),
+        ))
+    if request.later_tolerance_minutes():
+        parts.append(t(
+            "table.authority.later", lang,
+            minutes=request.later_tolerance_minutes(),
+        ))
+    if request.max_booking_fee_eur > 0:
+        parts.append(t(
+            "table.authority.fee", lang,
+            fee=f"{request.max_booking_fee_eur:.2f}",
+        ))
     return " · ".join(parts)
 
 
@@ -369,6 +467,9 @@ async def api_search(request: Request):
         "radius_km": radius_km,
         "scenario": fields.get("scenario") or DEFAULT_SCENARIOS[user_request.mode],
         "customer_name": user_request.customer_name,
+        "first_name": user_request.first_name,
+        "last_name": user_request.last_name,
+        "requester_callback_number": user_request.requester_callback_number,
         "food_prompt": user_request.food_prompt,
         "order_chain_json": (
             order_chain_json(user_request.order_chain) if user_request.order_chain else None
@@ -381,6 +482,13 @@ async def api_search(request: Request):
         "reservation_time": user_request.reservation_time,
         "party_size": user_request.party_size,
         "seating": user_request.seating.value,
+        "seating_custom": user_request.seating_custom,
+        "special_instructions": user_request.special_instructions,
+        "earlier_hours": user_request.earlier_hours,
+        "later_hours": user_request.later_hours,
+        "earlier_minutes": user_request.earlier_minutes,
+        "later_minutes": user_request.later_minutes,
+        "max_booking_fee_eur": user_request.max_booking_fee_eur,
         "concessions": [c.key for c in user_request.concessions],
         "transport": transport,
         "confirm_live": "yes" if fields.get("confirm_live") == "yes" else None,
@@ -409,7 +517,14 @@ async def api_preview_goal(request: Request):
             day_override=restaurant_test_mode.FIXTURE_DAY if test_mode else None,
             time_override=restaurant_test_mode.FIXTURE_TIME if test_mode else None,
         )
-        verify_content_safety(user_request.food_prompt)
+        verify_content_safety(
+            user_request.food_prompt,
+            notes=" ".join(
+                value for value in (
+                    user_request.seating_custom, user_request.special_instructions
+                ) if value
+            ),
+        )
     except SafetyError:
         return JSONResponse({"error": t("error.unsafe.content", lang)}, status_code=400)
     except (ValueError, KeyError) as exc:
@@ -474,7 +589,14 @@ async def start_cascade(request: Request):
             day_override=restaurant_test_mode.FIXTURE_DAY if test_mode else None,
             time_override=restaurant_test_mode.FIXTURE_TIME if test_mode else None,
         )
-        verify_content_safety(user_request.food_prompt)
+        verify_content_safety(
+            user_request.food_prompt,
+            notes=" ".join(
+                value for value in (
+                    user_request.seating_custom, user_request.special_instructions
+                ) if value
+            ),
+        )
     except SafetyError:
         return HTMLResponse(
             f'<div class="notice warn" style="margin-top:1rem;">{t("error.unsafe.content", lang)}</div>'
@@ -662,6 +784,9 @@ async def cascade_stream(request: Request, order_id: str = Query(...)):
                     "text": f'{t("error.live.transport", lang)} {exc}',
                 })
                 return
+            engine.redact_requester_callback(
+                call_result, user_request.requester_callback_number
+            )
             calls_made += 1
 
             yield sse({

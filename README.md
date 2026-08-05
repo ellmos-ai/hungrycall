@@ -92,6 +92,9 @@ HungryCall addresses an entirely different class of problem — **a multi-candid
 6. **Dynamic Fixture Input Reflection**:
    - In dry-run mode, actual user parameters (`delivery_address`, `food_prompt`, `customer_name`, `max_budget_eur`) are dynamically interpolated into verification transcripts, activity logs, and summaries to ensure dry-run output matches input exactness.
 
+7. **Human Confirmation Contact**:
+   - The web form collects first name, last name and a required E.164 requester callback number. The number is carried only in transient request state, is included in each live call goal for restaurant questions or human confirmation, and is repeated at the end of that goal. It is not written to orders, saved results, history exports or fixture transcripts.
+
 ---
 
 ## Real CALL-E Service Dynamics (Measured Findings)
@@ -126,9 +129,10 @@ HungryCall incorporates empirical findings measured against the live CALL-E serv
 > ⚠️ **DATA TRANSFER NOTICE**:
 > The CALL-E voice agent engine operates via AiRudder infrastructure located in **Singapore** (`https://seleven-mcp-sg.airudder.com`).
 > 
-> When a call is placed, prompt parameters (customer name, delivery address, food request) are transmitted to the Singapore endpoint. HungryCall follows strict **data minimization**:
+> When a live call is placed, prompt parameters (customer name, requester callback number, delivery address or reservation details, and the request) are transmitted to the configured CALL-E endpoint and spoken to the selected restaurant as needed. HungryCall follows strict **data minimization**:
 > - Only the minimum information required for the single call is transmitted.
 > - No user history or persistent profile data is shared.
+> - The requester callback number is E.164-validated and transient; HungryCall does not write it to SQLite, saved history, receipts or fixture output.
 > - Phone numbers are masked in all local outputs, logs, and summaries (`+49 ••• ••••123`).
 
 ---
@@ -174,10 +178,10 @@ from ResearchCall's quiet paper-like surface.
 
 | | **Order food** (`/order`) | **Book a table** (`/reserve`) |
 |---|---|---|
-| Decides on | price, delivery, time | clock, party size, seating |
+| Decides on | price, delivery, time | clock, party size, seating and permitted fallback bounds |
 | Hard gate | the doorstep total | a free table at that hour |
-| Switchable | delivery ⇄ pickup | indoor / outdoor / either |
-| Concessions | — | tiered, and authorised by you |
+| Switchable | delivery ⇄ pickup | indoor / outdoor / either / custom table request |
+| Concessions | — | earlier/later time and booking-fee limits, authorised by you |
 
 The switch between **delivery and pickup is not cosmetic**. It changes the
 ranking (distance is weighted 12× higher when you are the one driving), it
@@ -192,22 +196,24 @@ pins the behaviour.
 The table branch implements the third kind of criterion from
 [`MUSTER.md`](MUSTER.md) — *something you are willing to give, but not yet*:
 
-* You grant concessions explicitly (`indoor_ok`, `time_flex`, `deposit_ok`).
-* They are handed over **in tier order**, with an instruction never to offer a
-  later step before an earlier one has failed.
-* The result reports which step was played, in `tier_applied`.
-* **A result that used a concession you did not grant is rejected**, exactly
-  the way an over-budget quote is. An agent that bought the table with money
-  you never offered has exceeded its mandate, and the yes it brought back does
-  not count. See `CascadeEngine.check_concession_authority`.
+* You select a named seating preference or enter your own table request and an
+  additional note for the restaurant.
+* You grant concrete fallback bounds: up to three hours plus additional minutes
+  earlier and/or later, and an explicit maximum booking fee.
+* The agent must try the requested time without a fee first, then move through
+  those bounds in order. The structured result reports the steps actually used.
+* **A result outside the granted time window or fee cap is rejected**, exactly
+  the way an over-budget quote is. See
+  `CascadeEngine.check_reservation_authority`.
 
 ### What the screen does
 
 1. **Landing** — two tiles; hovering (or tabbing to) one reveals what that
    branch actually does. A CSS/SVG animation walks a call down four numbers:
    two declines, one connection, and the fourth never dialled.
-2. **Location and criteria** — the branch's own questions. No budget field
-   exists in the table branch at all.
+2. **Location and criteria** — the branch's own questions, split name fields,
+   required callback number and visible authority limits. The food editor starts
+   with one usable item row; its Add control appends and focuses another row.
 3. **Candidates** — ranked, with distance, and reorderable. **The visible order
    is the call order**: the arrows write a hidden `candidate_order` field and
    the server calls exactly that sequence.
@@ -218,8 +224,8 @@ The table branch implements the third kind of criterion from
    `connected`, `activity`, `rejected`, `accepted`, `outcome`. The conversation
    streams into a live log; each decline shows its reason on the candidate.
 6. **Result** — the sentence in your language, the binding commitment, the
-   masked callback number, the transcript, and which concession (if any) was
-   spent.
+   restaurant's masked callback number, the transcript, and which authority
+   step (if any) was spent.
 
 ### German and English
 
@@ -234,11 +240,11 @@ either language has a gap, or if a `{placeholder}` is lost in translation.
 
 The interface states these where you are working, rather than hiding them:
 
-* **Real calls are gated and currently rejected upstream.** The REST transport is
-  functional, but dry-run remains selected by default. Web users must select Live
-  and tick a second confirmation; CLI users need both `--live` and `--confirm-live`.
-  The UI states **“Real calls — cost money”**. The current balance is −0.05 USD,
-  so CALL-E currently rejects a real call.
+* **Real calls are gated.** The REST transport exists, but the safe local path is
+  the default. Web users must opt into Live and tick a second confirmation; CLI
+  users need `--live`, `--confirm-live` and a requester callback number. The UI
+  states **“Real calls — cost money”**. This change was verified without placing
+  a real call; service readiness and account balance remain external facts.
 * **Restaurant sources are explicit.** Normal mode geocodes through Nominatim and
   searches OpenStreetMap via Overpass. The candidate page names that source and
   reports the number of results within the selected radius. An unavailable service,
@@ -246,9 +252,10 @@ The interface states these where you are working, rather than hiding them:
   of them substitutes example restaurants.
 * **Restaurant examples require a separate test mode.** The page banner starts
   with test mode off and provides explicit **Enable test mode** and **Leave test
-  mode** actions; it is not an order-form field. The result panel says **“Test
-  mode — example data, no real restaurants”** and performs no restaurant-network
-  request. Set `HUNGRYCALL_RESTAURANT_TEST_MODE=off` to remove the switch for the
+  mode** actions; it is the only visible test label. The fixture-scenario selector
+  appears only while Test mode is active, and the Live control is then absent.
+  The result panel says **“Test mode — example data, no real restaurants”** and
+  performs no restaurant-network request. Set `HUNGRYCALL_RESTAURANT_TEST_MODE=off` to remove the switch for the
   whole installation and ignore any previously stored browser choice; set it to
   `on` to expose the switch explicitly. If unset, it remains available for the
   evaluation build.
@@ -316,13 +323,12 @@ hungrycall delivery --food "2x Döner Kebab" --address "Dorfstrasse 1, 16321 Ber
 hungrycall reservation --food "Italian" --date "2026-08-05" --time "19:00" --party 4 --scenario reservation_cascade
 ```
 
-### 2a. A table outside — and what you would settle for
+### 2a. A specific table — and bounded fallbacks
 ```bash
-# Without the grant, the agent's indoor table is refused: it spent authority it did not have.
-hungrycall reservation --food "Italian" --date "2026-08-07" --time "19:00" --party 4   --seating outdoor --scenario table_concession_cascade
-
-# With it granted, the same call goes through, and the result says which step was used.
-hungrycall reservation --food "Italian" --date "2026-08-07" --time "19:00" --party 4   --seating outdoor --concession indoor_ok --scenario table_concession_cascade
+hungrycall reservation --food "Italian" --date "2026-08-07" --time "19:00" --party 4 \
+  --seating custom --seating-custom "our usual table under the palm" \
+  --earlier-hours 1 --earlier-minutes 30 --later-hours 2 --later-minutes 15 \
+  --max-booking-fee-eur 3 --note "birthday dinner" --scenario reservation_cascade
 ```
 
 ### 3. Pickup Mode
@@ -351,8 +357,8 @@ number input and never sends `POST /v1/calls`; an authenticated `404` is the exp
 success result. A real cascade additionally requires both live gates:
 
 ```bash
-# WARNING: real calls cost money. Do not run while the balance is negative.
-hungrycall delivery ... --live --confirm-live
+# WARNING: real calls cost money. This is syntax documentation, not an instruction to call.
+hungrycall delivery ... --requester-callback-number +491701234567 --live --confirm-live
 ```
 
 ---
@@ -367,7 +373,7 @@ pytest -v
 
 They cover ranking and its per-mode distance weighting, opening hours across
 midnight, the schemas, phone masking, the safety gates, budget and vague-price
-rejection, concession authority in both directions, both branches end to end
+rejection, reservation time/fee authority in both directions, both branches end to end
 over the event stream, the candidate order the user arranged, the goal preview,
 cancellation, saving with the mode that actually happened, HTML escaping of
 free-text input, the light/dark theme, external credential loading, read-only

@@ -9,6 +9,7 @@ from hungrycall.order_chains import ORDER_CHAIN_RESULT_SCHEMA
 
 DELIVERY_RESULT_SCHEMA: Dict[str, Any] = {
     "type": "object",
+    "additionalProperties": False,
     "required": ["delivers_to_address", "price_known"],
     "properties": {
         "delivers_to_address": {
@@ -45,7 +46,16 @@ DELIVERY_RESULT_SCHEMA: Dict[str, Any] = {
 
 RESERVATION_RESULT_SCHEMA: Dict[str, Any] = {
     "type": "object",
-    "required": ["table_available", "reservation_confirmed"],
+    "additionalProperties": False,
+    "required": [
+        "table_available",
+        "reservation_confirmed",
+        "reservation_date_confirmed",
+        "reservation_time_confirmed",
+        "seating_preference_met",
+        "booking_fee_eur",
+        "authority_steps_applied",
+    ],
     "properties": {
         "table_available": {
             "type": "boolean",
@@ -54,6 +64,34 @@ RESERVATION_RESULT_SCHEMA: Dict[str, Any] = {
         "reservation_confirmed": {
             "type": "boolean",
             "description": "True if reservation has been successfully booked under caller's name."
+        },
+        "reservation_date_confirmed": {
+            "type": "string",
+            "description": "Confirmed reservation date in YYYY-MM-DD format."
+        },
+        "reservation_time_confirmed": {
+            "type": "string",
+            "description": "Confirmed reservation time in 24-hour HH:MM format."
+        },
+        "seating_confirmed": {
+            "type": "string",
+            "description": "The seating or table preference the restaurant actually confirmed."
+        },
+        "seating_preference_met": {
+            "type": "boolean",
+            "description": "True if the user's specific custom seating preference was confirmed; otherwise False."
+        },
+        "booking_fee_eur": {
+            "type": "number",
+            "description": "Exact booking fee or deposit in EUR. Return 0 if there is none."
+        },
+        "authority_steps_applied": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "enum": ["earlier_time", "later_time", "booking_fee"]
+            },
+            "description": "Reservation fallback authority used, in the order it was applied. Empty for the exact fee-free request."
         },
         "callback_number": {
             "type": "string",
@@ -69,6 +107,7 @@ RESERVATION_RESULT_SCHEMA: Dict[str, Any] = {
 
 PICKUP_RESULT_SCHEMA: Dict[str, Any] = {
     "type": "object",
+    "additionalProperties": False,
     "required": ["pickup_available", "price_known"],
     "properties": {
         "pickup_available": {

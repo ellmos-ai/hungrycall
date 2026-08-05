@@ -1,5 +1,7 @@
 # Privacy notice template — HungryCall
 
+> **Current engineering boundary, not a legal-basis conclusion:** `requester_callback_number` is E.164-validated, kept out of local persistence, and transmitted only in a purpose-bound live CALL-E/restaurant instruction for questions or human confirmation. A deployer must still complete the purpose, legal-basis, recipient and international-transfer analysis below.
+
 > **Template only — adaptation required.** This is not a deployable privacy notice and is not legal advice. The operator must replace every `[REPLACE: ...]` marker, remove inapplicable options, verify all service-provider facts and obtain a case-specific legal review before processing real data.
 
 Last updated: `[REPLACE: date]`
@@ -26,9 +28,9 @@ This notice covers `[REPLACE: deployment URL and version]`. It may concern:
 
 | Purpose | Data used | Legal basis | Required or optional / consequence |
 | --- | --- | --- | --- |
-| Create and manage a request | Name, food/reservation request, address/location, time, party size, constraints and budget | `[REPLACE: exact Article 6 basis and reasoning]` | `[REPLACE]` |
+| Create and manage a request | First and last name, requester callback number, food/reservation request, address/location, time, party size, seating/note, constraints and budget or booking-fee cap | `[REPLACE: exact Article 6 basis and reasoning]` | `[REPLACE]` |
 | Find nearby venues | Postcode/city/country, coordinates, radius and returned venue data | `[REPLACE]` | `[REPLACE]` |
-| Place an automated call, if enabled | Destination number, call task and the request details needed for the chosen mode | `[REPLACE]` | `[REPLACE]` |
+| Place an automated call, if enabled | Destination number, call task, requester callback number for questions/human confirmation, and the request details needed for the chosen mode | `[REPLACE]` | `[REPLACE]` |
 | Return and optionally retain a result | Call status, venue, price/ETA, callback number, summary, transcript and structured result | `[REPLACE]` | `[REPLACE]` |
 | Secure and operate the service | `[REPLACE: verified server, security and audit log fields]` | `[REPLACE]` | `[REPLACE]` |
 
@@ -40,14 +42,14 @@ Do not use consent as a generic fallback. If consent is selected, document how i
 
 - **Fixture/test mode:** restaurant and call results use local fixtures, but the candidate map still requests OpenStreetMap tiles unless the deployment disables/replaces that layer. `[REPLACE: confirm map behavior, infrastructure logs and backups]`.
 - **Connected restaurant search:** the app sends the entered area to Nominatim and sends coordinates/radius to an Overpass endpoint. The browser requests OpenStreetMap tiles.
-- **Live calling:** the app sends the selected destination number and call task to the configured CALL-E endpoint and receives call results, activity and transcript data.
+- **Live calling:** the app sends the selected destination number and call task, including the transient requester callback number, to the configured CALL-E endpoint and receives call results, activity and transcript data.
 
 ## 5. Recipients, processors and transfers
 
 | Recipient/category | Data and purpose | Role and location | Safeguard/contract |
 | --- | --- | --- | --- |
 | `[REPLACE: infrastructure host]` | `[REPLACE]` | `[REPLACE]` | `[REPLACE: Article 28 agreement if applicable]` |
-| `[REPLACE: CALL-E contracting entity and subprocessors, or remove live mode]` | Destination number, call task, metadata and returned call material | `[REPLACE: verified role and processing countries]` | `[REPLACE: DPA and, if needed, Chapter V mechanism]` |
+| `[REPLACE: CALL-E contracting entity and subprocessors, or remove live mode]` | Destination number, call task, transient requester callback number, metadata and returned call material | `[REPLACE: verified role and processing countries]` | `[REPLACE: DPA and, if needed, Chapter V mechanism]` |
 | `[REPLACE: Nominatim operator/endpoint]` | Search area and ordinary connection data | `[REPLACE]` | `[REPLACE]` |
 | `[REPLACE: Overpass operator/endpoint]` | Coordinates, radius and ordinary connection data | `[REPLACE]` | `[REPLACE]` |
 | `[REPLACE: OpenStreetMap tile operator]` | Tile request, ordinary connection data and requested tile coordinates | `[REPLACE]` | `[REPLACE]` |
@@ -57,7 +59,7 @@ The source code's endpoint names do not prove corporate identity, retention, sub
 
 ## 6. Storage and deletion
 
-The current application can store requests, callback numbers, results and transcripts in one SQLite database. It does not implement automatic expiry for those records.
+The current application can store requests, restaurant callback numbers, results and transcripts in one SQLite database. It does not implement automatic expiry for those records. The requester's own callback number is deliberately excluded from the SQLite schema, saved result JSON, history exports and receipts; it remains transient call data.
 
 Operator schedule:
 

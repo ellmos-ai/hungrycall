@@ -1,5 +1,13 @@
 # EVIDENCE.md — HungryCall Execution Log
 
+## User-feedback implementation — 2026-08-05
+
+- Implemented the visible initial food row and reliable Add flow; split name/callback and price sections; one visible Test mode with a conditional scenario selector; and configurable table, note, time-window and booking-fee authority.
+- Implemented a required, E.164-validated requester callback number. It is appended to each live call goal for questions/human confirmation but excluded from SQLite, saved result JSON, history, receipts and fixture transcripts.
+- Added server-side reservation-authority validation for additive earlier/later hours and minutes plus the booking-fee cap.
+- Verification includes focused DOM/JavaScript, web/goal/schema/CLI and negative-persistence regressions plus the full offline suite. The final operator run is recorded in the newest section below.
+- **NOT EXECUTED:** controlled visual browser acceptance or a real CALL-E call.
+
 > **Note on Evidence**: This document records literally what was actually executed during development and testing, without invention or smoothing. What was not executed is explicitly listed as "NOT EXECUTED".
 
 ---
@@ -927,3 +935,53 @@ runs is the pre-existing Starlette `TestClient` / `httpx` deprecation warning.
 * No live restaurant lookup and no network request.
 * No real CALL-E call and no `POST /v1/calls`.
 * No push, pull request, publication or upload.
+
+---
+
+## 15. User-feedback integration and independent blocker review (2026-08-05)
+
+### 15.1 Implemented
+
+* The food editor starts with one usable position; Add appends and focuses the next one.
+* The form separates food items, templates, first/last name, the required requester callback and the price range.
+* The top Test mode is the only visible test label. Its scenario selector appears only while active; Live is unavailable in that state.
+* Table reservations support a binding named/custom seating preference, an additional restaurant note, additive earlier/later hours and minutes, and an explicit booking-fee cap.
+* The requester callback is E.164-validated, appended to every live goal for questions/human confirmation and repeated at the end. It is recursively redacted if CALL-E echoes it through structured output, activity, summary, rejection data or transcript before SSE, history, receipt or SQLite persistence.
+* Legacy `indoor_ok`, `time_flex` and `deposit_ok` form values cannot expand the new reservation authority. Missing result evidence, out-of-window times, excess fees and unconfirmed seating preferences are rejected server-side.
+* Free reservation notes share the high-risk content gate and are explicitly framed as data, not instructions that may alter the goal.
+* README English/German, data flow, privacy template, TODO and the 1200×300 repository banner were synchronized.
+
+### 15.2 Independent review findings resolved
+
+The independent read-only review reproduced three release blockers before the final run: contradictory legacy concessions, unenforced custom seating, and possible requester-callback persistence through echoed API result data. It also found the free-note safety bypass, stale reservation fixtures, the combined-name history rerun and stale live/balance documentation. Each item was corrected and received focused regression coverage before the full suite was accepted.
+
+### 15.3 Final operator verification
+
+```text
+python -m pytest -q
+188 passed, 1 warning in 20.41s
+
+node --test tests/app_js.test.js
+3 passed
+
+node --test tests/huckepack_js.test.js
+11 passed
+
+python -m compileall -q hungrycall tests
+exit 0
+
+git diff --check
+exit 0
+
+python -m hungrycall.cli demo
+RESULT: SUCCESS
+```
+
+The sole warning is the existing Starlette `TestClient` / `httpx` deprecation warning.
+
+### 15.4 Not executed
+
+* No real CALL-E call and no `POST /v1/calls`.
+* No real restaurant lookup was needed for this verification.
+* No controlled browser was available for a visual acceptance pass; HTML/DOM, JavaScript and local server paths were tested instead.
+* Commit and push are recorded separately after they actually occur.

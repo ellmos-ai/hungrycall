@@ -152,13 +152,11 @@ hungrycall delivery --food "2x Döner Kebab" --address "Dorfstrasse 1, 16321 Ber
 hungrycall reservation --food "Italian" --date "2026-08-05" --time "19:00" --party 4 \
   --scenario reservation_cascade
 
-# Tisch draußen — und wozu man bereit wäre.
-# Ohne erteiltes Zugeständnis wird der Innentisch des Agenten verworfen:
+# Eigener Tischwunsch mit präzisen Zeit- und Gebührenobergrenzen
 hungrycall reservation --food "Italian" --date "2026-08-07" --time "19:00" --party 4 \
-  --seating outdoor --scenario table_concession_cascade
-# Mit erteiltem Zugeständnis geht derselbe Anruf durch, und das Ergebnis nennt die Stufe:
-hungrycall reservation --food "Italian" --date "2026-08-07" --time "19:00" --party 4 \
-  --seating outdoor --concession indoor_ok --scenario table_concession_cascade
+  --seating custom --seating-custom "unser Standardtisch unter der Palme" \
+  --earlier-hours 1 --earlier-minutes 30 --later-hours 2 --later-minutes 15 \
+  --max-booking-fee-eur 3 --note "Geburtstagsessen" --scenario reservation_cascade
 
 # Abholung
 hungrycall pickup --food "Pizza" --budget 25.0 --scenario pickup_cascade
@@ -175,8 +173,9 @@ hungrycall preflight
 
 Der Preflight sendet ausschließlich ein authentifiziertes
 `GET /v1/calls/probe-does-not-exist`; HTTP 404 ist der erwartete Erfolgsfall. Ein echter
-Lauf würde zusätzlich `--live --confirm-live` benötigen. Bei negativem Guthaben nicht
-ausführen.
+Lauf würde zusätzlich `--requester-callback-number`, `--live` und `--confirm-live`
+benötigen. Dienstbereitschaft und Guthaben müssen vor jedem echten Lauf aktuell geprüft
+werden.
 
 ### Weboberfläche
 
@@ -189,6 +188,13 @@ kein Build-Schritt, kein CDN. Zwei Zweige starten auf der Startseite und enden b
 derselben Kaskade, nur mit anderen Kriterien. Oberfläche vollständig auf Deutsch und
 Englisch; `tests/test_i18n.py` lässt den Build scheitern, wenn ein Schlüssel fehlt, eine
 Sprache eine Lücke hat oder ein `{platzhalter}` bei der Übersetzung verloren geht.
+
+Das Bestellformular startet mit einem sichtbaren, verwendbaren Essensposten; „Hinzufügen“
+erzeugt und fokussiert den nächsten. Vorname, Nachname und die Rückrufnummer der anfragenden
+Person stehen in einem eigenen Bereich, der Preisrahmen darunter. Bei Tischreservierungen
+lassen sich eine vorgegebene oder eigene Tischpräferenz, ein zusätzlicher Hinweis, frühere
+und spätere Zeiten in Stunden plus Minuten sowie eine maximale Buchungsgebühr festlegen.
+Ergebnisse außerhalb dieser erteilten Vollmacht werden serverseitig abgewiesen.
 
 Das Farbschema startet **hell**: weiße Flächen, Kobaltblau, Lila und Pink. Grasneongrün
 bleibt auf einzelne Live- und Erfolgsakzente beschränkt. Der Schalter im Kopf wechselt
@@ -223,10 +229,14 @@ widersprechen ihr:
 > Der Sprachagent von CALL-E läuft auf AiRudder-Infrastruktur in **Singapur**
 > (`https://seleven-mcp-sg.airudder.com`).
 >
-> Bei einem echten Anruf gehen die Parameter des Auftrags (Name, Lieferadresse, Bestellung)
-> dorthin. HungryCall hält Datensparsamkeit ein:
+> Bei einem echten Anruf gehen die nötigen Auftragsparameter (Name, Rückrufnummer der
+> anfragenden Person, Lieferadresse oder Reservierungsdaten und der Wunsch) an den
+> konfigurierten CALL-E-Endpunkt und werden dem ausgewählten Restaurant zweckgebunden
+> mitgeteilt. HungryCall hält Datensparsamkeit ein:
 > * Nur das Nötigste für genau diesen einen Anruf wird übergeben.
 > * Keine Vorgeschichte, kein dauerhaftes Profil.
+> * Die Pflicht-Rückrufnummer wird als E.164 geprüft und nur flüchtig geführt; sie landet
+>   nicht in SQLite, Verlauf, Belegen oder Fixture-Ausgaben.
 > * Rufnummern sind in allen Ausgaben, Protokollen und Zusammenfassungen maskiert
 >   (`+49 ••• ••••123`).
 
@@ -254,10 +264,11 @@ widersprechen ihr:
 
 Die Oberfläche schreibt das dort hin, wo man arbeitet, statt es zu verstecken:
 
-* **Echte Anrufe sind mehrfach gegattert und werden aktuell vom Dienst abgelehnt.**
-  Trockenlauf ist vorausgewählt. Im Web braucht Live zusätzlich ein Bestätigungshäkchen,
-  im CLI `--live` und `--confirm-live`. Die Warnung „Echte Anrufe — kostet Geld“ ist
-  sichtbar. Bei derzeit −0,05 USD lehnt CALL-E echte Anrufe ab.
+* **Echte Anrufe sind mehrfach gegattert.** Der sichere lokale Pfad ist vorausgewählt.
+  Im Web braucht Live zusätzlich ein Bestätigungshäkchen, im CLI `--live`,
+  `--confirm-live` und eine Rückrufnummer der anfragenden Person. Die Warnung „Echte
+  Anrufe — kostet Geld“ ist sichtbar. Diese Änderung wurde ohne echten Anruf geprüft;
+  Dienstbereitschaft und Kontostand sind externe, jeweils neu zu prüfende Tatsachen.
 * **Die Restaurantquelle ist sichtbar.** Im Normalbetrieb geocodiert Nominatim und
   OpenStreetMap via Overpass liefert die Kandidaten. Die Oberfläche nennt die Quelle und
   die Trefferzahl im gewählten Umkreis. Nicht erreichbarer Dienst, nicht gefundene Adresse
@@ -266,8 +277,10 @@ Die Oberfläche schreibt das dort hin, wo man arbeitet, statt es zu verstecken:
 * **Restaurant-Beispieldaten gibt es nur in einem getrennten Testmodus.** Der
   Seitenbanner startet im ausgeschalteten Zustand und bietet ausdrücklich
   **„Testmodus einschalten“** und **„Testmodus verlassen“**; der Modus ist kein Feld des
-  Bestellformulars. Die Ergebnisfläche sagt deutlich: **„Testmodus — Beispieldaten,
-  keine echten Restaurants“**. Dabei findet kein Netzwerkzugriff für die Restaurantsuche
+  Bestellformulars und ist die einzige sichtbare Testbezeichnung. Die Szenarioauswahl
+  erscheint nur bei aktivem Testmodus; die Live-Auswahl ist dann ausgeblendet. Die
+  Ergebnisfläche sagt deutlich: **„Testmodus — Beispieldaten, keine echten Restaurants“**.
+  Dabei findet kein Netzwerkzugriff für die Restaurantsuche
   statt. `HUNGRYCALL_RESTAURANT_TEST_MODE=off` entfernt den Schalter installationsweit
   und ignoriert eine frühere Browserauswahl; `on` schaltet ihn ausdrücklich frei. Ohne
   gesetzte Variable bleibt er im Evaluations-Build verfügbar.

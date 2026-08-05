@@ -32,6 +32,7 @@ class Seating(str, Enum):
     ANY = "any"
     INDOOR = "indoor"
     OUTDOOR = "outdoor"
+    CUSTOM = "custom"
 
 
 class CallStatus(str, Enum):
@@ -280,9 +281,41 @@ class UserRequest:
     favorite_restaurant_ids: List[str] = field(default_factory=list)
     concessions: List[Concession] = field(default_factory=list)
     order_chain: Optional[OrderChain] = None
+    # ``customer_name`` remains the compatibility carrier used by existing
+    # CLI/dry-run callers.  The web flow collects the two parts separately so
+    # restaurants receive an unambiguous booking/order name.
+    first_name: str = ""
+    last_name: str = ""
+    # Intentionally transient: web.py carries this through the form steps but
+    # never writes it to HungryCall's database or result history.
+    requester_callback_number: Optional[str] = None
+    seating_custom: Optional[str] = None
+    special_instructions: Optional[str] = None
+    # Reservation fallbacks are explicit upper bounds. The minute fields add
+    # precision to the selected whole-hour allowance (for example 1 h 30 m).
+    earlier_hours: int = 0
+    later_hours: int = 0
+    earlier_minutes: int = 0
+    later_minutes: int = 0
+    max_booking_fee_eur: float = 0.0
 
     def granted_concession_keys(self) -> List[str]:
         return [c.key for c in self.concessions]
+
+    def requester_name(self) -> str:
+        """Return the split web name, falling back to the legacy carrier."""
+        split_name = " ".join(
+            part.strip() for part in (self.first_name, self.last_name) if part.strip()
+        )
+        return split_name or self.customer_name
+
+    def earlier_tolerance_minutes(self) -> int:
+        """Maximum explicitly granted earlier shift."""
+        return self.earlier_hours * 60 + self.earlier_minutes
+
+    def later_tolerance_minutes(self) -> int:
+        """Maximum explicitly granted later shift."""
+        return self.later_hours * 60 + self.later_minutes
 
     def effective_time(self) -> str:
         """The clock time this request is about — not the time it was typed."""

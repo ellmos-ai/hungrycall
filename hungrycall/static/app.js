@@ -197,6 +197,13 @@
     }
   }
 
+  function ensureOrderChain() {
+    if (HC.orderChain && Array.isArray(HC.orderChain.posten)) return true;
+    if (!HC.orderChainInitial || !Array.isArray(HC.orderChainInitial.posten)) return false;
+    HC.orderChain = clone(HC.orderChainInitial);
+    return true;
+  }
+
   function field(labelText, control) {
     var wrap = make("div", "field");
     var label = make("label", "", labelText);
@@ -232,7 +239,7 @@
     grid.appendChild(field(HC.text.quantity, quantity));
 
     var product = document.createElement("input");
-    product.type = "text"; product.required = true; product.value = cell.produkt || "";
+    product.type = "text"; product.className = "order-product-input"; product.required = true; product.value = cell.produkt || "";
     product.addEventListener("input", function () { cell.produkt = product.value; syncOrderChain(); });
     grid.appendChild(field(HC.text.product, product));
 
@@ -314,11 +321,14 @@
   };
 
   HC.addPosition = function () {
+    if (!ensureOrderChain()) return;
     HC.orderChain.posten.push({
       zellen: [{ menge: 1, produkt: "", art: "essen", kriterien: [] }],
       tags: [], wenn_nichts_verfuegbar: "posten_weglassen"
     });
     HC.renderOrderChain();
+    var products = document.querySelectorAll(".order-product-input");
+    if (products.length) products[products.length - 1].focus();
   };
 
   HC.removePosition = function (positionIndex) {
@@ -448,12 +458,6 @@
     HC.onModeChange();
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initOrderChain);
-  } else {
-    initOrderChain();
-  }
-
   // ------------------------------------------------------------ food modes
   /* Delivery and pickup are two different errands, so the form has to change
      shape, not just its wording: a pickup needs a collection time and a
@@ -475,21 +479,44 @@
     if (addr) addr.textContent = isPickup ? HC.text.addressPickup : HC.text.addressDelivery;
   };
 
+  // `app.js` is deferred. On a cached/fast load the document can already be
+  // interactive here; only initialise after onModeChange exists, otherwise a
+  // first render throws and leaves the order editor looking inert.
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initOrderChain);
+  } else {
+    initOrderChain();
+  }
+
   // -------------------------------------------------------- call transport
   HC.onTransportChange = function () {
-    var live = document.querySelector('input[name="transport"][value="live"]');
+    var live = $("transport-live");
     var isLive = !!(live && live.checked);
     var panel = $("live-confirm-panel");
     var confirmation = $("confirm-live");
+    var defaultTransport = $("transport-default");
     if (panel) panel.hidden = !isLive;
     if (confirmation) confirmation.required = isLive;
+    if (defaultTransport) defaultTransport.disabled = isLive;
 
     var chip = $("transport-chip");
     var label = $("transport-label");
     var note = $("transport-note");
     if (chip) chip.classList.toggle("locked", isLive);
-    if (label && HC.text) label.textContent = isLive ? HC.text.liveMode : HC.text.dryMode;
-    if (note && HC.text) note.textContent = isLive ? HC.text.liveWarning : HC.text.dryExplain;
+    if (label && HC.text) label.textContent = isLive ? HC.text.liveMode : HC.text.defaultTransport;
+    if (note && HC.text) note.textContent = isLive ? HC.text.liveWarning : HC.text.defaultTransport;
+  };
+
+  HC.onSeatingChange = function () {
+    var seating = $("seating");
+    var field = $("seating-custom-field");
+    var input = $("seating_custom");
+    if (!seating || !field || !input) return;
+    var custom = seating.value === "custom";
+    field.hidden = !custom;
+    input.disabled = !custom;
+    input.required = custom;
+    if (!custom) input.value = "";
   };
 
   // ---------------------------------------------------------- goal preview

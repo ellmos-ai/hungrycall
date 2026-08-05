@@ -20,6 +20,7 @@ from hungrycall.db import (
 from hungrycall.location import (
     geocode_location, get_offline_restaurants, search_overpass_restaurants
 )
+from hungrycall.models import CallResult, CallStatus
 from hungrycall.web import app
 
 
@@ -261,13 +262,33 @@ def test_food_branch_has_a_real_mode_switch(client):
     assert "HC.onModeChange()" in page
 
 
-def test_live_transport_is_visible_but_dry_run_stays_selected(client):
-    page = client.get("/order?lang=de").text
-    assert 'name="transport" value="dry_run" checked' in page
-    assert 'name="transport" value="live"' in page
-    assert "Echte Anrufe — kostet Geld" in page
-    assert 'id="confirm-live"' in page
-    assert 'id="live-confirm-panel" hidden' in page
+def test_live_transport_is_an_explicit_opt_in_while_simulation_is_the_default(client):
+    with TestClient(app) as plain_client:
+        page = plain_client.get("/order?lang=de").text
+        assert 'id="transport-default" name="transport" value="dry_run"' in page
+        assert 'id="transport-live" name="transport" value="live"' in page
+        assert "Echte Anrufe — kostet Geld" in page
+        assert 'id="confirm-live"' in page
+        assert 'id="live-confirm-panel" hidden' in page
+        assert "Trockenlauf-Szenario" not in page
+
+
+def test_scenario_picker_only_appears_with_the_explicit_test_mode(client):
+    active_page = client.get("/order?lang=de").text
+    assert 'id="scenario" name="scenario"' in active_page
+    assert 'id="transport-live"' not in active_page
+
+    with TestClient(app) as plain_client:
+        off = plain_client.get("/order?lang=de").text
+        assert 'id="scenario"' not in off
+
+        toggled = plain_client.post(
+            "/restaurant-test-mode/toggle?lang=de&next=%2Forder",
+            follow_redirects=True,
+        )
+        assert toggled.status_code == 200
+        assert 'id="scenario" name="scenario"' in toggled.text
+        assert "Test-Szenario" in toggled.text
 
 
 def test_live_transport_needs_the_second_confirmation(client):
@@ -302,15 +323,101 @@ def test_confirmed_live_transport_reaches_the_real_client_seam(client, monkeypat
     assert isinstance(web.ACTIVE_ORDERS[order_id]["call_client"], DryRunCallClient)
 
 
+def test_web_stream_redacts_an_echoed_requester_callback_before_sse_and_save(
+    client, setup_test_db
+):
+    callback = "+491701234567"
+
+    class EchoingClient:
+        def execute_candidate_call(self, restaurant, user_request, idempotency_key):
+            return CallResult(
+                call_id="echo-call",
+                run_id="echo-run",
+                status=CallStatus.COMPLETED,
+                task_completed=True,
+                completion_confidence=1.0,
+                structured_result={
+                    "delivers_to_address": True,
+                    "price_known": True,
+                    "total_price_eur": 20,
+                    "eta_minutes": 25,
+                    "order_placed": True,
+                    "callback_number": restaurant.phone,
+                    "debug_echo": callback,
+                    "rejection_reason": f"echo {callback}",
+                },
+                transcript=[{"text": f"human {callback}"}],
+                post_summary=f"restaurant repeated {callback}",
+                rejection_reason=f"echoed {callback}",
+                activity=[f"Callee repeated {callback}"],
+                raw_transcript_text=f"human {callback}",
+            )
+
+    started = client.post("/api/start-cascade", data=cascade_form())
+    order_id = started.text.split('HC.startStream("')[1].split('"')[0]
+    web.ACTIVE_ORDERS[order_id]["call_client"] = EchoingClient()
+    stream = client.get(f"/api/cascade-stream?order_id={order_id}")
+    assert callback not in stream.text
+
+    saved = client.post("/api/save-result", data={"order_id": order_id})
+    assert saved.status_code == 200
+    assert callback not in json.dumps(list_saved_results())
+    assert callback.encode("utf-8") not in Path(setup_test_db).read_bytes()
+
+
 def test_table_branch_asks_its_own_questions(client):
-    page = client.get("/reserve").text
+    page = client.get("/reserve?lang=en").text
     for field in ("reservation_date", "reservation_time", "party_size", "seating"):
         assert f'name="{field}"' in page
-    # No money anywhere in the table branch.
     assert 'name="max_budget_eur"' not in page
-    # The three concessions, each with its step number.
-    for key in ("indoor_ok", "time_flex", "deposit_ok"):
-        assert f'value="{key}"' in page
+    for field in (
+        "first_name", "last_name", "requester_callback_number", "seating_custom",
+        "special_instructions", "earlier_hours", "later_hours", "earlier_minutes",
+        "later_minutes", "max_booking_fee_eur",
+    ):
+        assert f'name="{field}"' in page
+    assert 'value="custom"' in page
+    assert 'id="earlier_hours" name="earlier_hours"' in page
+    assert 'id="later_hours" name="later_hours"' in page
+    assert 'id="earlier_minutes" name="earlier_minutes" value="0" min="0" max="59"' in page
+    assert 'id="later_minutes" name="later_minutes" value="0" min="0" max="59"' in page
+    assert 'id="seating-custom-field" hidden' in page
+    assert 'id="seating_custom" name="seating_custom"' in page
+    assert 'placeholder="Our usual table under the palm tree, please — thank you." disabled' in page
+    assert 'onchange="HC.onSeatingChange()"' in page
+
+
+def test_history_rerun_splits_the_legacy_combined_name(client):
+    create_order_record(
+        order_id="name-split-order",
+        mode="delivery",
+        customer_name="Ada Lovelace",
+        food_prompt="Pizza",
+        max_budget_eur=25,
+        delivery_address="Example Street 1",
+    )
+    page = client.get("/order?lang=en&history=name-split-order").text
+    assert 'id="first_name" name="first_name" value="Ada"' in page
+    assert 'id="last_name" name="last_name" value="Lovelace"' in page
+    assert 'id="requester_callback_number" name="requester_callback_number" value=""' in page
+
+
+def test_food_order_starts_with_an_editable_position_and_separate_templates(client):
+    page = client.get("/order?lang=en").text
+    assert 'id="order-chain-builder"' in page
+    assert 'id="add-order-position"' in page
+    assert "Order wish chains" in page
+    assert "Templates" in page
+    assert "Name and callback" in page
+    assert "Price range" in page
+    for field in ("first_name", "last_name", "requester_callback_number"):
+        assert f'name="{field}"' in page
+
+
+def test_landing_places_the_fridge_left_of_the_claim_on_desktop_and_stacks_on_mobile(client):
+    page = client.get("/?lang=en").text
+    assert ".fridge-reveal {\n  /* The product comes first on desktop: fridge left, the invitation right. */\n  order: -1;" in page
+    assert ".fridge-reveal { order: 0; width: min(100%, 32rem); justify-self: center; }" in page
 
 
 # --------------------------------------------------------------------------
@@ -325,13 +432,29 @@ def search_form(**overrides):
         "city": "Dorfstadt",
         "radius_km": "3.0",
         "delivery_address": "Dorfstraße 10, 12345 Dorfstadt",
-        "customer_name": "Lukas",
+        "first_name": "Lukas",
+        "last_name": "Test",
+        "requester_callback_number": "+491701234567",
         "food_prompt": "Burger",
         "max_budget_eur": "35.00",
         "scenario": "jury_30s_demo",
     }
     form.update(overrides)
     return form
+
+
+def test_search_requires_a_name_and_callback_number(client):
+    without_name = search_form()
+    without_name.pop("first_name")
+    response = client.post("/api/search", data=without_name)
+    assert response.status_code == 400
+    assert "first_name is required" in response.text
+
+    without_callback = search_form()
+    without_callback.pop("requester_callback_number")
+    response = client.post("/api/search", data=without_callback)
+    assert response.status_code == 400
+    assert "requester_callback_number" in response.text
 
 
 def test_search_ranks_candidates_and_publishes_the_order(client):
@@ -379,7 +502,8 @@ def test_table_search_filters_by_party_size(client):
     form = {
         "branch": "table", "mode": "reservation", "postcode": "12345",
         "city": "Dorfstadt", "radius_km": "3.0",
-        "delivery_address": "Dorfstraße 10", "customer_name": "Lukas",
+        "delivery_address": "Dorfstraße 10", "first_name": "Lukas", "last_name": "Test",
+        "requester_callback_number": "+491701234567",
         "food_prompt": "Italienisch", "reservation_date": "2026-08-07",
         "reservation_time": "19:00", "party_size": "12", "seating": "any",
         "scenario": "table_cascade",
@@ -416,10 +540,11 @@ def test_goal_preview_follows_the_mode(client):
     assert "pickup order" in pickup.lower()
 
 
-def test_goal_preview_carries_concessions_in_order(client):
+def test_goal_preview_ignores_removed_legacy_concessions(client):
     form = {
         "branch": "table", "mode": "reservation", "city": "Dorfstadt",
-        "customer_name": "Lukas", "food_prompt": "Italienisch",
+        "first_name": "Lukas", "last_name": "Test", "requester_callback_number": "+491701234567",
+        "food_prompt": "Italienisch",
         "reservation_date": "2026-08-07", "reservation_time": "19:00",
         "party_size": "4", "seating": "outdoor",
         "candidate_order": "rest_trattoria_luigi",
@@ -427,9 +552,9 @@ def test_goal_preview_carries_concessions_in_order(client):
     }
     goal = client.post("/api/preview-goal", data=form).json()["goal"]
 
-    # Granted out of order, handed over in tier order.
-    assert goal.index("indoor table is acceptable") < goal.index("booking deposit")
-    assert "Never offer a later step before an earlier one has failed" in goal
+    assert "indoor table is acceptable" not in goal
+    assert "booking deposit of up to 15" not in goal
+    assert "Do not accept any booking fee or deposit" in goal
 
 
 def test_goal_preview_refuses_prohibited_content(client):
@@ -578,7 +703,8 @@ def test_table_cascade_books_a_table_and_names_the_seating(client):
     form = {
         "branch": "table", "mode": "reservation", "city": "Dorfstadt",
         "postcode": "12345", "radius_km": "3.0",
-        "delivery_address": "Dorfstraße 10", "customer_name": "Lukas",
+        "delivery_address": "Dorfstraße 10", "first_name": "Lukas", "last_name": "Test",
+        "requester_callback_number": "+491701234567",
         "food_prompt": "Italienisch", "reservation_date": "2026-08-07",
         "reservation_time": "19:00", "party_size": "4", "seating": "outdoor",
         "scenario": "table_cascade",
@@ -593,14 +719,15 @@ def test_table_cascade_books_a_table_and_names_the_seating(client):
     outcome = next(e for e in events if e["type"] == "outcome")
     assert "Gasthaus Zur Linde" in outcome["html"]
     assert "Draußen" in outcome["html"]
-    assert "€" not in outcome["html"]  # no money in the table branch
+    assert "0.00 €" in outcome["html"]  # explicit: no booking fee was spent
 
 
-def test_table_cascade_refuses_a_concession_that_was_not_granted(client):
+def test_table_cascade_cannot_be_reopened_by_a_legacy_concession(client):
     base = {
         "branch": "table", "mode": "reservation", "city": "Dorfstadt",
         "postcode": "12345", "radius_km": "3.0",
-        "delivery_address": "Dorfstraße 10", "customer_name": "Lukas",
+        "delivery_address": "Dorfstraße 10", "first_name": "Lukas", "last_name": "Test",
+        "requester_callback_number": "+491701234567",
         "food_prompt": "Italienisch", "reservation_date": "2026-08-07",
         "reservation_time": "19:00", "party_size": "4", "seating": "outdoor",
         "scenario": "table_concession_cascade",
@@ -611,16 +738,12 @@ def test_table_cascade_refuses_a_concession_that_was_not_granted(client):
     without, _ = run_cascade(client, dict(base))
     assert not [e for e in without if e["type"] == "accepted"]
     reasons = " ".join(e["reason"] for e in without if e["type"] == "rejected")
-    assert "not authorised" in reasons
+    assert "outdoor was requested" in reasons
 
     granted = dict(base)
     granted["concessions"] = ["indoor_ok"]
     with_grant, _ = run_cascade(client, granted)
-    accepted = [e for e in with_grant if e["type"] == "accepted"]
-    assert accepted and accepted[0]["id"] == "rest_gasthaus_linde"
-
-    outcome = next(e for e in with_grant if e["type"] == "outcome")
-    assert "Zugeständnis eingelöst" in outcome["html"]
+    assert not [e for e in with_grant if e["type"] == "accepted"]
 
 
 # --------------------------------------------------------------------------
@@ -632,7 +755,8 @@ def test_saved_result_keeps_the_mode_that_actually_happened(client):
     form = {
         "branch": "table", "mode": "reservation", "city": "Dorfstadt",
         "postcode": "12345", "radius_km": "3.0",
-        "delivery_address": "Dorfstraße 10", "customer_name": "Lukas",
+        "delivery_address": "Dorfstraße 10", "first_name": "Lukas", "last_name": "Test",
+        "requester_callback_number": "+491701234567",
         "food_prompt": "Italienisch", "reservation_date": "2026-08-07",
         "reservation_time": "19:00", "party_size": "4", "seating": "any",
         "scenario": "table_cascade",

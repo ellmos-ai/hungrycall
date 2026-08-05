@@ -245,6 +245,8 @@ main { flex: 1; width: 100%; max-width: 1180px; margin: 0 auto; padding: 2rem 1.
 .hero .muted { margin-top: 0.9rem; }
 
 .fridge-reveal {
+  /* The product comes first on desktop: fridge left, the invitation right. */
+  order: -1;
   margin: 0;
   min-width: 0;
   overflow: hidden;
@@ -305,7 +307,7 @@ main { flex: 1; width: 100%; max-width: 1180px; margin: 0 auto; padding: 2rem 1.
 }
 @media (max-width: 820px) {
   .fridge-hero { grid-template-columns: 1fr; }
-  .fridge-reveal { width: min(100%, 32rem); justify-self: center; }
+  .fridge-reveal { order: 0; width: min(100%, 32rem); justify-self: center; }
 }
 
 .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
@@ -801,6 +803,7 @@ def render_branch_page(
     tags: Optional[List[str]] = None,
     order_templates: Optional[List[Dict[str, Any]]] = None,
     defaults: Optional[Dict[str, Any]] = None,
+    test_mode_active: bool = False,
 ) -> str:
     """Step 1 of a branch: where you are, plus the branch's own questions."""
     is_food = branch is Branch.FOOD
@@ -848,20 +851,20 @@ def render_branch_page(
             <input type="text" id="delivery_address" name="delivery_address"
                    value="{esc(address_value)}" required>
           </div>
-          <div class="field wide">
+          {f'''<div class="field wide" id="scenario-field">
             <label for="scenario">{esc(t("form.scenario", lang))}</label>
             <select id="scenario" name="scenario">{_scenario_options(scenarios, default_scenario)}</select>
             <span class="help">{esc(t("form.scenario.help", lang))}</span>
-          </div>
+          </div>''' if test_mode_active else ''}
         </div>
 
         {detail}
 
-        {render_transport_controls(lang)}
+        {render_transport_controls(lang, test_mode_active)}
 
         <div class="btn-row" style="margin-top:1.1rem;">
           <button type="submit" class="btn">{esc(t("form.search", lang))}</button>
-          <span class="small muted" id="transport-note">{esc(t("safety.mode.dry.explain", lang))}</span>
+          <span class="small muted" id="transport-note">{esc(t("transport.default", lang))}</span>
         </div>
       </form>
 
@@ -889,8 +892,7 @@ HC.text = {json.dumps({
     "addressPickup": t("form.address.pickup", lang),
     "canceled": t("cascade.canceled", lang),
     "rejected": t("cascade.rejected", lang),
-    "dryMode": t("safety.mode.dry", lang),
-    "dryExplain": t("safety.mode.dry.explain", lang),
+    "defaultTransport": t("transport.default", lang),
     "liveMode": t("safety.mode.live", lang),
     "liveWarning": t("safety.live.warning", lang),
     "position": t("order.position", lang),
@@ -947,6 +949,11 @@ def render_food_fields(
     initial_json = order_chain_json(chain)
     food_prompt = chain.summary()
     customer_name = defaults.get("customer_name") or "Lukas"
+    stored_name_parts = customer_name.split(maxsplit=1)
+    first_name = defaults.get("first_name") or stored_name_parts[0]
+    last_name = defaults.get("last_name") or (
+        stored_name_parts[1] if len(stored_name_parts) > 1 else ""
+    )
     max_budget = defaults.get("max_budget_eur") or 35.0
     pickup_time = defaults.get("pickup_time") or "19:30"
 
@@ -978,9 +985,10 @@ def render_food_fields(
 <datalist id="saved-tags">{tag_options}</datalist>
 <div id="order-chain-builder" class="order-chain" aria-live="polite"></div>
 <div class="btn-row order-actions">
-  <button type="button" class="mini" onclick="HC.addPosition()">＋ {esc(t("order.add.position", lang))}</button>
+  <button type="button" class="mini" id="add-order-position" onclick="HC.addPosition()">＋ {esc(t("order.add.position", lang))}</button>
 </div>
 
+<h4 class="eyebrow" style="margin-top:1.15rem;">{esc(t("order.template.section", lang))}</h4>
 <div class="template-bar">
   <div class="field">
     <label for="order-template-select">{esc(t("order.template.load", lang))}</label>
@@ -1047,11 +1055,27 @@ def render_food_fields(
   </div>
 </dialog>
 
-<div class="grid3" style="margin-top:1rem;">
+<hr class="hr" style="margin:1.2rem 0;">
+<h3 class="eyebrow">{esc(t("form.contact.title", lang))}</h3>
+<div class="grid3" style="margin-top:0.6rem;">
   <div class="field">
-    <label for="customer_name">{esc(t("form.name", lang))}</label>
-    <input type="text" id="customer_name" name="customer_name" value="{esc(customer_name)}" required>
+    <label for="first_name">{esc(t("form.first_name", lang))}</label>
+    <input type="text" id="first_name" name="first_name" value="{esc(first_name)}" autocomplete="given-name" required>
   </div>
+  <div class="field">
+    <label for="last_name">{esc(t("form.last_name", lang))}</label>
+    <input type="text" id="last_name" name="last_name" value="{esc(last_name)}" autocomplete="family-name" required>
+  </div>
+  <div class="field">
+    <label for="requester_callback_number">{esc(t("form.callback_number", lang))}</label>
+    <input type="tel" id="requester_callback_number" name="requester_callback_number" value="{esc(defaults.get("requester_callback_number") or "")}" autocomplete="tel" required>
+    <span class="help">{esc(t("form.callback_number.help", lang))}</span>
+  </div>
+</div>
+
+<hr class="hr" style="margin:1.2rem 0;">
+<h3 class="eyebrow">{esc(t("food.price_range.title", lang))}</h3>
+<div class="grid3" style="margin-top:0.6rem;">
   <div class="field">
     <label for="max_budget_eur" id="budget-label">{esc(t("food.budget.delivery", lang))}</label>
     <input type="number" id="max_budget_eur" name="max_budget_eur" value="{esc(max_budget)}" step="0.50" min="1" required>
@@ -1084,16 +1108,7 @@ TABLE_CONCESSIONS: List[Concession] = [
 
 
 def render_table_fields(lang: str) -> str:
-    """The table branch asks about time, people and seating. No price anywhere."""
-    checks = ""
-    for concession in TABLE_CONCESSIONS:
-        checks += f"""
-    <label class="check">
-      <input type="checkbox" name="concessions" value="{concession.key}">
-      <span>{esc(t("table.concession." + concession.key, lang))}
-        <span class="tier">{esc(t("table.concession.order", lang, order=concession.tier))}</span>
-      </span>
-    </label>"""
+    """The table branch asks for the desired table and concrete fallbacks."""
 
     return f"""
 <hr class="hr" style="margin:1.2rem 0;">
@@ -1115,16 +1130,17 @@ def render_table_fields(lang: str) -> str:
   </div>
   <div class="field">
     <label for="seating">{esc(t("table.seating", lang))}</label>
-    <select id="seating" name="seating">
+    <select id="seating" name="seating" onchange="HC.onSeatingChange()">
       <option value="any" selected>{esc(t("table.seating.any", lang))}</option>
       <option value="indoor">{esc(t("table.seating.indoor", lang))}</option>
       <option value="outdoor">{esc(t("table.seating.outdoor", lang))}</option>
+      <option value="custom">{esc(t("table.seating.custom", lang))}</option>
     </select>
     <span class="help">{esc(t("table.seating.help", lang))}</span>
   </div>
-  <div class="field">
-    <label for="customer_name">{esc(t("form.name", lang))}</label>
-    <input type="text" id="customer_name" name="customer_name" value="Lukas" required>
+  <div class="field" id="seating-custom-field" hidden>
+    <label for="seating_custom">{esc(t("table.seating.custom.input", lang))}</label>
+    <input type="text" id="seating_custom" name="seating_custom" placeholder="{esc(t("table.seating.custom.placeholder", lang))}" disabled>
   </div>
   <div class="field">
     <label for="food_prompt">{esc(t("table.wish", lang))}</label>
@@ -1133,32 +1149,71 @@ def render_table_fields(lang: str) -> str:
   </div>
 </div>
 
+<h3 class="eyebrow" style="margin-top:1.2rem;">{esc(t("form.contact.title", lang))}</h3>
+<div class="grid3" style="margin-top:0.6rem;">
+  <div class="field">
+    <label for="first_name">{esc(t("form.first_name", lang))}</label>
+    <input type="text" id="first_name" name="first_name" value="Lukas" autocomplete="given-name" required>
+  </div>
+  <div class="field">
+    <label for="last_name">{esc(t("form.last_name", lang))}</label>
+    <input type="text" id="last_name" name="last_name" autocomplete="family-name" required>
+  </div>
+  <div class="field">
+    <label for="requester_callback_number">{esc(t("form.callback_number", lang))}</label>
+    <input type="tel" id="requester_callback_number" name="requester_callback_number" autocomplete="tel" required>
+    <span class="help">{esc(t("form.callback_number.help", lang))}</span>
+  </div>
+  <div class="field wide">
+    <label for="special_instructions">{esc(t("table.special_instructions", lang))}</label>
+    <input type="text" id="special_instructions" name="special_instructions" placeholder="{esc(t("table.special_instructions.placeholder", lang))}">
+  </div>
+</div>
+
 <hr class="hr" style="margin:1.2rem 0;">
 <h3 class="eyebrow">{esc(t("table.concessions.title", lang))}</h3>
 <p class="help" style="margin:0.5rem 0 0.8rem;max-width:72ch;">{esc(t("table.concessions.help", lang))}</p>
-<div class="checks">{checks}</div>
+<div class="grid3">
+  <div class="field">
+    <label for="earlier_hours">{esc(t("table.concession.earlier_hours", lang))}</label>
+    <select id="earlier_hours" name="earlier_hours">
+      <option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="later_hours">{esc(t("table.concession.later_hours", lang))}</label>
+    <select id="later_hours" name="later_hours">
+      <option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="max_booking_fee_eur">{esc(t("table.concession.booking_fee", lang))}</label>
+    <input type="number" id="max_booking_fee_eur" name="max_booking_fee_eur" value="0" min="0" step="0.50">
+  </div>
+  <div class="field">
+    <label for="earlier_minutes">{esc(t("table.concession.earlier_minutes", lang))}</label>
+    <input type="number" id="earlier_minutes" name="earlier_minutes" value="0" min="0" max="59" step="1">
+  </div>
+  <div class="field">
+    <label for="later_minutes">{esc(t("table.concession.later_minutes", lang))}</label>
+    <input type="number" id="later_minutes" name="later_minutes" value="0" min="0" max="59" step="1">
+  </div>
+</div>
 """
 
 
-def render_transport_controls(lang: str) -> str:
-    """A real transport choice with a second, explicit live confirmation."""
+def render_transport_controls(lang: str, test_mode_active: bool = False) -> str:
+    """Keep safe simulation implicit; expose only the explicitly gated live path."""
+    if test_mode_active:
+        return '<input type="hidden" id="transport-default" name="transport" value="dry_run">'
     return f"""
 <hr class="hr" style="margin:1.2rem 0;">
 <h3 class="eyebrow">{esc(t("transport.title", lang))}</h3>
-<div class="switch transport-switch">
-  <input type="radio" id="transport-dry" name="transport" value="dry_run" checked
-         onchange="HC.onTransportChange()">
-  <label for="transport-dry">
-    <span class="t">{esc(t("safety.mode.dry", lang))}</span>
-    <span class="n">{esc(t("safety.mode.dry.explain", lang))}</span>
-  </label>
-  <input type="radio" id="transport-live" name="transport" value="live"
-         onchange="HC.onTransportChange()">
-  <label for="transport-live">
-    <span class="t">{esc(t("safety.mode.live", lang))}</span>
-    <span class="n"><strong>{esc(t("safety.live.warning", lang))}</strong> · {esc(t("safety.live.balance", lang))}</span>
-  </label>
-</div>
+<input type="hidden" id="transport-default" name="transport" value="dry_run">
+<label class="check live-opt-in" for="transport-live">
+  <input type="checkbox" id="transport-live" name="transport" value="live" onchange="HC.onTransportChange()">
+  <span><strong>{esc(t("safety.live.warning", lang))}</strong><br><span class="small">{esc(t("safety.live.balance", lang))}</span></span>
+</label>
 <div class="live-confirm" id="live-confirm-panel" hidden style="margin-top:0.7rem;">
   <strong>{esc(t("safety.live.warning", lang))}</strong>
   <p class="small">{esc(t("safety.live.confirm.help", lang))}</p>
@@ -1411,6 +1466,11 @@ def render_cascade_monitor(
         ", ".join(t("table.concession." + k, lang) for k in concession_keys)
         if concession_keys else t("cascade.band.concessions.none", lang)
     )
+    concession_band = "" if mode is Mode.RESERVATION else f"""
+  <div class="band">
+    <span class="k">{esc(t("cascade.band.concessions", lang))}</span>
+    <span class="v">{esc(concession_text)}</span>
+  </div>"""
     live_banner = (
         f'<div class="live-confirm"><strong>{esc(t("safety.live.warning", lang))}</strong></div>'
         if live_mode else ""
@@ -1423,10 +1483,7 @@ def render_cascade_monitor(
     <span class="k">{esc(band_key)}</span>
     <span class="v">{esc(band_value)}</span>
   </div>
-  <div class="band">
-    <span class="k">{esc(t("cascade.band.concessions", lang))}</span>
-    <span class="v">{esc(concession_text)}</span>
-  </div>
+  {concession_band}
 
   <div class="panel-head" style="padding-bottom:0.5rem;">
     <h3>{esc(t("cascade.running", lang))}</h3>
@@ -1561,6 +1618,9 @@ def render_result_card(
         seating = structured.get("seating_confirmed")
         if seating:
             facts.append((t("result.seating", lang), t(f"table.seating.{seating}", lang)))
+        booking_fee = structured.get("booking_fee_eur")
+        if booking_fee is not None:
+            facts.append((t("result.booking_fee", lang), f'{float(booking_fee):.2f} €'))
 
     facts_html = "".join(
         f'<div class="fact"><div class="k">{esc(k)}</div><div class="v">{esc(v)}</div></div>'
@@ -1575,6 +1635,16 @@ def render_result_card(
     {esc(t("table.concession." + concession_used, lang))}<br>
     <span class="small">{esc(t("result.concession.note", lang))}</span>
   </div>"""
+    authority_steps = structured.get("authority_steps_applied") or []
+    authority_html = ""
+    if mode is Mode.RESERVATION and authority_steps:
+        labels = ", ".join(
+            t("table.authority.step." + step, lang) for step in authority_steps
+        )
+        authority_html = f"""
+  <div class="notice">
+    <strong>{esc(t("result.authority.used", lang))}:</strong> {esc(labels)}
+  </div>"""
     tag_summary = render_tag_summary(lang, chain_evaluation if order_chain else None)
 
     return f"""
@@ -1588,6 +1658,7 @@ def render_result_card(
   <div class="facts">{facts_html}</div>
   {tag_summary}
   {concession_html}
+  {authority_html}
 
   <div class="callback">
     <span>

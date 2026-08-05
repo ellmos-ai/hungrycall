@@ -149,6 +149,7 @@ def test_live_rest_payload_polls_and_masks_phone_numbers():
         food_prompt="Burger",
         max_budget_eur=35,
         delivery_address="Teststraße 1",
+        requester_callback_number="+4917612345678",
     )
     with patch.object(client, "_request", side_effect=fake_request):
         result = client.execute_candidate_call(restaurant, request, "stable-key")
