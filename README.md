@@ -282,7 +282,7 @@ Then open `http://127.0.0.1:8000`.
 ### Installation
 ```bash
 # Clone the repository
-git clone https://github.com/lukisch/hungrycall.git
+git clone https://github.com/ellmos-ai/hungrycall.git
 cd hungrycall
 
 # Install in editable mode
