@@ -315,7 +315,7 @@ hungrycall demo
 
 ### 1. Delivery Mode (Dry-Run Scenario with Custom Address & Prompt)
 ```bash
-hungrycall delivery --food "2x Döner Kebab" --address "Dorfstrasse 1, 16321 Bernau" --budget 30.0 --scenario success_direct
+hungrycall delivery --food "2x Döner Kebab" --address "Dorfstrasse 1, 12345 Dorfstadt" --budget 30.0 --scenario success_direct
 ```
 
 ### 2. Table Reservation Mode

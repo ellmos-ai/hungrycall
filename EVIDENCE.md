@@ -1,5 +1,9 @@
 # EVIDENCE.md — HungryCall Execution Log
 
+> Redaction note: the test address used in the recorded dry-run inputs has been replaced
+> by the fictitious `Dorfstrasse 1, 12345 Dorfstadt` for privacy. Commands and outputs are
+> otherwise verbatim.
+
 ## User-feedback implementation — 2026-08-05
 
 - Implemented the visible initial food row and reliable Add flow; split name/callback and price sections; one visible Test mode with a conditional scenario selector; and configurable table, note, time-window and booking-fee authority.
@@ -127,9 +131,9 @@ tests/test_schemas.py::test_get_result_schema_types PASSED               [100%]
 
 ---
 
-### Command 3: Dynamic Input Verification in CLI Dry-Run (`Dorfstrasse 1, 16321 Bernau`)
+### Command 3: Dynamic Input Verification in CLI Dry-Run (`Dorfstrasse 1, 12345 Dorfstadt`)
 ```powershell
-python -m hungrycall.cli delivery --food "2x Döner Kebab" --address "Dorfstrasse 1, 16321 Bernau" --budget 30.0 --customer-name "Lukas" --scenario success_direct
+python -m hungrycall.cli delivery --food "2x Döner Kebab" --address "Dorfstrasse 1, 12345 Dorfstadt" --budget 30.0 --customer-name "Lukas" --scenario success_direct
 ```
 
 **Literal Output**:
@@ -156,8 +160,8 @@ Attempt History & Activity Stream:
       * 17:37:05.100 | Bot initialized.
       * 17:37:44.200 | Call is ringing (~40s setup latency).
       * 17:37:49.500 | Call connected.
-      * 17:37:50.700 | Bot is speaking: Hello, I am an automated assistant calling on behalf of Lukas. Do you deliver to Dorfstrasse 1, 16321 Bernau?
-      * 17:37:52.200 | Callee said: Ja, wir liefern nach Dorfstrasse 1, 16321 Bernau.
+      * 17:37:50.700 | Bot is speaking: Hello, I am an automated assistant calling on behalf of Lukas. Do you deliver to Dorfstrasse 1, 12345 Dorfstadt?
+      * 17:37:52.200 | Callee said: Ja, wir liefern nach Dorfstrasse 1, 12345 Dorfstadt.
       * 17:38:15.800 | Bot is speaking: Great! What is the exact total price including delivery fee for 2x Döner Kebab?
       * 17:38:21.300 | Callee said: 28.50 Euro.
       * 17:38:40.100 | Call ended; syncing final Calling result.
@@ -167,8 +171,8 @@ RESULT: SUCCESS
 SUMMARY: Ordered from Burger House Dorfstadt: delivers in 35 minutes, items '2x Döner Kebab', total 28.50 EUR. Callback at +491 ••• ••••111.
 
 Verification Transcript (Order Proof):
-  [00:05] BOT: Hello, I am an automated assistant calling on behalf of Lukas. Do you deliver to Dorfstrasse 1, 16321 Bernau?
-  [00:10] USER: Yes, we deliver to Dorfstrasse 1, 16321 Bernau.
+  [00:05] BOT: Hello, I am an automated assistant calling on behalf of Lukas. Do you deliver to Dorfstrasse 1, 12345 Dorfstadt?
+  [00:10] USER: Yes, we deliver to Dorfstrasse 1, 12345 Dorfstadt.
   [00:15] BOT: Great! What is the exact total price including delivery fee for 2x Döner Kebab?
   [00:22] USER: The total end price at your door is exactly 28 Euros and 50 Cents.
   [00:28] BOT: Perfect, that is within our 30.00 Euro limit. Please place the order. How long will it take?
@@ -391,7 +395,7 @@ Attempt History & Activity Stream:
       * 17:39:15.100 | Bot initialized.
       * 17:39:54.200 | Call ringing (~40s setup latency).
       * 17:39:59.500 | Call connected.
-      * 17:40:00.700 | Bot is speaking: Hello, calling on behalf of Lukas. Do you deliver to Dorfstrasse 1, 16321 Bernau?
+      * 17:40:00.700 | Bot is speaking: Hello, calling on behalf of Lukas. Do you deliver to Dorfstrasse 1, 12345 Dorfstadt?
       * 17:40:02.200 | Callee said: Ja, 28.50 Euro.
       * 17:40:20.100 | Call ended; syncing final Calling result.
 
@@ -400,8 +404,8 @@ RESULT: SUCCESS
 SUMMARY: Ordered from Asia Wok Express: delivers in 35 minutes, items '2x Döner Kebab & Drinks', total 28.50 EUR. Callback at +491 ••• ••••333.
 
 Verification Transcript (Order Proof):
-  [00:05] BOT: Hello, calling on behalf of Lukas. Do you deliver to Dorfstrasse 1, 16321 Bernau?
-  [00:10] USER: Yes, we deliver to Dorfstrasse 1, 16321 Bernau.
+  [00:05] BOT: Hello, calling on behalf of Lukas. Do you deliver to Dorfstrasse 1, 12345 Dorfstadt?
+  [00:10] USER: Yes, we deliver to Dorfstrasse 1, 12345 Dorfstadt.
   [00:15] BOT: What is the exact total price for 2x Döner Kebab & Drinks?
   [00:22] USER: The exact total price at your door is 28.50 Euros.
   [00:28] BOT: 28.50 EUR is within our 35.00 EUR limit. Please confirm the order.
