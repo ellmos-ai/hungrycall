@@ -52,29 +52,20 @@ def test_cli_budget_exceeded_scenario(capsys):
     assert "RESULT: SUCCESS" in captured.out
 
 
-def test_cli_reservation_accepts_seating_and_concessions(capsys):
-    """The table branch's own criteria are reachable from the CLI too.
-
-    Without the grant the same fixture is refused; with it, it goes through.
-    """
-    refused = main([
-        "reservation", "--food", "Italian", "--date", "2026-08-07",
-        "--time", "19:00", "--party", "4", "--seating", "outdoor",
-        "--scenario", "table_concession_cascade",
-    ])
-    assert refused == 1
-    assert "not authorised" in capsys.readouterr().out
-
+def test_cli_reservation_accepts_custom_table_and_bounded_authority(capsys):
+    """The new table criteria are reachable from the CLI too."""
     granted = main([
         "reservation", "--food", "Italian", "--date", "2026-08-07",
-        "--time", "19:00", "--party", "4", "--seating", "outdoor",
-        "--concession", "indoor_ok",
-        "--scenario", "table_concession_cascade",
+        "--time", "19:00", "--party", "4", "--seating", "custom",
+        "--seating-custom", "our table under the palm",
+        "--earlier-hours", "1", "--later-minutes", "30",
+        "--max-booking-fee-eur", "3", "--note", "birthday dinner",
+        "--scenario", "reservation_cascade",
     ])
     assert granted == 0
     out = capsys.readouterr().out
     assert "RESULT: SUCCESS" in out
-    assert "Gasthaus Zur Linde" in out
+    assert "Trattoria Bella Luigi" in out
 
 
 def test_cli_reservation(capsys):
@@ -116,6 +107,20 @@ def test_cli_live_without_confirm_fails(capsys):
     assert "ERROR: Live execution requires explicit confirmation" in captured.err
 
 
+def test_cli_confirmed_live_requires_human_callback_before_credentials(capsys):
+    ret = main([
+        "delivery",
+        "--food", "Burger",
+        "--address", "Hauptstraße 12",
+        "--budget", "35.0",
+        "--live",
+        "--confirm-live",
+    ])
+    assert ret == 2
+    captured = capsys.readouterr()
+    assert "requires --requester-callback-number" in captured.err
+
+
 def test_cli_demo_subcommand(capsys):
     ret = main(["demo"])
     assert ret == 0
@@ -129,4 +134,3 @@ def test_cli_demo_subcommand(capsys):
     assert "RESULT: SUCCESS" in captured.out
     assert "Ordered from Asia Wok Express" in captured.out
     assert "Verification Transcript (Order Proof):" in captured.out
-

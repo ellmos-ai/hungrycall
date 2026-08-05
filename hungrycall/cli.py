@@ -2,11 +2,11 @@
 
 import argparse
 import json
+import math
 import sys
 from typing import List, Optional
 
 from hungrycall.models import Mode, Seating, UserRequest
-from hungrycall.templates import TABLE_CONCESSIONS
 from hungrycall.fixtures import SAMPLE_RESTAURANTS, SCENARIO_FIXTURES
 from hungrycall.geo import weekday_key
 from hungrycall.call_client import (
@@ -17,7 +17,7 @@ from hungrycall.call_client import (
     probe_calle_connection,
 )
 from hungrycall.engine import CascadeEngine
-from hungrycall.phone_utils import mask_phone
+from hungrycall.phone_utils import mask_phone, normalize_e164, validate_e164
 from hungrycall.safety import SafetyError, SINGAPORE_ENDPOINT_NOTICE
 
 
@@ -28,6 +28,10 @@ def build_parser() -> argparse.ArgumentParser:
     common_parser.add_argument("--confirm-live", action="store_true", help="Explicit user confirmation required for live execution")
     common_parser.add_argument("--env-file", help="External CALL-E .env path (default: operator credential path)")
     common_parser.add_argument("--json-output", action="store_true", help="Print output in JSON format")
+    common_parser.add_argument(
+        "--requester-callback-number",
+        help="Human callback number in E.164 format; mandatory for live calls",
+    )
 
     parser = argparse.ArgumentParser(
         prog="hungrycall",
@@ -53,11 +57,13 @@ def build_parser() -> argparse.ArgumentParser:
     res_parser.add_argument("--party", type=int, required=True, help="Number of guests")
     res_parser.add_argument("--customer-name", default="Alex", help="Name under which to reserve")
     res_parser.add_argument("--seating", default="any", choices=[s.value for s in Seating], help="Where you want to sit")
-    res_parser.add_argument(
-        "--concession", action="append", default=[], choices=[c.key for c in TABLE_CONCESSIONS],
-        help="Authorise a fallback the agent may play, but only after the plain attempt failed. "
-             "Repeatable; the tier order decides which is played first."
-    )
+    res_parser.add_argument("--seating-custom", help="Specific table request; requires --seating custom")
+    res_parser.add_argument("--note", help="Additional restaurant note")
+    res_parser.add_argument("--earlier-hours", type=int, choices=range(4), default=0)
+    res_parser.add_argument("--later-hours", type=int, choices=range(4), default=0)
+    res_parser.add_argument("--earlier-minutes", type=int, choices=range(60), default=0)
+    res_parser.add_argument("--later-minutes", type=int, choices=range(60), default=0)
+    res_parser.add_argument("--max-booking-fee-eur", type=float, default=0.0)
     res_parser.add_argument("--scenario", default="reservation_cascade", choices=list(SCENARIO_FIXTURES.keys()), help="Dry-run scenario preset")
 
     # Pickup subcommand
@@ -108,10 +114,26 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("Confirmed: no POST /v1/calls was sent.")
         return 0 if result.authenticated else 4
 
+    callback_number = ""
+    if args.requester_callback_number:
+        callback_number = normalize_e164(args.requester_callback_number)
+        if not validate_e164(callback_number):
+            print(
+                "ERROR: --requester-callback-number must be a valid E.164 phone number.",
+                file=sys.stderr,
+            )
+            return 2
+
     # Safety live check
     if args.live:
         if not args.confirm_live:
             print("ERROR: Live execution requires explicit confirmation via --confirm-live flag.", file=sys.stderr)
+            return 2
+        if not callback_number:
+            print(
+                "ERROR: Live execution requires --requester-callback-number so the restaurant can contact a human.",
+                file=sys.stderr,
+            )
             return 2
         print("WARNING: Echte Anrufe — kostet Geld / Real calls — cost money.", file=sys.stderr)
         try:
@@ -135,7 +157,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             customer_name=getattr(args, "customer_name", "Alex"),
             food_prompt="2x Döner Kebab & Drinks",
             max_budget_eur=35.0,
-            delivery_address="Dorfstrasse 1, 16321 Bernau"
+            delivery_address="Dorfstrasse 1, 16321 Bernau",
+            requester_callback_number=callback_number or None,
         )
     elif args.subcommand == "delivery":
         req = UserRequest(
@@ -143,9 +166,19 @@ def main(argv: Optional[List[str]] = None) -> int:
             customer_name=args.customer_name,
             food_prompt=args.food,
             max_budget_eur=args.budget,
-            delivery_address=args.address
+            delivery_address=args.address,
+            requester_callback_number=callback_number or None,
         )
     elif args.subcommand == "reservation":
+        if args.seating == "custom" and not (args.seating_custom or "").strip():
+            print("ERROR: --seating custom requires --seating-custom.", file=sys.stderr)
+            return 2
+        if args.seating != "custom" and args.seating_custom:
+            print("ERROR: --seating-custom requires --seating custom.", file=sys.stderr)
+            return 2
+        if not math.isfinite(args.max_booking_fee_eur) or args.max_booking_fee_eur < 0:
+            print("ERROR: --max-booking-fee-eur must be a finite non-negative amount.", file=sys.stderr)
+            return 2
         req = UserRequest(
             mode=Mode.RESERVATION,
             customer_name=args.customer_name,
@@ -154,8 +187,15 @@ def main(argv: Optional[List[str]] = None) -> int:
             reservation_time=args.time,
             party_size=args.party,
             seating=Seating(args.seating),
-            concessions=[c for c in TABLE_CONCESSIONS if c.key in args.concession],
+            seating_custom=(args.seating_custom or "").strip() or None,
+            special_instructions=(args.note or "").strip() or None,
+            earlier_hours=args.earlier_hours,
+            later_hours=args.later_hours,
+            earlier_minutes=args.earlier_minutes,
+            later_minutes=args.later_minutes,
+            max_booking_fee_eur=args.max_booking_fee_eur,
             day_of_week=weekday_key(args.date),
+            requester_callback_number=callback_number or None,
         )
     elif args.subcommand == "pickup":
         req = UserRequest(
@@ -163,7 +203,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             customer_name=args.customer_name,
             food_prompt=args.food,
             max_budget_eur=args.budget,
-            pickup_time=args.pickup_time
+            pickup_time=args.pickup_time,
+            requester_callback_number=callback_number or None,
         )
     else:
         print(f"Unknown subcommand {args.subcommand}", file=sys.stderr)

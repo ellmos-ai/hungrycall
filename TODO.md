@@ -1,5 +1,15 @@
 # TODO.md — HungryCall Backflow & Task Backlog
 
+## Completed user-feedback integration (2026-08-05)
+
+- [x] Food editor starts with a visible row; Add appends and focuses another item.
+- [x] Clear template, food, name/callback and price sections with split first/last name.
+- [x] Required transient E.164 requester callback number reaches live goals but not local persistence.
+- [x] One visible Test mode; its scenario selector appears only while active and Live is unavailable then.
+- [x] Custom seating and note plus additive earlier/later hours and minutes and a booking-fee cap.
+- [x] Server rejects reservation outcomes outside the expressly granted time/fee authority.
+- [x] Landing-page refrigerator appears left of the heading on desktop.
+
 > **Video-Backflow Strategy (Learnings 2026-08-02)**: Erfundene Details aus dem Videoentwurf wurden im Abgleich gegen die Software evaluiert. Wo das Video die bessere Benutzeroberfläche und Benutzerführung zeigte, wurden die Features nicht aus dem Video gestrichen, sondern direkt in die Software übernommen ("Option 3: Stimmt nicht, ist aber besser -> wird gebaut").
 
 ## Completed Video Backflow Features (2026-08-02)

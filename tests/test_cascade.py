@@ -1,6 +1,6 @@
 """Integration tests for sequential cascade execution across modes."""
 
-from hungrycall.models import Concession, Mode, Seating, UserRequest
+from hungrycall.models import Mode, Seating, UserRequest
 from hungrycall.fixtures import SAMPLE_RESTAURANTS
 from hungrycall.call_client import DryRunCallClient
 from hungrycall.engine import CascadeEngine, build_call_goal
@@ -73,15 +73,8 @@ def test_pickup_cascade():
     assert "22.00 EUR" in summary.message
 
 
-DEPOSIT_CONCESSION = Concession(
-    key="tier_2_concession_fee",
-    label="a booking deposit of up to 15 EUR is acceptable",
-    tier=2,
-)
-
-
-def build_reservation_request(concessions=None, seating=Seating.ANY):
-    return UserRequest(
+def build_reservation_request(seating=Seating.ANY, **overrides):
+    values = dict(
         mode=Mode.RESERVATION,
         customer_name="Alex",
         food_prompt="Italian",
@@ -89,13 +82,15 @@ def build_reservation_request(concessions=None, seating=Seating.ANY):
         reservation_time="19:00",
         party_size=4,
         seating=seating,
-        concessions=concessions or [],
+        requester_callback_number="+4910004069000",
     )
+    values.update(overrides)
+    return UserRequest(**values)
 
 
 def test_tiered_concessions_cascade():
-    """A concession the user granted may be played, and is reported as used."""
-    req = build_reservation_request(concessions=[DEPOSIT_CONCESSION])
+    """A booking fee is accepted only inside the explicit new fee cap."""
+    req = build_reservation_request(max_booking_fee_eur=15)
 
     client = DryRunCallClient(scenario_name="tiered_concessions_cascade")
     engine = CascadeEngine(candidate_pool=SAMPLE_RESTAURANTS, call_client=client)
@@ -104,10 +99,8 @@ def test_tiered_concessions_cascade():
 
     assert summary.success is True
     assert summary.successful_restaurant.id == "rest_trattoria_luigi"
-    assert summary.concession_used == "tier_2_concession_fee"
-    assert summary.attempts[-1].concession_used == "tier_2_concession_fee"
     assert "Table reserved at Trattoria Bella Luigi" in summary.message
-    assert "via Tier 2" in summary.final_result.post_summary
+    assert "authorised 15 EUR" in summary.final_result.post_summary
 
 
 def test_unauthorised_concession_is_rejected():
@@ -117,7 +110,7 @@ def test_unauthorised_concession_is_rejected():
     hint: an agent that bought the table with money we never offered has
     exceeded its mandate, and the yes it brought back is not accepted.
     """
-    req = build_reservation_request(concessions=[])
+    req = build_reservation_request(max_booking_fee_eur=0)
 
     client = DryRunCallClient(scenario_name="tiered_concessions_cascade")
     engine = CascadeEngine(candidate_pool=SAMPLE_RESTAURANTS, call_client=client)
@@ -127,24 +120,23 @@ def test_unauthorised_concession_is_rejected():
     assert summary.success is False
     luigi = [a for a in summary.attempts if a.restaurant.id == "rest_trattoria_luigi"]
     assert luigi, "Trattoria should have been called"
-    assert "not authorised" in luigi[0].rejection_reason
+    assert "exceeds the authorised maximum" in luigi[0].rejection_reason
     assert luigi[0].concession_used is None
 
 
 def test_goal_text_orders_concessions_and_forbids_bundling():
-    """The goal text must hand over the order, not just the list."""
+    """The new reservation ladder is precise and supersedes legacy grants."""
     req = build_reservation_request(
-        concessions=[
-            Concession(key="indoor_ok", label="an indoor table is acceptable", tier=1),
-            DEPOSIT_CONCESSION,
-        ]
+        earlier_hours=1,
+        later_minutes=30,
+        max_booking_fee_eur=3,
     )
     goal = build_call_goal(SAMPLE_RESTAURANTS[1], req)
 
-    assert goal.index("Step 1: ") < goal.index("Step 2: ")
-    assert "an indoor table is acceptable" in goal
-    assert "Never offer a later step before an earlier one has failed" in goal
-    assert "'indoor_ok', 'tier_2_concession_fee'" in goal
+    assert goal.index("exact stated time") < goal.index("60 minutes earlier")
+    assert goal.index("60 minutes earlier") < goal.index("30 minutes later")
+    assert goal.index("30 minutes later") < goal.index("3.00 EUR")
+    assert "15 EUR" not in goal
 
 
 def test_table_branch_cascade_rejects_then_books_outdoor():
@@ -175,18 +167,12 @@ def test_indoor_table_rejected_when_outdoor_was_asked_for():
 
     assert summary.success is False
 
-    # ...but with the concession granted, the very same call is a success.
-    req_ok = build_reservation_request(
-        seating=Seating.OUTDOOR,
-        concessions=[Concession(key="indoor_ok", label="an indoor table is acceptable", tier=1)],
-    )
+    # A crafted legacy concession must not reopen the rejected result.
+    req_ok = build_reservation_request(seating=Seating.OUTDOOR)
+    req_ok.concessions = []
     summary_ok = CascadeEngine(
         candidate_pool=SAMPLE_RESTAURANTS,
         call_client=DryRunCallClient(scenario_name="table_concession_cascade"),
     ).run(req_ok)
 
-    assert summary_ok.success is True
-    assert summary_ok.successful_restaurant.id == "rest_gasthaus_linde"
-    assert summary_ok.concession_used == "indoor_ok"
-
-
+    assert summary_ok.success is False

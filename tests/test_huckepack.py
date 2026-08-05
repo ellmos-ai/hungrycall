@@ -246,7 +246,9 @@ def test_the_visitors_key_reaches_no_store_and_no_log(monkeypatch, caplog):
                 data={
                     "branch": "food",
                     "mode": "delivery",
-                    "customer_name": "Ada",
+                    "first_name": "Ada",
+                    "last_name": "Test",
+                    "requester_callback_number": "+4910004069000",
                     "food_prompt": "Pizza",
                     "city": "Dorfstadt",
                     "postcode": "12345",
@@ -390,7 +392,9 @@ def cascade_form(**overrides):
     form = {
         "branch": "food",
         "mode": "delivery",
-        "customer_name": "Ada",
+        "first_name": "Ada",
+        "last_name": "Test",
+        "requester_callback_number": "+4910004069000",
         "food_prompt": "Pizza",
         "city": "Dorfstadt",
         "postcode": "12345",

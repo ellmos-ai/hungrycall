@@ -384,6 +384,11 @@ SCENARIO_FIXTURES: Dict[str, Dict[str, Any]] = {
             "structured_result": {
                 "table_available": True,
                 "reservation_confirmed": True,
+                "reservation_date_confirmed": "{reservation_date}",
+                "reservation_time_confirmed": "{reservation_time}",
+                "seating_preference_met": True,
+                "booking_fee_eur": 0,
+                "authority_steps_applied": [],
                 "callback_number": "+441632960001",
                 "rejection_reason": None
             },
@@ -580,6 +585,11 @@ SCENARIO_FIXTURES: Dict[str, Dict[str, Any]] = {
             "structured_result": {
                 "table_available": False,
                 "reservation_confirmed": False,
+                "reservation_date_confirmed": "{reservation_date}",
+                "reservation_time_confirmed": "{reservation_time}",
+                "seating_preference_met": False,
+                "booking_fee_eur": 0,
+                "authority_steps_applied": [],
                 "callback_number": "+441632960001",
                 "rejection_reason": "Fully booked from 18:30 on {reservation_date}"
             },
@@ -603,7 +613,12 @@ SCENARIO_FIXTURES: Dict[str, Dict[str, Any]] = {
             "structured_result": {
                 "table_available": True,
                 "reservation_confirmed": True,
+                "reservation_date_confirmed": "{reservation_date}",
+                "reservation_time_confirmed": "{reservation_time}",
                 "seating_confirmed": "outdoor",
+                "seating_preference_met": True,
+                "booking_fee_eur": 0,
+                "authority_steps_applied": [],
                 "callback_number": "+441632960004",
                 "rejection_reason": None
             },
@@ -628,7 +643,12 @@ SCENARIO_FIXTURES: Dict[str, Dict[str, Any]] = {
             "structured_result": {
                 "table_available": True,
                 "reservation_confirmed": True,
+                "reservation_date_confirmed": "{reservation_date}",
+                "reservation_time_confirmed": "{reservation_time}",
                 "seating_confirmed": "indoor",
+                "seating_preference_met": True,
+                "booking_fee_eur": 0,
+                "authority_steps_applied": [],
                 "callback_number": "+441632960000",
                 "rejection_reason": None
             },
@@ -651,6 +671,11 @@ SCENARIO_FIXTURES: Dict[str, Dict[str, Any]] = {
             "structured_result": {
                 "table_available": False,
                 "reservation_confirmed": False,
+                "reservation_date_confirmed": "{reservation_date}",
+                "reservation_time_confirmed": "{reservation_time}",
+                "seating_preference_met": False,
+                "booking_fee_eur": 0,
+                "authority_steps_applied": [],
                 "rejection_reason": "Nobody picked up after 6 rings"
             },
             "post_summary": "No answer. Moving on without a second attempt.",
@@ -671,6 +696,11 @@ SCENARIO_FIXTURES: Dict[str, Dict[str, Any]] = {
             "structured_result": {
                 "table_available": False,
                 "reservation_confirmed": False,
+                "reservation_date_confirmed": "{reservation_date}",
+                "reservation_time_confirmed": "{reservation_time}",
+                "seating_preference_met": False,
+                "booking_fee_eur": 0,
+                "authority_steps_applied": [],
                 "callback_number": "+441632960001",
                 "rejection_reason": "Fully booked on {reservation_date}"
             },
@@ -691,7 +721,12 @@ SCENARIO_FIXTURES: Dict[str, Dict[str, Any]] = {
             "structured_result": {
                 "table_available": True,
                 "reservation_confirmed": True,
+                "reservation_date_confirmed": "{reservation_date}",
+                "reservation_time_confirmed": "{reservation_time}",
                 "seating_confirmed": "indoor",
+                "seating_preference_met": False,
+                "booking_fee_eur": 0,
+                "authority_steps_applied": [],
                 "tier_applied": "indoor_ok",
                 "callback_number": "+441632960004",
                 "rejection_reason": None
@@ -720,11 +755,15 @@ SCENARIO_FIXTURES: Dict[str, Dict[str, Any]] = {
             "structured_result": {
                 "table_available": True,
                 "reservation_confirmed": True,
-                "tier_applied": "tier_2_concession_fee",
+                "reservation_date_confirmed": "{reservation_date}",
+                "reservation_time_confirmed": "{reservation_time}",
+                "seating_preference_met": True,
+                "booking_fee_eur": 15,
+                "authority_steps_applied": ["booking_fee"],
                 "callback_number": "+441632960001",
                 "rejection_reason": None
             },
-            "post_summary": "Table reserved at Trattoria Bella Luigi via Tier 2 concession agreement.",
+            "post_summary": "Table reserved at Trattoria Bella Luigi with the authorised 15 EUR booking fee.",
             "transcript": [
                 {"ts": "00:00:05", "speaker": "BOT", "text": "Hello, calling on behalf of {customer_name}. Do you have a regular table for {party_size} people on {reservation_date} at {reservation_time}?"},
                 {"ts": "00:00:12", "speaker": "USER", "text": "Regular tables are fully booked, but we have a private dining room table available with a 15 Euro booking deposit."},
