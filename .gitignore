@@ -47,3 +47,25 @@ Thumbs.db
 # Planung (bleibt lokal)
 SCRATCH*
 NOTES.local.*
+
+# Interne Arbeits-, Planungs- und Agenten-Dokumente — nie im oeffentlichen Repo
+AGENTS.md
+CLAUDE.md
+AUFGABEN.txt
+TODO.md
+SPEC.md
+UI-SPEC.md
+BLUEPRINT-*.md
+DEVPOST*.md
+PR-VORSCHAU.md
+PR-EINREICHUNG.md
+HOST-READINESS.md
+VIDEO-ENTWURF.md
+PHASE6-VIDEOENTWURF.md
+STORYBOARD*.md
+_AGY*.md
+_CODEX*.md
+_OPUS*.md
+TERRA-*.md
+LUNA-*.md
+docs/audits/

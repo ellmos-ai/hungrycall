@@ -145,7 +145,7 @@ Kommandozeile oder Commit.
 
 ```bash
 # Lieferung, eigene Adresse, eigenes Budget
-hungrycall delivery --food "2x Döner Kebab" --address "Dorfstrasse 1, 16321 Bernau" \
+hungrycall delivery --food "2x Döner Kebab" --address "Dorfstrasse 1, 12345 Dorfstadt" \
   --budget 30.0 --scenario success_direct
 
 # Tisch reservieren
