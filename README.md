@@ -1,5 +1,10 @@
 ![I am hungry](banner.png)
 
+## Demo video
+
+[![Watch the demo video](youtube-play-thumb.png)](https://youtu.be/5RIq7lpKv4w)
+
+
 # HungryCall 🍕📞
 
 **English · [Deutsch](README_de.md)**
