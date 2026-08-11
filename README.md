@@ -109,6 +109,10 @@ HungryCall addresses an entirely different class of problem — **a multi-candid
 10. **Order Receipt via Call Attempts**:
     - Every dialled attempt — accepted or rejected — is stored with its provider run id, status, rejection reason and masked transcript as soon as the cascade evaluates it, not only the final outcome. `GET /api/order-attempts?order_id=...` serves the list under the same session rule as the live event stream.
 
+**[`CONVERSATION-TREE.md`](CONVERSATION-TREE.md)** documents every branch the goal text above can
+take, node by node, tagged with the exact builder function that produces it — plus a settings
+coverage table answering, for every configurable field, whether it actually reaches the prompt.
+
 ---
 
 ## Real CALL-E Service Dynamics (Measured Findings)

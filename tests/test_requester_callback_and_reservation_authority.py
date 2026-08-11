@@ -3,6 +3,9 @@
 import json
 import sqlite3
 
+import pytest
+
+from hungrycall.call_language import CALL_LOCALE_ENV
 from hungrycall.db import (
     create_order_record,
     init_db,
@@ -86,7 +89,18 @@ def test_web_request_requires_and_normalizes_the_human_callback():
         raise AssertionError("a request without the mandatory callback number was accepted")
 
 
-def test_every_goal_ends_with_the_human_confirmation_handoff():
+@pytest.mark.parametrize("lang", ["de", "en"])
+def test_every_goal_ends_with_the_human_confirmation_handoff(lang, monkeypatch):
+    # HUNGRYCALL_CALL_LOCALE (call_language.py): both languages must place the
+    # callback strictly after the intro, not just anywhere in the goal.
+    # "automated assistant" is German-locale-only wording (in "Hello, this is
+    # an automated assistant..."); under de it does not appear at all, and
+    # goal.find() returning -1 made the original assertion pass vacuously
+    # regardless of where CALLBACK actually was. "Prices must be recorded" is
+    # part of the intro's decimal-handling clause and is identical text in
+    # both locales (see engine.py:_call_intro), so it is a genuine,
+    # language-independent anchor for "the intro has ended".
+    monkeypatch.setenv(CALL_LOCALE_ENV, lang)
     for mode in (Mode.DELIVERY, Mode.PICKUP, Mode.RESERVATION):
         request = reservation_request(mode=mode)
         request.max_budget_eur = 30
@@ -98,7 +112,7 @@ def test_every_goal_ends_with_the_human_confirmation_handoff():
         assert CALLBACK in goal
         assert "with questions" in goal
         assert "human confirmation" in goal
-        assert goal.rfind(CALLBACK) > goal.find("automated assistant")
+        assert goal.rfind(CALLBACK) > goal.index("Prices must be recorded")
         assert goal.endswith("repeat it once at the end.")
 
 

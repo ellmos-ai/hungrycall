@@ -125,6 +125,11 @@ Status, Ablehnungsgrund und maskiertem Transkript als **Bestellbeleg** gespeiche
 Kaskade ihn auswertet, nicht erst am Ende. `GET /api/order-attempts?order_id=...` liefert diese
 Liste unter derselben Sitzungsregel wie der Live-Ereignisstrom.
 
+**[`CONVERSATION-TREE.md`](CONVERSATION-TREE.md)** (Englisch) dokumentiert jeden Zweig, den der
+obige Gesprächstext nehmen kann, Knoten für Knoten mit der erzeugenden Funktion — dazu eine
+Abdeckungstabelle, die für jede Einstellung beantwortet, ob sie tatsächlich im Gesprächstext
+ankommt.
+
 ---
 
 ## Kernprobe für Juroren — 30 Sekunden, ohne Zugang
