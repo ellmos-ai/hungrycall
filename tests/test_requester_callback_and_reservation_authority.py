@@ -368,3 +368,37 @@ def test_requester_callback_is_transient_and_never_persisted(tmp_path, monkeypat
     assert all("requester_callback_number" not in row for row in orders + saved)
     assert CALLBACK not in render_history("en", saved, orders)
     assert CALLBACK.encode("utf-8") not in database.read_bytes()
+
+
+def test_callback_spoken_as_digit_words_across_turns_is_still_redacted():
+    """Reproduces the 2026-08-11 field-trial leak end to end, through the
+    actual code path (CascadeEngine.redact_requester_callback ->
+    phone_utils.redact_specific_phone): the voice agent read the requester's
+    callback number aloud as German digit words, and CALL-E's transcript
+    reconstruction split it across two turn-header lines. The digits below
+    spell CALLBACK ("+4910004069000") -> vier neun eins null null eins
+    zwei drei vier fünf sechs sieben acht."""
+    raw_transcript = (
+        "[01:10] BOT: Die direkte Rückrufnummer ist plus vier neun,\n"
+        "[01:15] BOT: eins null null, eins zwei drei, vier fünf sechs, sieben acht."
+    )
+    leaky_result = CallResult(
+        call_id="spelled-out-call",
+        run_id="spelled-out-run",
+        status=CallStatus.COMPLETED,
+        task_completed=True,
+        completion_confidence=1.0,
+        structured_result={"order_placed": True},
+        transcript=[],
+        post_summary="Reservierung bestätigt.",
+        rejection_reason=None,
+        activity=[],
+        raw_transcript_text=raw_transcript,
+    )
+    CascadeEngine.redact_requester_callback(leaky_result, CALLBACK)
+    assert "[REDACTED-REQUESTER-CALLBACK]" in leaky_result.raw_transcript_text
+    assert "vier" not in leaky_result.raw_transcript_text
+    assert "sieben" not in leaky_result.raw_transcript_text
+    # The rest of the transcript, including the turn headers, is untouched.
+    assert "[01:10] BOT:" in leaky_result.raw_transcript_text
+    assert "Die direkte Rückrufnummer ist" in leaky_result.raw_transcript_text

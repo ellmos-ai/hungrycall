@@ -4,8 +4,13 @@ from hungrycall.phone_utils import (
     mask_phone,
     mask_phones_in_text,
     normalize_e164,
+    redact_specific_phone,
     validate_e164,
 )
+
+# Fictional throughout this file (AGENTS.md: examples only with fictional
+# numbers) - never the operator's real callback number.
+FICTIONAL_CALLBACK = "+4910004069000"
 
 
 def test_validate_e164_valid():
@@ -44,16 +49,64 @@ def test_mask_phone_inside_api_text():
 
 
 def test_national_format_numbers_are_masked_in_text():
-    """Field trial 2026-08-11: a dictated '07700900090' sailed unmasked through
-    transcripts because only +49-style forms were recognised."""
+    """Field trial 2026-08-11: a dictated national-format number (fictional
+    example here, e.g. '07700900090') sailed unmasked through transcripts
+    because only +49-style forms were recognised."""
     from hungrycall.phone_utils import mask_phones_in_text
 
     masked = mask_phones_in_text("dann nehme ich die 07700900090 als Rückrufnummer")
     assert "07700900090" not in masked
     assert "•••" in masked
     spaced = mask_phones_in_text("unter 07700 900 09 0 erreichbar")
-    assert "531" not in spaced.replace("•", "")
+    assert "123" not in spaced.replace("•", "")
     # Harmless digits stay: prices, years, times, house numbers, order ids.
     for harmless in ("17 Euro", "um 20:45 Uhr", "im Jahr 2026",
                      "Hausnummer 12", "Bestellnummer 4711"):
         assert mask_phones_in_text(harmless) == harmless
+
+
+def test_spelled_out_digit_words_of_a_known_number_are_redacted():
+    """Field trial 2026-08-11: the voice agent read the requester's own
+    callback number aloud as individual German digit words, which neither
+    PHONE_CANDIDATE_REGEX (redact_specific_phone) nor mask_phones_in_text
+    (no contiguous digit run) recognised as the same number."""
+    text = "Die Rückrufnummer ist plus vier neun, eins null null, eins zwei drei, vier fünf sechs, sieben acht."
+    redacted = redact_specific_phone(text, FICTIONAL_CALLBACK)
+    assert "vier" not in redacted
+    assert "neun" not in redacted
+    assert "[REDACTED-REQUESTER-CALLBACK]" in redacted
+
+
+def test_spelled_out_digit_words_split_across_a_transcript_turn_header():
+    """The exact 2026-08-11 shape: CALL-E's STT ended one turn mid-number, so
+    LiveCallClient._transcript_from_turns() reconstructed it as two lines,
+    each carrying its own "[mm:ss] SPEAKER: " header in between the digit
+    words."""
+    text = (
+        "[01:10] BOT: Die direkte Rückrufnummer ist plus vier neun,\n"
+        "[01:15] BOT: eins null null, eins zwei drei, vier fünf sechs, sieben acht."
+    )
+    redacted = redact_specific_phone(text, FICTIONAL_CALLBACK)
+    assert "[REDACTED-REQUESTER-CALLBACK]" in redacted
+    assert "vier" not in redacted
+    assert "sieben" not in redacted
+    # The rest of the sentence, and the turn headers themselves, survive.
+    assert "[01:10] BOT:" in redacted
+    assert "Die direkte Rückrufnummer ist" in redacted
+
+
+def test_spelled_out_digits_of_a_different_number_are_left_alone():
+    """Only the KNOWN target number is redacted -- an unrelated spoken digit
+    sequence (e.g. a price or another party's number) is not touched, unlike
+    a general number-word parser would risk."""
+    text = "Das macht acht Euro fünfzig, und die Uhrzeit ist neun Uhr."
+    assert redact_specific_phone(text, FICTIONAL_CALLBACK) == text
+
+
+def test_digit_form_redaction_is_unaffected_by_the_spelled_out_fix():
+    """No regression: the pre-existing compact-digit redaction path still
+    works exactly as before."""
+    text = f"Rückruf unter {FICTIONAL_CALLBACK} jederzeit möglich."
+    redacted = redact_specific_phone(text, FICTIONAL_CALLBACK)
+    assert FICTIONAL_CALLBACK not in redacted
+    assert "[REDACTED-REQUESTER-CALLBACK]" in redacted
