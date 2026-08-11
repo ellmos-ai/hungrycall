@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 import json
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from hungrycall.call_language import call_language
 from hungrycall.models import (
     CriterionKind,
     CriterionReaction,
@@ -103,8 +104,55 @@ def _criterion_instruction(criterion: OrderCriterion, index: int) -> str:
     )
 
 
-def build_order_chain_instruction(chain: OrderChain) -> str:
-    """Translate section 3 of BLUEPRINT-BESTELLKETTEN.md into the call task."""
+def _cell_availability_question(locale: str, product: str) -> str:
+    """The VERBATIM-quoted availability question, in the call's language.
+
+    Field-trial feedback 2026-08-11: availability first and in general
+    terms, price second, quantity only once the price holds. The question
+    is quoted with ``ask exactly "..."`` and therefore spoken verbatim
+    (AGENTS.md), so it must already be in the call's own language.
+    """
+    if locale == "en":
+        return f"Do you have {product}?"
+    return f"Haben Sie {product}?"
+
+
+def _order_chain_style_example(locale: str) -> List[str]:
+    """The worked dialogue example, in the call's language (verbatim-quoted)."""
+    if locale == "en":
+        return [
+            "Example of the expected conversational style (English; adapt to the actual items):",
+            '  You: "The pizza is too expensive for my client. Do you have Pasta Napoli instead?"',
+            '  Restaurant: "Yes." - You: "What does that cost?" - Restaurant: "9 euros."',
+            '  You: "That is an acceptable price, then we will take two of those."',
+            "And when a hard limit fails at the end, announce the abort the same way:",
+            '  You: "That puts the total order over my client\'s budget. '
+            'Then we will not order anything today. Thank you very much, goodbye!"',
+        ]
+    return [
+        "Example of the expected conversational style (German; adapt to the actual items):",
+        '  Sie: "Die Pizza ist meinem Auftraggeber leider zu teuer. Haben Sie stattdessen Pasta Napoli?"',
+        '  Restaurant: "Ja." - Sie: "Was kostet die?" - Restaurant: "9 Euro."',
+        '  Sie: "Das ist ein akzeptabler Preis, dann nehmen wir zwei davon."',
+        "And when a hard limit fails at the end, announce the abort the same way:",
+        '  Sie: "Damit liegt die Bestellung insgesamt über dem Budget meines Auftraggebers. '
+        'Dann bestellen wir heute leider nichts. Vielen Dank, auf Wiederhören!"',
+    ]
+
+
+def build_order_chain_instruction(chain: OrderChain, locale: Optional[str] = None) -> str:
+    """Translate section 3 of BLUEPRINT-BESTELLKETTEN.md into the call task.
+
+    ``locale`` selects the language of the VERBATIM-quoted fragments (the
+    availability question and the worked dialogue example). Everything else
+    here is meta-instruction and stays English regardless of locale, because
+    CALL-E rephrases unquoted instructions into the call's own language
+    (field trial 2026-08-11). Defaults to ``call_language().locale`` —
+    ``call_language.py`` is the single seam that also sets the CALL-E
+    recipient's region/locale, so an unset ``HUNGRYCALL_CALL_LOCALE`` keeps
+    this function's output byte-identical to before locale support existed.
+    """
+    locale = locale or call_language().locale
     lines = [
         "Work through the order wish chain in position order. Do not reorder positions or replacements.",
         "For each position, try its cells in order. Never order more than one cell from one position.",
@@ -113,11 +161,9 @@ def build_order_chain_instruction(chain: OrderChain) -> str:
         tags = ", ".join(position.tags) if position.tags else "none"
         lines.append(f"Position {position_index} (tags: {tags}):")
         for cell_index, cell in enumerate(position.cells, start=1):
-            # Field-trial feedback 2026-08-11: availability first and in
-            # general terms, price second, quantity only once the price holds.
-            # The quoted question is spoken verbatim, so it ships in German.
+            question = _cell_availability_question(locale, cell.product)
             lines.append(
-                f"  Cell {cell_index}: ask exactly \"Haben Sie {cell.product}?\" — availability "
+                f"  Cell {cell_index}: ask exactly \"{question}\" — availability "
                 "only, do not mention any quantity yet. If not available, try the next cell. "
                 "If available, check the following criteria in order."
             )
@@ -145,13 +191,7 @@ def build_order_chain_instruction(chain: OrderChain) -> str:
     lines.extend([
         "Announce every decision aloud as you go: which item you are taking, which you are "
         "dropping, and at the end whether you are placing an order at all.",
-        "Example of the expected conversational style (German; adapt to the actual items):",
-        '  Sie: "Die Pizza ist meinem Auftraggeber leider zu teuer. Haben Sie stattdessen Pasta Napoli?"',
-        '  Restaurant: "Ja." - Sie: "Was kostet die?" - Restaurant: "9 Euro."',
-        '  Sie: "Das ist ein akzeptabler Preis, dann nehmen wir zwei davon."',
-        "And when a hard limit fails at the end, announce the abort the same way:",
-        '  Sie: "Damit liegt die Bestellung insgesamt über dem Budget meines Auftraggebers. '
-        'Dann bestellen wir heute leider nichts. Vielen Dank, auf Wiederhören!"',
+        *_order_chain_style_example(locale),
         "Never ask for a total price when nothing has been settled for the order.",
         "Return evidence for every attempted cell in order_chain_results; never infer a price or answer.",
         "Place the order only after all positions have resolved under these rules.",

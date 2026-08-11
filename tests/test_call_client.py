@@ -157,12 +157,59 @@ def test_live_rest_payload_polls_and_masks_phone_numbers():
     assert requests[0][0:2] == ("POST", "/v1/calls")
     assert requests[0][3] == "stable-key"
     assert requests[0][2]["recipients"][0]["phones"] == ["+441632960090"]
+    # call_language.py: HUNGRYCALL_CALL_LOCALE unset -> German by default.
+    assert requests[0][2]["recipients"][0]["locale"] == "de"
+    assert requests[0][2]["recipients"][0]["region"] == "DE"
     assert "recipient_result_schema" in requests[0][2]
     assert requests[1][0:2] == ("GET", "/v1/calls/rest-call-1")
     assert result.status is CallStatus.COMPLETED
     assert result.structured_result["order_placed"] is True
     assert "+441632960090" not in result.raw_transcript_text
     assert "+441632960090" not in result.activity[0]
+
+
+def test_live_payload_locale_follows_the_call_language_seam(monkeypatch):
+    """call_language.py is the single seam for the CALL-E recipient's
+    region/locale (2026-08-11 language seam, AGENTS.md/FINDINGS.md)."""
+    from hungrycall.call_language import CALL_LOCALE_ENV
+
+    monkeypatch.setenv(CALL_LOCALE_ENV, "en")
+    client = LiveCallClient(
+        CalleSettings("fixture-token", "https://api.example.invalid"),
+        confirmed=True,
+        first_poll_seconds=0,
+        poll_seconds=0,
+        poll_timeout_seconds=1,
+    )
+    requests = []
+    responses = iter([
+        {"id": "rest-call-en-1"},
+        {"status": "completed", "task_completed": True, "recipients": []},
+    ])
+
+    def fake_request(method, path, payload=None, idempotency_key=None):
+        requests.append((method, path, payload, idempotency_key))
+        return next(responses)
+
+    request = UserRequest(
+        mode=Mode.PICKUP,
+        customer_name="Test User",
+        food_prompt="Pizza",
+        max_budget_eur=20.0,
+        pickup_time="19:30",
+        requester_callback_number="+4910004069000",
+    )
+    with patch.object(client, "_request", side_effect=fake_request):
+        client.execute_candidate_call(SAMPLE_RESTAURANTS[0], request, "lang-key-en")
+
+    recipient = requests[0][2]["recipients"][0]
+    assert recipient["locale"] == "en"
+    # Documented limitation: CALL-E only confirms region "DE" as supported;
+    # an English call locale still dials into Germany, not a different
+    # country (call_language.py).
+    assert recipient["region"] == "DE"
+    assert "Hello, this is an automated assistant" in requests[0][2]["task"]
+    assert "Hallo, hier spricht" not in requests[0][2]["task"]
 
 
 def test_cli_preflight_prints_only_safe_metadata(tmp_path, capsys, monkeypatch):

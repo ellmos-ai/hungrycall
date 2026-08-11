@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import List, Optional, Tuple
 
 from hungrycall.call_client import CallClient, DryRunCallClient
+from hungrycall.call_language import call_language
 from hungrycall.models import (
     AttemptRecord, CallResult, CallStatus, CascadeSummary,
     Concession, Mode, Restaurant, Seating, UserRequest
@@ -112,19 +113,24 @@ def _reservation_authority_clause(request: UserRequest) -> str:
     )
 
 
-def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
-    """Build the CALL-E goal text: identity disclosure, task, limits, fallbacks.
+def _call_intro(locale: str, requester_name: str) -> str:
+    """The VERBATIM-quoted disclosure sentence and language directive.
 
-    Everything the agent needs must be in here. Once this leaves, there is no
-    second chance to add a condition (AGENTS.md, control boundary).
+    Proved in the 2026-08-11 field trial: an English intro was spoken
+    English into an otherwise German call. Spoken-verbatim parts therefore
+    ship in the call's own language (call_language.py); meta-instructions
+    may stay English because the agent rephrases them in the call language.
     """
-    requester_name = request.requester_name()
-    # The disclosure sentence is quoted VERBATIM by the voice agent (proved in
-    # the 2026-08-11 field trial: an English intro was spoken English into an
-    # otherwise German call). Spoken-verbatim parts therefore ship in German;
-    # meta-instructions may stay English because the agent rephrases them in
-    # the call language.
-    intro = (
+    if locale == "en":
+        return (
+            f"Hello, this is an automated assistant on behalf of {requester_name}. "
+            "Conduct the entire conversation in English; every sentence spoken aloud must be English. "
+            # Precaution, not a measured defect: decimal handling is untested live
+            # (the 2026-08-11 field trial happened to use whole-euro prices).
+            "Prices must be recorded with their exact decimals: 'eight euros fifty' means 8.50, "
+            "not 8. When in doubt, repeat the amount back with decimals to confirm it."
+        )
+    return (
         f"Hallo, hier spricht ein automatisierter Assistent im Auftrag von {requester_name}. "
         "Conduct the entire conversation in German; every sentence spoken aloud must be German. "
         # Precaution, not a measured defect: decimal handling is untested live
@@ -132,6 +138,40 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
         "Prices must be recorded with their exact decimals: '8 Euro 50' means 8.50, "
         "not 8. When in doubt, repeat the amount back with decimals to confirm it."
     )
+
+
+def _closing_routine_examples(locale: str) -> Tuple[str, str, str]:
+    """The three VERBATIM-quoted example fragments in the closing routine.
+
+    Returns (confirmation_question, readback_question, readback_answer).
+    """
+    if locale == "en":
+        return (
+            "Could you please briefly confirm the order: what is being "
+            "delivered, and to whom?",
+            "So you're ordering 2 Pasta Napoli?",
+            "Yes, and one tiramisu.",
+        )
+    return (
+        "Bestätigen Sie mir bitte kurz die Bestellung: Was wird "
+        "geliefert, und an wen?",
+        "Sie bestellen also 2 Pasta Napoli?",
+        "Ja, und ein Tiramisu.",
+    )
+
+
+def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
+    """Build the CALL-E goal text: identity disclosure, task, limits, fallbacks.
+
+    Everything the agent needs must be in here. Once this leaves, there is no
+    second chance to add a condition (AGENTS.md, control boundary).
+    """
+    requester_name = request.requester_name()
+    # Single seam for the call's language (call_language.py): resolved once
+    # here and threaded through to the order-chain instruction below, so a
+    # goal never mixes two languages' verbatim parts.
+    language = call_language()
+    intro = _call_intro(language.locale, requester_name)
     if request.mode == Mode.RESERVATION and request.concessions:
         raise ValueError(
             "Legacy reservation concessions cannot extend the explicit time and fee limits."
@@ -146,16 +186,18 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
     # Field-trial feedback 2026-08-11: the caller confirmed the order only
     # because the human asked for a summary. The agent must obtain that
     # confirmation itself, with a read-back, before hanging up.
+    confirm_question, readback_question, readback_answer = _closing_routine_examples(
+        language.locale
+    )
     confirmation = (
         " Every call that places an order or reservation ends with a closing routine: "
         "(1) summarize the complete order aloud — every item with quantity, the total "
         "price, the name and the address or time; (2) place it bindingly — say clearly "
         "that the order is hereby placed; (3) obtain the other side's confirmation — "
-        "for example: \"Bestätigen Sie mir bitte kurz die Bestellung: Was wird "
-        "geliefert, und an wen?\" If the other side repeats the order back, check "
+        f"for example: \"{confirm_question}\" If the other side repeats the order back, check "
         "their read-back against what was actually agreed and correct or complete "
-        "anything missing — for example, restaurant: \"Sie bestellen also 2 Pasta "
-        "Napoli?\" — you: \"Ja, und ein Tiramisu.\" "
+        f"anything missing — for example, restaurant: \"{readback_question}\" — you: "
+        f"\"{readback_answer}\" "
         "If a NEW condition appears after your summary — a fee, a changed price, a "
         "changed time — re-check it against your limits before accepting anything. "
         "If it exceeds what you are authorised to accept, RETRACT aloud: say that "
@@ -188,7 +230,7 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
                 f"An approximate price is not acceptable: if no exact total is given, do not order."
                 f"{fallback}"
             )
-            goal += "\n\n" + build_order_chain_instruction(request.order_chain)
+            goal += "\n\n" + build_order_chain_instruction(request.order_chain, language.locale)
             return goal + confirmation + callback
         goal = (
             f"{intro} We would like to order food for delivery to {request.delivery_address}. "
@@ -221,7 +263,7 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
             f"{fallback}"
         )
         if request.order_chain:
-            goal += "\n\n" + build_order_chain_instruction(request.order_chain)
+            goal += "\n\n" + build_order_chain_instruction(request.order_chain, language.locale)
         return goal + confirmation + callback
 
     if request.mode == Mode.RESERVATION:

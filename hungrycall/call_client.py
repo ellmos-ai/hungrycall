@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional
 
+from hungrycall.call_language import call_language
 from hungrycall.fixtures import (
     SCENARIO_FIXTURES,
     deduplicate_activity,
@@ -448,13 +449,17 @@ class LiveCallClient(CallClient):
         # goal builder and imports the transport abstraction above.
         from hungrycall.engine import build_call_goal
 
+        # Single seam for the call's language (call_language.py): the same
+        # locale also selects the language of the VERBATIM-quoted parts of
+        # the goal text built below.
+        language = call_language()
         payload = {
             "task": build_call_goal(restaurant, user_request),
             "recipients": [
                 {
                     "phones": [normalized_phone],
-                    "region": "DE",
-                    "locale": "de",
+                    "region": language.region,
+                    "locale": language.locale,
                 }
             ],
             "result_schema": {
