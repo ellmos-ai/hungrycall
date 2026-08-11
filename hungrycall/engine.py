@@ -139,6 +139,16 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
             raise ValueError("A custom seating request requires custom seating to be selected.")
     fallback = _concession_clause(request.concessions)
     callback = _requester_callback_clause(request)
+    # Field-trial feedback 2026-08-11: the caller confirmed the order only
+    # because the human asked for a summary. The agent must obtain that
+    # confirmation itself, with a read-back, before hanging up.
+    confirmation = (
+        " Before ending a call in which an order or reservation was placed, obtain an "
+        "explicit confirmation: summarize it aloud (items, name, address or time) and "
+        "ask the other side to confirm it back — for example: "
+        "\"Bestätigen Sie mir bitte kurz die Bestellung: Was wird geliefert, und an wen?\" "
+        "Do not end such a call without that confirmation."
+    )
 
     if request.mode == Mode.DELIVERY:
         if request.order_chain:
@@ -164,7 +174,7 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
                 f"{fallback}"
             )
             goal += "\n\n" + build_order_chain_instruction(request.order_chain)
-            return goal + callback
+            return goal + confirmation + callback
         goal = (
             f"{intro} We would like to order food for delivery to {request.delivery_address}. "
             f"The delivery is for {requester_name}; place the order under that name. "
@@ -177,7 +187,7 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
             f"An approximate price is not acceptable: if no exact total is given, do not order."
             f"{fallback}"
         )
-        return goal + callback
+        return goal + confirmation + callback
 
     if request.mode == Mode.PICKUP:
         goal = (
@@ -197,7 +207,7 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
         )
         if request.order_chain:
             goal += "\n\n" + build_order_chain_instruction(request.order_chain)
-        return goal + callback
+        return goal + confirmation + callback
 
     if request.mode == Mode.RESERVATION:
         seating_clause = ""
@@ -225,6 +235,7 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
             f"Also obtain a direct callback number in case we need to cancel."
             f"{authority}"
             f"{fallback}"
+            f"{confirmation}"
             f"{callback}"
         )
 
