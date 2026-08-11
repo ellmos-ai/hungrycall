@@ -806,3 +806,29 @@ def test_user_text_is_escaped_before_it_reaches_the_page(client):
         food_prompt=nasty, candidate_order="rest_burger_house")).json()
     # JSON transport is fine; what matters is that no raw tag lands in HTML.
     assert nasty in goal["goal"]
+
+
+def test_live_with_fixtures_stays_refused_without_field_trial(client, monkeypatch):
+    """Fixture phones belong to strangers; without the override the combination
+    of restaurant test mode and a live wire must keep failing closed."""
+    monkeypatch.delenv("HUNGRYCALL_FIELD_TRIAL_PHONE", raising=False)
+    form = cascade_form(transport="live", confirm_live="yes")
+    response = client.post("/api/start-cascade?lang=en", data=form)
+    assert response.status_code == 400
+    assert "must not be used for real calls" in response.text
+
+
+def test_live_with_fixtures_allowed_under_field_trial_override(client, monkeypatch):
+    """With the consenting test number configured, a supervised field trial may
+    run live against fixture restaurants — every candidate is rewired to it."""
+    trial_number = "+4910004069001"
+    monkeypatch.setenv("HUNGRYCALL_FIELD_TRIAL_PHONE", trial_number)
+    monkeypatch.setattr(web, "live_call_client", lambda: DryRunCallClient("jury_30s_demo"))
+    form = cascade_form(transport="live", confirm_live="yes")
+    started = client.post("/api/start-cascade?lang=en", data=form)
+    assert started.status_code == 200
+    order_id = started.text.split('HC.startStream("')[1].split('"')[0]
+    order = web.ACTIVE_ORDERS[order_id]
+    assert order["live_mode"] is True
+    assert order["field_trial_number"] == trial_number
+    assert all(r.phone == trial_number for r in order["candidates"])

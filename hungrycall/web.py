@@ -421,7 +421,7 @@ async def api_search(request: Request):
             f'<div class="notice warn" style="margin-top:1rem;">{t("error.live.refused", lang)}</div>',
             status_code=400,
         )
-    if transport == "live" and test_mode:
+    if transport == "live" and test_mode and not field_trial_active():
         return HTMLResponse(
             f'<div class="notice warn" style="margin-top:1rem;">{t("error.test_mode.live", lang)}</div>',
             status_code=400,
@@ -574,7 +574,7 @@ async def start_cascade(request: Request):
             f'<div class="notice warn" style="margin-top:1rem;">{t("error.live.refused", lang)}</div>',
             status_code=400,
         )
-    if live_mode and test_mode:
+    if live_mode and test_mode and not field_trial_active():
         return HTMLResponse(
             f'<div class="notice warn" style="margin-top:1rem;">{t("error.test_mode.live", lang)}</div>',
             status_code=400,
@@ -711,6 +711,19 @@ def active_order(order_id: str) -> Optional[Dict[str, Any]]:
     if not current_mode().stores_in_browser:
         return order
     return order if order.get("session") == huckepack_storage.current_session() else None
+
+
+def field_trial_active() -> bool:
+    """Whether every live call is rewired to the consenting test number.
+
+    Fixture restaurants may meet a live wire only under this override —
+    their sample phone numbers belong to strangers. An invalid configured
+    value counts as absent (fail-closed): the combination stays refused.
+    """
+    try:
+        return field_trial.trial_phone() is not None
+    except SafetyError:
+        return False
 
 
 def live_call_client() -> LiveCallClient:
