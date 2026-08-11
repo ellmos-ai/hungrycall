@@ -66,15 +66,15 @@ def test_every_key_used_in_code_exists(lang):
 def test_dynamic_key_families_are_complete():
     """The families the code builds at runtime, spelled out."""
     from hungrycall.models import Mode, Seating
-    from hungrycall.templates import TABLE_CONCESSIONS
+    from hungrycall.templates import FOOD_CONCESSIONS
 
     defined = set(all_keys())
     for mode in Mode:
         assert f"result.title.{mode.value}" in defined
     for seating in Seating:
         assert f"table.seating.{seating.value}" in defined
-    for concession in TABLE_CONCESSIONS:
-        assert f"table.concession.{concession.key}" in defined
+    for concession in FOOD_CONCESSIONS:
+        assert f"food.concession.{concession.key}" in defined
 
 
 def test_translations_actually_differ_between_languages():

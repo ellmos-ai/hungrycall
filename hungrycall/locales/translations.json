@@ -579,21 +579,29 @@
     "de": "Zum Beispiel: Unser Standardtisch unter der Palme bitte, danke.",
     "en": "For example: Our usual table under the palm tree, please — thank you."
   },
-  "table.concession.indoor_ok": {
-    "de": "Notfalls auch drinnen",
-    "en": "Indoors would do"
-  },
-  "table.concession.time_flex": {
-    "de": "Notfalls eine Stunde früher oder später",
-    "en": "An hour earlier or later would do"
-  },
-  "table.concession.deposit_ok": {
-    "de": "Notfalls bis 15 € Reservierungsgebühr",
-    "en": "A booking fee up to €15 would do"
-  },
   "table.concession.order": {
     "de": "Stufe {order}",
     "en": "Step {order}"
+  },
+  "food.concessions.title": {
+    "de": "Wozu bist du notfalls bereit?",
+    "en": "What would you settle for, if you had to?"
+  },
+  "food.concessions.help": {
+    "de": "Diese Zugeständnisse werden erst angeboten, wenn die reguläre Bestellung so nicht zustande kommt — in dieser Reihenfolge, nie alle auf einmal.",
+    "en": "These are offered only after the plain order does not go through as stated — in this order, never all at once."
+  },
+  "food.concession.wait_longer_ok": {
+    "de": "Notfalls bis zu 15 Minuten länger warten",
+    "en": "Up to 15 minutes longer would do"
+  },
+  "food.concession.higher_price_ok": {
+    "de": "Notfalls bis zu 3 € mehr zahlen",
+    "en": "Up to €3 more would do"
+  },
+  "food.concession.substitute_ok": {
+    "de": "Notfalls einen ähnlichen Ersatzartikel akzeptieren",
+    "en": "A similar substitute would do"
   },
   "goal.title": {
     "de": "Der Auftragstext",

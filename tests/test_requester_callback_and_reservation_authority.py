@@ -257,14 +257,17 @@ def test_legacy_reservation_concessions_cannot_expand_new_limits():
         "party_size": "4",
         "seating": "any",
         "max_booking_fee_eur": "3",
-        "concessions": ["time_flex", "deposit_ok"],
+        # Real, currently-valid FOOD_CONCESSIONS keys — proves reservation mode
+        # discards them even though the keys exist and would apply to a food
+        # order, not just because the keys happen to be unrecognised.
+        "concessions": ["wait_longer_ok", "higher_price_ok"],
     }
     request = build_user_request(fields)
     assert request.concessions == []
     goal = build_call_goal(SAMPLE_RESTAURANTS[0], request)
     assert "up to 3.00 EUR" in goal
-    assert "15 EUR" not in goal
-    assert "one hour earlier" not in goal
+    assert "waiting up to 15 minutes longer" not in goal
+    assert "3 EUR more than the maximum budget" not in goal
 
 
 def test_free_reservation_notes_share_the_high_risk_content_gate():

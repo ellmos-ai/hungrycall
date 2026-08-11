@@ -548,13 +548,42 @@ def test_goal_preview_ignores_removed_legacy_concessions(client):
         "reservation_date": "2026-08-07", "reservation_time": "19:00",
         "party_size": "4", "seating": "outdoor",
         "candidate_order": "rest_trattoria_luigi",
-        "concessions": ["deposit_ok", "indoor_ok"],
+        # Real, currently-valid FOOD_CONCESSIONS keys — proves reservation mode
+        # discards concessions even when the key exists and would apply to a
+        # food order, not just when the key happens to be unknown.
+        "concessions": ["higher_price_ok", "wait_longer_ok"],
     }
     goal = client.post("/api/preview-goal", data=form).json()["goal"]
 
-    assert "indoor table is acceptable" not in goal
-    assert "booking deposit of up to 15" not in goal
+    assert "up to 3 EUR more than the maximum budget" not in goal
+    assert "waiting up to 15 minutes longer" not in goal
     assert "Do not accept any booking fee or deposit" in goal
+
+
+def test_food_concession_checkboxes_reach_the_goal_in_tier_order(client):
+    """Coverage-map finding #12: the concession ladder must be reachable.
+
+    Submitted out of tier order (substitute_ok is tier 3, wait_longer_ok is
+    tier 1) — the goal must still list Step 1 before Step 2, proving the
+    server does the ordering rather than trusting form order.
+    """
+    delivery = client.post("/api/preview-goal", data=search_form(
+        candidate_order="rest_burger_house",
+        concessions=["substitute_ok", "wait_longer_ok"],
+    )).json()["goal"]
+
+    assert "Step 1: only if the previous attempt failed, waiting up to 15 minutes longer" in delivery
+    assert "Step 2: only if the previous attempt failed, accepting a similar substitute" in delivery
+    assert delivery.index("Step 1:") < delivery.index("Step 2:")
+    # The third, unauthorised concession must not appear at all.
+    assert "3 EUR more than the maximum budget" not in delivery
+
+    pickup = client.post("/api/preview-goal", data=search_form(
+        mode="pickup", pickup_time="19:30",
+        candidate_order="rest_burger_house",
+        concessions=["higher_price_ok"],
+    )).json()["goal"]
+    assert "paying up to 3 EUR more than the maximum budget stated above is acceptable" in pickup
 
 
 def test_goal_preview_refuses_prohibited_content(client):
@@ -741,7 +770,7 @@ def test_table_cascade_cannot_be_reopened_by_a_legacy_concession(client):
     assert "outdoor was requested" in reasons
 
     granted = dict(base)
-    granted["concessions"] = ["indoor_ok"]
+    granted["concessions"] = ["wait_longer_ok"]  # a real, currently-valid FOOD_CONCESSIONS key
     with_grant, _ = run_cascade(client, granted)
     assert not [e for e in with_grant if e["type"] == "accepted"]
 

@@ -148,8 +148,10 @@ restaurant being called was already selected because it plausibly serves that cu
 is nothing left to tell it. `Mode.RESERVATION` with any `concessions` set raises `ValueError`
 before a goal is even built (`build_call_goal`: *"Legacy reservation concessions cannot extend
 the explicit time and fee limits"*) — the newer earlier/later/fee ladder replaced concessions
-for this mode entirely (see EVIDENCE.md §15, and §3 row 12 below for why the concessions
-mechanism is unreachable for the *other* two modes as well, just for a different reason).
+for this mode entirely (see EVIDENCE.md §15). This is deliberate and asymmetric with delivery
+and pickup, which do have a reachable concession ladder of their own since the row-12 fix below
+(§4) — the two mechanisms serve the same principle (an authorisation the agent may fall back
+to, never invent) but are wired to different modes on purpose, not by oversight.
 
 ---
 
@@ -376,7 +378,7 @@ is the reason row 13 below needed a fix rather than only a prompt fragment.
 | 9 | `max_distance_km` | web form | `ranking.py` hard cutoff, before any call | **App-side only** — the restaurant does not need to know the caller's distance limit; it decides *which* candidates are dialled, not what is said | n/a (never in the prompt to begin with) |
 | 10 | `day_of_week` / `time_of_request` | derived (reservation date, or system clock) | `ranking.py` opening-hours pre-filter | **App-side only** — pickup independently re-asks *"are you currently open?"* live (§1.2), so this is not the only check, just the earliest one | n/a |
 | 11 | `favorite_restaurant_ids` | — (no web field, no CLI flag) | `ranking.py` `is_fav` ranking boost | **Finding** — modelled and used by ranking, but there is currently no way for a user to actually populate it | n/a |
-| 12 | `concessions` (`TABLE_CONCESSIONS`: `indoor_ok`, `time_flex`, `deposit_ok`) | intended: web form checkboxes | `_concession_clause()` — fully implemented, tier-ordered fallback ladder, independently audited (§2.6) | **Finding** — the mechanism is complete and correct, but no checkbox anywhere emits `name="concessions"`; `templates.py` only ever writes a hidden pass-through field for a value nothing can set. In practice `request.concessions` is always empty on delivery/pickup, and explicitly forbidden on reservation (`build_call_goal` raises `ValueError`) | `CascadeEngine.check_concession_authority` rejects a reported `tier_applied` that is not in `granted_concession_keys()` |
+| 12 | `concessions` (`FOOD_CONCESSIONS`: `wait_longer_ok`, `higher_price_ok`, `substitute_ok`) | web form checkboxes (delivery/pickup) | `_concession_clause()` — tier-ordered fallback ladder, independently audited (§2.6) | **Before the fix: Finding** — the mechanism was complete and correct, but no checkbox anywhere emitted `name="concessions"`; `templates.py` only ever wrote a hidden pass-through field for a value nothing could set. `request.concessions` was always empty in practice. **After the fix: Covered** — three real checkboxes on the delivery/pickup form now emit `name="concessions"`, read by the existing `form.getlist("concessions")` in `web.py`. The content also changed, not just the wiring: the checkboxes used to be named `TABLE_CONCESSIONS` and carried reservation-only labels (an indoor table, a €15 deposit) that would have made no sense on a food order and were already superseded there by the earlier/later/fee fields (row 23-25) — see the comment above `FOOD_CONCESSIONS` in `templates.py`. Reservation still has no checkbox and still raises `ValueError` if `concessions` is set (unchanged, and correct — see §1.3) | `CascadeEngine.check_concession_authority` rejects a reported `tier_applied` that is not in `granted_concession_keys()` |
 | 13 | order chain: `cells[].quantity` | web chain builder | `"order <quantity> x <product> for this position"`, reinforced at the binding-placement step (§2.5) | **Before the AUFTRAG F fix (live-measured 2026-08-11): Prompt coverage yes, result/verification coverage no** — the goal text correctly said *"order 2 x Pasta Napoli"*, the live agent placed 1 x, and `evaluate_order_chain` accepted it, because nothing compared the two. **After the fix, same day: Covered AND result-verified** — `evaluate_order_chain` now compares the reported `menge_bestellt` against `cell.quantity` for every taken cell and rejects a mismatch with `"Ordered quantity <N> does not match the configured <M> x <product>"` | `evaluate_order_chain` (see Status column — this row's own fix) |
 | 14 | order chain: `cells[].product` | web chain builder | Availability question + every criterion/quantity sentence for that cell | **Covered** | Implicitly, via `zelle_index`/position matching — a wrong product cannot be reported under the right cell index without the evidence shape itself being invalid |
 | 15 | order chain: `cells[].art` (`ProductKind`: `essen`/`getraenk`) | web chain builder (real dropdown, `app.js`) | — | **Finding** — the UI lets a user mark a cell as food or drink; nothing in `build_order_chain_instruction` or `_cell_availability_question` ever reads `cell.kind`. The voice agent cannot tell a drink item from a food item | n/a (not in the prompt to verify against) |
@@ -394,17 +396,23 @@ is the reason row 13 below needed a fix rather than only a prompt fragment.
 
 ### 4.1 Findings, gathered
 
-Six items above are not simple "covered": **#3b** (inconsistent chain/food_prompt handling
-between delivery and pickup), **#11** (`favorite_restaurant_ids` has no way to be set), **#12**
-(the whole concessions ladder is unreachable in practice), **#15** (`cell.kind` never reaches the
-prompt — a real gap between what the UI lets you configure and what the agent is told), **#20**
-(`tags` leaks into the prompt without instructing anything), and **#22** (`special_instructions`
-would silently vanish if ever wired up for delivery/pickup). None of these were fixed while this
-document was first built, in keeping with the instruction that a gap is a finding first and a fix
-second, in its own reviewable commit. **#13 (order-chain quantity) was a seventh finding of the
-same shape, discovered live on 2026-08-11 rather than while building this table, and has since
-been fixed** (`evaluate_order_chain`, AUFTRAG F) — its row above documents both the original gap
-and the fix, rather than being silently updated to just say "Covered".
+Six items above were not simple "covered" when this table was first built: **#3b** (inconsistent
+chain/food_prompt handling between delivery and pickup), **#11** (`favorite_restaurant_ids` has no
+way to be set), **#12** (the whole concessions ladder was unreachable in practice), **#15**
+(`cell.kind` never reaches the prompt — a real gap between what the UI lets you configure and what
+the agent is told), **#20** (`tags` leaks into the prompt without instructing anything), and **#22**
+(`special_instructions` would silently vanish if ever wired up for delivery/pickup). None of these
+were fixed while this document was first built, in keeping with the instruction that a gap is a
+finding first and a fix second, in its own reviewable commit. **#13 (order-chain quantity) was a
+seventh finding of the same shape, discovered live on 2026-08-11 rather than while building this
+table, and has since been fixed** (`evaluate_order_chain`, AUFTRAG F) — its row above documents
+both the original gap and the fix, rather than being silently updated to just say "Covered".
+
+**#12 has since been fixed** the same way: real checkboxes now exist for a rewritten,
+food-appropriate `FOOD_CONCESSIONS` set (row 12 above documents both the original gap — including
+why the *original* three labels could not simply have been wired up as-is — and the fix). Status
+of the remaining five as of this writing: **#3b, #11, #15, #20, #22 — open**, tracked for the same
+priority-ordered fix pass as #12.
 
 ---
 

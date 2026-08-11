@@ -1093,6 +1093,24 @@ def render_food_fields(
     <span class="help">{esc(t("food.maxdistance.help", lang))}</span>
   </div>
 </div>
+
+<hr class="hr" style="margin:1.2rem 0;">
+<h3 class="eyebrow">{esc(t("food.concessions.title", lang))}</h3>
+<p class="help" style="margin:0.5rem 0 0.8rem;max-width:72ch;">{esc(t("food.concessions.help", lang))}</p>
+<div class="grid3">
+  <label class="check" for="concession-wait_longer_ok">
+    <input type="checkbox" id="concession-wait_longer_ok" name="concessions" value="wait_longer_ok">
+    <span>{esc(t("food.concession.wait_longer_ok", lang))}</span>
+  </label>
+  <label class="check" for="concession-higher_price_ok">
+    <input type="checkbox" id="concession-higher_price_ok" name="concessions" value="higher_price_ok">
+    <span>{esc(t("food.concession.higher_price_ok", lang))}</span>
+  </label>
+  <label class="check" for="concession-substitute_ok">
+    <input type="checkbox" id="concession-substitute_ok" name="concessions" value="substitute_ok">
+    <span>{esc(t("food.concession.substitute_ok", lang))}</span>
+  </label>
+</div>
 <script>
 HC.orderChainInitial = {script_json(chain.to_dict())};
 HC.orderTemplates = {script_json(order_templates)};
@@ -1100,10 +1118,32 @@ HC.orderTemplates = {script_json(order_templates)};
 """
 
 
-TABLE_CONCESSIONS: List[Concession] = [
-    Concession(key="indoor_ok", label="an indoor table is acceptable instead of an outdoor one", tier=1),
-    Concession(key="time_flex", label="a table one hour earlier or later is acceptable", tier=2),
-    Concession(key="deposit_ok", label="a booking deposit of up to 15 EUR is acceptable", tier=3),
+# Coverage-map finding #12 (CONVERSATION-TREE.md §4.1): this list used to be
+# called TABLE_CONCESSIONS and carried reservation-only content (an indoor
+# table, a booking deposit) while being wired to delivery/pickup only —
+# reservation itself is forbidden from using it (see the ValueError in
+# ``engine.build_call_goal``) because the newer earlier/later/fee fields on
+# the table form supersede it there. Wiring THOSE labels to a pizza-delivery
+# checkbox would have put "an indoor table is acceptable" in a food-order
+# goal. These three are food/delivery/pickup-appropriate instead, along the
+# same independent axes (time, price, item) the rest of a food goal already
+# discusses, so they compose with it rather than introducing a new topic.
+FOOD_CONCESSIONS: List[Concession] = [
+    Concession(
+        key="wait_longer_ok",
+        label="waiting up to 15 minutes longer than the time first given for delivery or collection is acceptable",
+        tier=1,
+    ),
+    Concession(
+        key="higher_price_ok",
+        label="paying up to 3 EUR more than the maximum budget stated above is acceptable, if that is the only way to place the order",
+        tier=2,
+    ),
+    Concession(
+        key="substitute_ok",
+        label="accepting a similar substitute chosen by the restaurant instead of the exact item requested, if the exact item is not available",
+        tier=3,
+    ),
 ]
 
 
@@ -1462,8 +1502,12 @@ def render_cascade_monitor(
             else t("cascade.band.budget.none", lang)
         )
 
+    # concession_keys only ever carries FOOD_CONCESSIONS keys here (RESERVATION
+    # never runs this band, see concession_band below) — "food.concession."
+    # is the matching i18n namespace, not "table.concession." (that one is
+    # the reservation form's own earlier/later/fee fields).
     concession_text = (
-        ", ".join(t("table.concession." + k, lang) for k in concession_keys)
+        ", ".join(t("food.concession." + k, lang) for k in concession_keys)
         if concession_keys else t("cascade.band.concessions.none", lang)
     )
     concession_band = "" if mode is Mode.RESERVATION else f"""

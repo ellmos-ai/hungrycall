@@ -89,7 +89,13 @@ gegen draußen.
 **Zugeständnisse sind eine Vollmacht, kein Hinweis.** Das ist der Punkt, an dem
 sich die Umsetzung von der bloßen Idee unterscheidet:
 
-- Der Nutzer erteilt sie ausdrücklich (`indoor_ok`, `time_flex`, `deposit_ok`).
+- Der Nutzer erteilt sie ausdrücklich. Für die Essens-Zweige (Lieferung/Abholung)
+  sind das die `FOOD_CONCESSIONS`-Stufen (`wait_longer_ok`, `higher_price_ok`,
+  `substitute_ok`); der Tisch-Zweig regelt dasselbe Prinzip seit der
+  Auslagerung der Zeit-/Gebührenfelder über die numerischen Felder
+  `earlier_hours`/`later_hours`/`max_booking_fee_eur` statt über einzelne
+  Zugeständnis-Schlüssel — Legacy-Zugeständnisse sind ihm ausdrücklich
+  verboten (siehe die `ValueError` in `engine.build_call_goal`).
 - Sie gehen **in Stufenreihenfolge** in den Auftragstext, mit der Anweisung,
   keine spätere Stufe vor einer gescheiterten früheren anzubieten.
 - Das Ergebnis muss melden, welche Stufe gezogen wurde (`tier_applied`).

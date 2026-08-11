@@ -54,7 +54,7 @@ from hungrycall.server_mode import current_mode
 from hungrycall.ranking import filter_and_rank_restaurants, filter_candidate
 from hungrycall.safety import SafetyError, generate_idempotency_key, verify_content_safety
 from hungrycall.templates import (
-    TABLE_CONCESSIONS, render_branch_page, render_candidate_step,
+    FOOD_CONCESSIONS, render_branch_page, render_candidate_step,
     render_cascade_monitor, render_failure, render_history, render_landing,
     render_page, render_result_card, render_result_sentence, render_search_error
 )
@@ -229,7 +229,7 @@ def build_user_request(
     concession_keys = fields.get("concessions") or []
     concessions = (
         [] if mode is Mode.RESERVATION
-        else [c for c in TABLE_CONCESSIONS if c.key in concession_keys]
+        else [c for c in FOOD_CONCESSIONS if c.key in concession_keys]
     )
 
     reservation_date = fields.get("reservation_date")
