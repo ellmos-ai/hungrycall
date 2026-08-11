@@ -133,6 +133,7 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
     if request.mode == Mode.DELIVERY:
         goal = (
             f"{intro} We would like to order food for delivery to {request.delivery_address}. "
+            f"The delivery is for {requester_name}; place the order under that name. "
             f"Requested items: '{request.food_prompt}'. "
             f"Please verify: 1. Do you deliver to this address? "
             f"2. What is the EXACT total price in EUR including delivery fee and minimum order? "
@@ -149,6 +150,7 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
     if request.mode == Mode.PICKUP:
         goal = (
             f"{intro} We would like to place a pickup order to collect in person. "
+            f"The order will be collected by {requester_name}; place it under that name. "
             f"Requested items: '{request.food_prompt}'. Preferred pickup time: {request.pickup_time}. "
             f"Please verify: 1. Can you prepare this for pickup? "
             f"2. What is the EXACT total price in EUR? There is no delivery fee, we collect ourselves. "

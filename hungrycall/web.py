@@ -272,6 +272,11 @@ def build_user_request(
         last_name = name_parts[1] if len(name_parts) > 1 else ""
     if not first_name:
         raise ValueError("first_name is required")
+    if not last_name:
+        # The form already marks the field required; the server must not be
+        # weaker. A delivery or reservation needs a full name the restaurant
+        # can work with — "Alex" alone helps nobody at the doorbell.
+        raise ValueError("last_name is required")
     customer_name = " ".join(part for part in (first_name, last_name) if part)
 
     raw_callback = str(fields.get("requester_callback_number") or "").strip()
