@@ -58,8 +58,15 @@ def mask_phone(phone: str) -> str:
     return f"{prefix}{masked_middle}{suffix}"
 
 
+# National format: a spoken or typed German number without country code —
+# leading 0, then 8-13 more digits, optionally spaced. Field trial 2026-08-11:
+# the callee dictated "07700900090" and it sailed unmasked through transcripts
+# and results because only +49-style forms were recognised.
+NATIONAL_IN_TEXT_REGEX = re.compile(r"(?<![\d+])0[1-9](?:[ -]?\d){7,12}(?!\d)")
+
+
 def mask_phones_in_text(text: str) -> str:
-    """Mask compact or spaced E.164 numbers in API text and transcripts."""
+    """Mask compact or spaced E.164 and national-format numbers in text."""
     if not text:
         return text
 
@@ -67,7 +74,15 @@ def mask_phones_in_text(text: str) -> str:
         normalized = re.sub(r"[ -]", "", match.group(0))
         return mask_phone(normalized) if validate_e164(normalized) else match.group(0)
 
-    return E164_IN_TEXT_REGEX.sub(replace, text)
+    masked = E164_IN_TEXT_REGEX.sub(replace, text)
+
+    def replace_national(match: re.Match) -> str:
+        normalized = re.sub(r"[ -]", "", match.group(0))
+        if len(normalized) < 9:
+            return match.group(0)
+        return mask_phone(normalize_e164(normalized))
+
+    return NATIONAL_IN_TEXT_REGEX.sub(replace_national, masked)
 
 
 def redact_specific_phone(value: Any, phone: str) -> Any:

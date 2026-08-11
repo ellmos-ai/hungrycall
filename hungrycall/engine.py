@@ -156,6 +156,12 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
         "their read-back against what was actually agreed and correct or complete "
         "anything missing — for example, restaurant: \"Sie bestellen also 2 Pasta "
         "Napoli?\" — you: \"Ja, und ein Tiramisu.\" "
+        "If a NEW condition appears after your summary — a fee, a changed price, a "
+        "changed time — re-check it against your limits before accepting anything. "
+        "If it exceeds what you are authorised to accept, RETRACT aloud: say that "
+        "this goes beyond your mandate and that you must therefore cancel the order "
+        "or reservation, and end the call with nothing placed. Never leave the other "
+        "side believing something stands that your limits forced you to reject. "
         "Do not end such a call without a matching confirmation."
     )
 
