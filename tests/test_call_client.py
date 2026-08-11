@@ -184,3 +184,30 @@ def test_cli_preflight_prints_only_safe_metadata(tmp_path, capsys, monkeypatch):
     assert "no POST /v1/calls was sent" in output
     assert "fixture-token" not in output
     assert str(env_file) in output
+
+
+def test_transcript_rebuilt_from_live_turns_payload():
+    """Live payloads carry the conversation only as transcript_turns inside
+    recipients[].attempts[] (measured 2026-08-11); the rebuilt verbatim text
+    must survive so live calls stay auditable."""
+    from hungrycall.call_client import LiveCallClient
+
+    payload = {
+        "status": "completed",
+        "recipients": [{
+            "status": "completed",
+            "attempts": [{
+                "status": "completed",
+                "transcript_turns": [
+                    {"offset_seconds": 0, "speaker": "bot",
+                     "text": "Hallo, hier spricht ein automatisierter Assistent."},
+                    {"offset_seconds": 65, "speaker": "user",
+                     "text": "Ja, wir liefern dorthin."},
+                ],
+            }],
+        }],
+    }
+    text = LiveCallClient._transcript_from_turns(payload)
+    assert "[00:00] BOT: Hallo, hier spricht ein automatisierter Assistent." in text
+    assert "[01:05] USER: Ja, wir liefern dorthin." in text
+    assert LiveCallClient._transcript_from_turns({"status": "completed"}) == ""

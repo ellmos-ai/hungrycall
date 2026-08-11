@@ -390,6 +390,41 @@ class LiveCallClient(CallClient):
                 lines.append(mask_phones_in_text(line))
         return deduplicate_activity(lines)
 
+    @classmethod
+    def _transcript_from_turns(cls, value: Dict[str, Any]) -> str:
+        """Rebuild the verbatim conversation from recipients[].attempts[].
+
+        Format: one line per turn, ``[mm:ss] SPEAKER: text`` — the same shape
+        the earlier MCP evidence used, so downstream verification reads both.
+        """
+        for container in cls._containers(value):
+            recipients = container.get("recipients")
+            if not isinstance(recipients, list):
+                continue
+            for recipient in recipients:
+                if not isinstance(recipient, dict):
+                    continue
+                for attempt in reversed(recipient.get("attempts") or []):
+                    turns = attempt.get("transcript_turns") if isinstance(attempt, dict) else None
+                    if not isinstance(turns, list) or not turns:
+                        continue
+                    lines = []
+                    for turn in turns:
+                        if not isinstance(turn, dict):
+                            continue
+                        offset = turn.get("offset_seconds")
+                        try:
+                            seconds = int(offset)
+                        except (TypeError, ValueError):
+                            seconds = 0
+                        speaker = str(turn.get("speaker") or "?").upper()
+                        text = str(turn.get("text") or "").strip()
+                        if text:
+                            lines.append(f"[{seconds // 60:02d}:{seconds % 60:02d}] {speaker}: {text}")
+                    if lines:
+                        return "\n".join(lines)
+        return ""
+
     def execute_candidate_call(
         self,
         restaurant: Restaurant,
@@ -436,8 +471,27 @@ class LiveCallClient(CallClient):
             time.sleep(self.first_poll_seconds)
 
         latest = created
+        poll_failures = 0
         while True:
-            latest = self._request("GET", f"/v1/calls/{run_id}")
+            # A live call keeps running on the provider side while we poll.
+            # One transient network hiccup must not abandon the cascade
+            # (field trial 2026-08-11: a single unreachable GET killed a
+            # running call whose conversation completed fine).
+            try:
+                latest = self._request("GET", f"/v1/calls/{run_id}")
+                poll_failures = 0
+            except (RuntimeError, CalleAPIError) as exc:
+                if isinstance(exc, CalleAPIError) and exc.status_code < 500:
+                    raise
+                poll_failures += 1
+                if poll_failures >= 4:
+                    raise
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(
+                        "CALL-E status polling exceeded the configured timeout."
+                    ) from exc
+                time.sleep(max(self.poll_seconds or 0, 5))
+                continue
             status = self._status(latest)
             if status in TERMINAL_STATUSES:
                 break
@@ -450,6 +504,12 @@ class LiveCallClient(CallClient):
         structured = self._structured_result(latest)
         transcript = self._value(latest, "transcript", default="")
         raw_transcript = mask_phones_in_text(transcript) if isinstance(transcript, str) else ""
+        if not raw_transcript:
+            # Live payloads carry the conversation as transcript_turns inside
+            # recipients[].attempts[] (measured 2026-08-11); the top-level
+            # transcript string may be missing entirely. Without this fallback
+            # the verbatim record of a live call is silently lost.
+            raw_transcript = mask_phones_in_text(self._transcript_from_turns(latest))
         confidence = self._value(
             latest, "completionConfidence", "completion_confidence", default=0.0
         )

@@ -523,7 +523,7 @@ def test_goal_preview_comes_from_the_engine_not_from_javascript(client):
     form["candidate_order"] = "rest_burger_house"
     data = client.post("/api/preview-goal", data=form).json()
 
-    assert "automated assistant calling on behalf of Alex" in data["goal"]
+    assert "automatisierter Assistent im Auftrag von Alex" in data["goal"]
     assert "35.00 EUR" in data["goal"]
     assert "Do you deliver to this address?" in data["goal"]
 

@@ -60,10 +60,12 @@ def _requester_callback_clause(request: UserRequest) -> str:
         raise ValueError("The requester callback number must be valid E.164.")
     requester_name = request.requester_name()
     return (
-        f" At the end of the call, give the restaurant this human callback number: "
+        f" If and only if an order or reservation was actually placed, give the restaurant "
+        f"this human callback number at the end of the call: "
         f"{callback_number}. Explicitly say that staff may contact {requester_name} at "
         f"that number with questions and to obtain human confirmation of the order or "
-        f"reservation. If staff ask for those contact details earlier, provide the same "
+        f"reservation. When nothing was ordered or reserved, do not mention any callback "
+        f"number. If staff ask for those contact details earlier, provide the same "
         f"number then, and still repeat it once at the end."
     )
 
@@ -117,7 +119,15 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
     second chance to add a condition (AGENTS.md, control boundary).
     """
     requester_name = request.requester_name()
-    intro = f"Hello, I am an automated assistant calling on behalf of {requester_name}."
+    # The disclosure sentence is quoted VERBATIM by the voice agent (proved in
+    # the 2026-08-11 field trial: an English intro was spoken English into an
+    # otherwise German call). Spoken-verbatim parts therefore ship in German;
+    # meta-instructions may stay English because the agent rephrases them in
+    # the call language.
+    intro = (
+        f"Hallo, hier spricht ein automatisierter Assistent im Auftrag von {requester_name}. "
+        "Conduct the entire conversation in German; every sentence spoken aloud must be German."
+    )
     if request.mode == Mode.RESERVATION and request.concessions:
         raise ValueError(
             "Legacy reservation concessions cannot extend the explicit time and fee limits."
@@ -131,6 +141,30 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
     callback = _requester_callback_clause(request)
 
     if request.mode == Mode.DELIVERY:
+        if request.order_chain:
+            # Field-trial feedback 2026-08-11: a restaurant can only give a
+            # total at the END of an order. With a wish chain the items are
+            # settled first; the total question comes after the chain, never
+            # as an opener.
+            goal = (
+                f"{intro} We would like to order food for delivery to {request.delivery_address}. "
+                f"The delivery is for {requester_name}; place the order under that name. "
+                f"First confirm: do you deliver to this address? This is a hard gate: "
+                f"if they do not deliver, or do not deliver to this address, thank them "
+                f"and end the call politely without ordering anything — skip the item "
+                f"chain entirely. "
+                f"Then work through the order wish chain below item by item — do not ask for "
+                f"any total price before the items are settled. "
+                f"Only after the items are settled, ask for the EXACT total price in EUR "
+                f"including delivery fee and minimum order, and the estimated delivery time "
+                f"in minutes. "
+                f"If the total price is within our maximum budget limit of {request.max_budget_eur:.2f} EUR, "
+                f"place the order. "
+                f"An approximate price is not acceptable: if no exact total is given, do not order."
+                f"{fallback}"
+            )
+            goal += "\n\n" + build_order_chain_instruction(request.order_chain)
+            return goal + callback
         goal = (
             f"{intro} We would like to order food for delivery to {request.delivery_address}. "
             f"The delivery is for {requester_name}; place the order under that name. "
@@ -143,8 +177,6 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
             f"An approximate price is not acceptable: if no exact total is given, do not order."
             f"{fallback}"
         )
-        if request.order_chain:
-            goal += "\n\n" + build_order_chain_instruction(request.order_chain)
         return goal + callback
 
     if request.mode == Mode.PICKUP:
@@ -152,6 +184,9 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
             f"{intro} We would like to place a pickup order to collect in person. "
             f"The order will be collected by {requester_name}; place it under that name. "
             f"Requested items: '{request.food_prompt}'. Preferred pickup time: {request.pickup_time}. "
+            f"First confirm: do you offer pickup orders, and are you currently open? "
+            f"This is a hard gate: if either is no, thank them and end the call politely "
+            f"without ordering anything. "
             f"Please verify: 1. Can you prepare this for pickup? "
             f"2. What is the EXACT total price in EUR? There is no delivery fee, we collect ourselves. "
             f"3. When exactly will the order be ready for collection? "

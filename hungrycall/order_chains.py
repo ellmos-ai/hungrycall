@@ -113,9 +113,13 @@ def build_order_chain_instruction(chain: OrderChain) -> str:
         tags = ", ".join(position.tags) if position.tags else "none"
         lines.append(f"Position {position_index} (tags: {tags}):")
         for cell_index, cell in enumerate(position.cells, start=1):
+            # Field-trial feedback 2026-08-11: availability first and in
+            # general terms, price second, quantity only once the price holds.
+            # The quoted question is spoken verbatim, so it ships in German.
             lines.append(
-                f"  Cell {cell_index}: ask exactly \"Do you have {cell.quantity} x {cell.product}?\" "
-                "If no, try the next cell. If yes, check the following criteria in order."
+                f"  Cell {cell_index}: ask exactly \"Haben Sie {cell.product}?\" — availability "
+                "only, do not mention any quantity yet. If not available, try the next cell. "
+                "If available, check the following criteria in order."
             )
             if cell.criteria:
                 for criterion_index, criterion in enumerate(cell.criteria, start=1):
@@ -123,8 +127,9 @@ def build_order_chain_instruction(chain: OrderChain) -> str:
             else:
                 lines.append("    There are no additional criteria; accept this cell.")
             lines.append(
-                "    Only after every applicable criterion is accepted, take this cell for the order "
-                "and continue with the next position."
+                f"    Only after every applicable criterion is accepted, state the quantity now: "
+                f"order {cell.quantity} x {cell.product} for this position, "
+                "then continue with the next position."
             )
         if position.if_nothing_available is NothingAvailableRule.SKIP_ITEM:
             lines.append(

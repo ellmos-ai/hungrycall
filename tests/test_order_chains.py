@@ -78,7 +78,10 @@ def test_translator_preserves_position_cell_criterion_and_end_rule_order():
 
     assert text.index("Position 1") < text.index("Cell 1") < text.index("Criterion 1")
     assert text.index("Criterion 1") < text.index("Cell 2")
-    assert 'ask exactly "Do you have 1 x Burger?"' in text
+    # Availability is asked generally and in German (spoken verbatim); the
+    # quantity is committed only after the criteria hold (field trial 2026-08-11).
+    assert 'ask exactly "Haben Sie Burger?"' in text
+    assert "order 1 x Burger for this position" in text
     assert "discard this cell and try the next replacement cell" in text
     assert "do not place any order" in text
 
