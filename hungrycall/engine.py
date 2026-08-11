@@ -127,8 +127,8 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
     intro = (
         f"Hallo, hier spricht ein automatisierter Assistent im Auftrag von {requester_name}. "
         "Conduct the entire conversation in German; every sentence spoken aloud must be German. "
-        # Field trial 2026-08-11: '8,50' was recorded as 8 and '19,50' as 19 —
-        # decimal cents vanished from every reported price.
+        # Precaution, not a measured defect: decimal handling is untested live
+        # (the 2026-08-11 field trial happened to use whole-euro prices).
         "Prices must be recorded with their exact decimals: '8 Euro 50' means 8.50, "
         "not 8. When in doubt, repeat the amount back with decimals to confirm it."
     )
