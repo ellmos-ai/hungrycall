@@ -147,7 +147,10 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
         "explicit confirmation: summarize it aloud (items, name, address or time) and "
         "ask the other side to confirm it back — for example: "
         "\"Bestätigen Sie mir bitte kurz die Bestellung: Was wird geliefert, und an wen?\" "
-        "Do not end such a call without that confirmation."
+        "If the other side repeats the order back, check their read-back against what "
+        "was actually agreed and correct or complete anything missing — for example, "
+        "restaurant: \"Sie bestellen also 2 Pasta Napoli?\" — you: \"Ja, und ein "
+        "Tiramisu.\" Do not end such a call without a matching confirmation."
     )
 
     if request.mode == Mode.DELIVERY:
