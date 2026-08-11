@@ -99,6 +99,27 @@ def init_db(db_path_override: Optional[str] = None) -> None:
             created_at TEXT NOT NULL
         );
     """)
+    # Every dialled attempt keeps its masked transcript: the successful one is
+    # the customer's order receipt, the rejected ones explain why the cascade
+    # moved on. Before this table the record lived only in process memory and
+    # died with the SSE stream (field trial 2026-08-11: two live conversations,
+    # zero retrievable evidence). run_id makes the provider call findable again.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS call_attempts (
+            id TEXT PRIMARY KEY,
+            order_id TEXT NOT NULL,
+            restaurant_id TEXT NOT NULL,
+            restaurant_name TEXT NOT NULL,
+            run_id TEXT,
+            status TEXT,
+            passed INTEGER NOT NULL DEFAULT 0,
+            rejection_reason TEXT,
+            post_summary TEXT,
+            transcript TEXT,
+            live INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL
+        );
+    """)
 
     conn.commit()
     conn.close()
@@ -152,6 +173,53 @@ def create_order_record(
         "order_chain": order_chain,
         "created_at": created_at
     }
+
+
+def record_call_attempt(
+    order_id: str,
+    restaurant_id: str,
+    restaurant_name: str,
+    run_id: Optional[str],
+    status: Optional[str],
+    passed: bool,
+    rejection_reason: Optional[str],
+    post_summary: Optional[str],
+    transcript: Optional[str],
+    live: bool,
+) -> Dict[str, Any]:
+    """Persist one dialled attempt with its masked transcript."""
+    init_db()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    attempt_id = f"att_{uuid.uuid4().hex[:10]}"
+    created_at = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    cursor.execute("""
+        INSERT INTO call_attempts (
+            id, order_id, restaurant_id, restaurant_name, run_id, status,
+            passed, rejection_reason, post_summary, transcript, live, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        attempt_id, order_id, restaurant_id, restaurant_name, run_id, status,
+        1 if passed else 0, rejection_reason, post_summary, transcript,
+        1 if live else 0, created_at,
+    ))
+    conn.commit()
+    conn.close()
+    return {"id": attempt_id, "order_id": order_id, "created_at": created_at}
+
+
+def list_call_attempts(order_id: str) -> List[Dict[str, Any]]:
+    """All dialled attempts of one order, oldest first."""
+    init_db()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM call_attempts WHERE order_id = ? ORDER BY created_at, id",
+        (order_id,),
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
 
 
 def _row_order(row: sqlite3.Row) -> Dict[str, Any]:

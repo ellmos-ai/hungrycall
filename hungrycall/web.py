@@ -29,8 +29,9 @@ from hungrycall.call_client import CalleAPIError, DryRunCallClient, LiveCallClie
 from hungrycall.calle_key import resolve_call_settings
 from hungrycall.db import (
     create_order_record, get_order_record, get_order_template, init_db,
-    list_order_records, list_order_templates, list_saved_results, list_tags,
-    save_cascade_result, save_order_template, save_tags,
+    list_call_attempts, list_order_records, list_order_templates,
+    list_saved_results, list_tags, record_call_attempt, save_cascade_result,
+    save_order_template, save_tags,
 )
 from hungrycall.engine import CascadeEngine, build_call_goal
 from hungrycall.fixtures import SCENARIO_FIXTURES
@@ -836,6 +837,22 @@ async def cascade_stream(request: Request, order_id: str = Query(...)):
 
             passed, rejection_reason = engine.evaluate_result(user_request, call_result)
 
+            # The order receipt lives here: every dialled attempt is stored
+            # with its masked transcript — the accepted one proves the order,
+            # the rejected ones explain the cascade (user decision 2026-08-11).
+            record_call_attempt(
+                order_id=order_id,
+                restaurant_id=restaurant.id,
+                restaurant_name=restaurant.name,
+                run_id=call_result.run_id,
+                status=call_result.status.value,
+                passed=passed,
+                rejection_reason=rejection_reason,
+                post_summary=call_result.post_summary,
+                transcript=mask_phones_in_text(call_result.raw_transcript_text or ""),
+                live=live_mode,
+            )
+
             if not passed:
                 yield sse({
                     "type": "rejected",
@@ -1001,6 +1018,23 @@ def build_receipt_payload(
             "This transcript contains statements by the person who was called."
         ),
     }
+
+
+@app.get("/api/order-attempts", response_class=JSONResponse)
+async def api_get_order_attempts(request: Request, order_id: str = Query(...)):
+    """Dialled attempts of one order, masked transcripts included.
+
+    Same session rule as active_order(): in hosted modes an order id is an
+    identifier, not a permission — foreign sessions see an empty list.
+    """
+    order = ACTIVE_ORDERS.get(order_id)
+    if (
+        order is not None
+        and current_mode().stores_in_browser
+        and order.get("session") != huckepack_storage.current_session()
+    ):
+        return []
+    return list_call_attempts(order_id)
 
 
 @app.get("/api/saved-results", response_class=JSONResponse)

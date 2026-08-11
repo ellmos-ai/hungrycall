@@ -515,6 +515,23 @@ class LiveCallClient(CallClient):
             if self.poll_seconds:
                 time.sleep(self.poll_seconds)
 
+        debug_dir = os.environ.get("HUNGRYCALL_DEBUG_PAYLOAD_DIR", "").strip()
+        if debug_dir:
+            # Field-trial diagnosis aid: the masked terminal payload answers
+            # "what did the API actually send" without dashboard access.
+            # Local file, phone numbers masked, opt-in via environment only.
+            try:
+                os.makedirs(debug_dir, exist_ok=True)
+                dump = mask_phones_in_text(json.dumps(latest, ensure_ascii=False, indent=1))
+                stamp = time.strftime("%Y%m%dT%H%M%S")
+                with open(
+                    os.path.join(debug_dir, f"terminal-{stamp}-{run_id[-8:]}.json"),
+                    "w", encoding="utf-8",
+                ) as handle:
+                    handle.write(dump)
+            except OSError:
+                pass
+
         status_value = CallStatus(status)
         structured = self._structured_result(latest)
         transcript = self._value(latest, "transcript", default="")

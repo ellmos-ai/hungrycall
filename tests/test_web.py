@@ -832,3 +832,24 @@ def test_live_with_fixtures_allowed_under_field_trial_override(client, monkeypat
     assert order["live_mode"] is True
     assert order["field_trial_number"] == trial_number
     assert all(r.phone == trial_number for r in order["candidates"])
+
+
+def test_every_dialled_attempt_is_persisted_with_its_transcript(client):
+    """The successful attempt is the customer's order receipt, the rejected
+    ones explain the cascade — both must survive the stream (user decision
+    2026-08-11: 'Bestellnachweis, also speichern sollte schon immer sein')."""
+    from hungrycall.db import list_call_attempts
+
+    events, order_id = run_cascade(client, cascade_form())
+    attempts = list_call_attempts(order_id)
+    kinds = [e["type"] for e in events]
+    dialled = kinds.count("rejected") + kinds.count("accepted")
+    assert len(attempts) == dialled and dialled >= 3
+    accepted = [a for a in attempts if a["passed"]]
+    rejected = [a for a in attempts if not a["passed"]]
+    assert len(accepted) == 1 and len(rejected) == dialled - 1
+    assert all(a["run_id"] for a in attempts)
+    assert accepted[0]["transcript"]
+    assert all(a["rejection_reason"] for a in rejected)
+    fetched = client.get(f"/api/order-attempts?order_id={order_id}").json()
+    assert [a["id"] for a in fetched] == [a["id"] for a in attempts]
