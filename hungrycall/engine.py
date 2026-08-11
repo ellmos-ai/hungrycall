@@ -143,14 +143,16 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
     # because the human asked for a summary. The agent must obtain that
     # confirmation itself, with a read-back, before hanging up.
     confirmation = (
-        " Before ending a call in which an order or reservation was placed, obtain an "
-        "explicit confirmation: summarize it aloud (items, name, address or time) and "
-        "ask the other side to confirm it back — for example: "
-        "\"Bestätigen Sie mir bitte kurz die Bestellung: Was wird geliefert, und an wen?\" "
-        "If the other side repeats the order back, check their read-back against what "
-        "was actually agreed and correct or complete anything missing — for example, "
-        "restaurant: \"Sie bestellen also 2 Pasta Napoli?\" — you: \"Ja, und ein "
-        "Tiramisu.\" Do not end such a call without a matching confirmation."
+        " Every call that places an order or reservation ends with a closing routine: "
+        "(1) summarize the complete order aloud — every item with quantity, the total "
+        "price, the name and the address or time; (2) place it bindingly — say clearly "
+        "that the order is hereby placed; (3) obtain the other side's confirmation — "
+        "for example: \"Bestätigen Sie mir bitte kurz die Bestellung: Was wird "
+        "geliefert, und an wen?\" If the other side repeats the order back, check "
+        "their read-back against what was actually agreed and correct or complete "
+        "anything missing — for example, restaurant: \"Sie bestellen also 2 Pasta "
+        "Napoli?\" — you: \"Ja, und ein Tiramisu.\" "
+        "Do not end such a call without a matching confirmation."
     )
 
     if request.mode == Mode.DELIVERY:
