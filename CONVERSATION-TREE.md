@@ -97,28 +97,29 @@ fix (`FINDINGS.md` §9 point 5's sibling: "the bot opened with the total price")
 
 ```mermaid
 flowchart TD
-    A[intro] --> B["'We would like to place a pickup order.'<br/>'Requested items: food_prompt'<br/>'Preferred pickup time: pickup_time'"]
-    B --> C["'First confirm: do you offer pickup<br/>orders, and are you currently open?'"]
-    C --> D{Hard gate: pickup offered AND open?}
-    D -- no --> E[Thank them, end call politely,<br/>without ordering anything]
-    D -- yes --> F{request.order_chain?}
-    F -- no --> G[ask: exact total? exact ready time?]
-    F -- yes --> H[§2 Order wish chain<br/>APPENDED after the simple-mode<br/>questions, not gating them]
-    G --> I{price within max_budget_eur?}
+    A[intro] --> B{request.order_chain?}
+    B -- no --> C["'We would like to place a pickup order.'<br/>'Requested items: food_prompt'<br/>'Preferred pickup time: pickup_time'<br/>ask: pickup offered+open? exact total? exact ready time?"]
+    B -- yes --> D["'First confirm: do you offer pickup<br/>orders, and are you currently open?'"]
+    D --> E{Hard gate: pickup offered AND open?}
+    E -- no --> F["Thank them, end call politely.<br/>Item chain is skipped entirely.<br/>No callback number offered — nothing was ordered."]
+    E -- yes --> G[§2 Order wish chain,<br/>build_order_chain_instruction]
+    G --> H["Only after chain resolves:<br/>ask EXACT total price (no delivery fee),<br/>and exactly when it will be ready"]
+    C --> I{price within max_budget_eur?}
     H --> I
-    I -- no / vague --> J[Decline, move to next candidate]
+    I -- no / vague --> J[Decline, move to next candidate.<br/>'An approximate price is not<br/>acceptable: if no exact total<br/>is given, do not order.']
     I -- yes --> K[Confirm the pickup order]
     K --> L[§3 Closing routine]
+    F --> M[No closing routine — nothing was placed]
 ```
 
-**Asymmetry worth knowing (§3, row 3b):** unlike delivery, pickup's `food_prompt` line
-(`"Requested items: '<food_prompt>'"`) is **not removed** when an order chain is present — it
-still appears, immediately followed by the full chain instruction. In chain mode `food_prompt`
-is `chain.summary()` (e.g. `"1x Burger, 2x Toast"`), so the agent sees the same items named
-twice, once as a flat summary and once as the structured chain. Delivery's chain branch, by
-contrast, drops the `food_prompt` line entirely. Neither is wrong — the chain instruction is
-authoritative either way — but the two modes are not built the same way for no documented
-reason.
+**Fixed asymmetry (§4, row 3b):** pickup used to keep the `food_prompt` line
+(`"Requested items: '<food_prompt>'"`) even when an order chain was present, immediately followed
+by the full chain instruction — the agent saw the same items named twice, once as a flat summary
+(`chain.summary()`, e.g. `"1x Burger, 2x Toast"`) and once as the structured chain. Delivery's
+chain branch, by contrast, already dropped the `food_prompt` line entirely and deferred the total-
+price question until after the chain resolved. Pickup now mirrors that same structure (this
+diagram reflects the fix) rather than the two modes staying built differently for no documented
+reason — see `CONVERSATION-TREE.md` §4 row 3b and §4.1 for the before/after.
 
 ### 1.3 Reservation (`Mode.RESERVATION`, `build_call_goal`)
 
@@ -368,7 +369,7 @@ is the reason row 13 below needed a fix rather than only a prompt fragment.
 | 1 | `mode` | web form / CLI subcommand | Dispatches all of §1 (`build_call_goal`) | **Covered** | — |
 | 2 | `first_name` / `last_name` (→ `requester_name()`) | web form / `--customer-name` | Intro, "place the order under that name", "confirm the reservation under the name" | **Covered** | — |
 | 3a | `food_prompt` (simple, no chain) | web form / `--food` | `"Requested items: '<food_prompt>'."` (delivery-simple, pickup) | **Covered** | — |
-| 3b | `food_prompt` (= `chain.summary()` in chain mode) | derived from chain | Pickup: kept alongside the chain (redundant). Delivery: dropped entirely, chain is authoritative. Reservation: never used. | **Finding** — inconsistent between delivery and pickup; documented in §1.2 | — |
+| 3b | `food_prompt` (= `chain.summary()` in chain mode) | derived from chain | Delivery and pickup: dropped entirely once a chain exists, chain is authoritative. Reservation: never used. | **Before the fix: Finding** — pickup kept the `food_prompt` line alongside the chain (redundant, agent saw the same items named twice); delivery already dropped it. **After the fix: Covered, consistently** — pickup's chain branch was restructured to match delivery's (no `Requested items` line, the exact-total-price question deferred until after the chain resolves); documented in §1.2 | — |
 | 3c | `food_prompt` (reservation's cuisine wish) | web form (`table.wish` field) | never in the goal — used only by `ranking.py` to pick which restaurants get called | **App-side only** — by design: the restaurant was already selected for matching that cuisine before it was dialled | — |
 | 4 | `max_budget_eur` | web form / `--budget` | `"within our maximum budget limit of <X> EUR"` / `"within our limit of <X> EUR"` | **Covered** (delivery/pickup; correctly absent for reservation) | `CascadeEngine.check_price_and_order` rejects `total_price_eur > max_budget_eur` independently of what the agent reports |
 | 5 | `delivery_address` | web form / `--address` | `"delivery to <address>"`, `"do you deliver to this address?"` | **Covered** (delivery only) | — (relies on `delivers_to_address` as reported) |
@@ -428,9 +429,17 @@ removal.** Unlike `cell.kind` and `tags`, `special_instructions` *does* have som
 (reservation's `special_clause`) — the gap was that delivery/pickup could carry the field without
 either reaching the goal or being told they could not. Row 22 above documents the fix:
 `build_user_request` now raises rather than silently dropping it, closing the trap without
-inventing delivery/pickup support nobody asked for. Status of the remaining two as of this
-writing: **#3b, #11 — open**, tracked for the same priority-ordered fix pass as #12, #15, #20
-and #22.
+inventing delivery/pickup support nobody asked for.
+
+**#3b has since been fixed a fourth way: by unifying two builders, not by wiring, removing or
+rejecting a setting.** This one was never about a setting failing to reach the prompt — `food_prompt`
+reached it in both modes — it was about the *same* situation (a chain present) producing
+differently-shaped goals for delivery and pickup with no documented reason. Row 3b and §1.2 above
+document the fix: pickup's chain branch was restructured to match delivery's (drop the
+`Requested items` line, defer the exact-total-price question until after the chain resolves)
+rather than the reverse, because delivery's structure was already the one without the redundancy.
+Status of the remaining finding as of this writing: **#11 — open**, tracked for the same
+priority-ordered fix pass as #12, #15, #20, #22 and #3b.
 
 ---
 

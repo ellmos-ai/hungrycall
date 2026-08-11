@@ -282,11 +282,15 @@ def _pickup_chain() -> UserRequest:
 
 
 def _check_pickup_chain(goal: str, lang: str) -> None:
-    # CONVERSATION-TREE.md §1.2 asymmetry: unlike delivery, pickup keeps the
-    # food_prompt/summary line AND appends the full chain afterwards.
-    assert "Requested items: '1x Pizza Margherita'" in goal
+    # Coverage-map finding #3b (CONVERSATION-TREE.md §4 row 3b, fixed): pickup
+    # used to keep the food_prompt/summary line AND append the full chain
+    # afterwards, redundant with delivery+chain which already dropped it.
+    # Pickup now matches delivery's structure: no Requested-items line, and
+    # the total-price question deferred until after the chain is settled.
+    assert "Requested items:" not in goal
     assert "Position 1" in goal
-    assert goal.index("Requested items:") < goal.index("Position 1")
+    assert "There is no delivery fee, we collect ourselves" in goal
+    assert goal.index("do not ask for any total price before the items are settled") < goal.index("Position 1")
 
 
 def _reservation_no_tolerances() -> UserRequest:

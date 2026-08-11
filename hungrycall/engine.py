@@ -247,6 +247,34 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
         return goal + confirmation + callback
 
     if request.mode == Mode.PICKUP:
+        # Coverage-map finding #3b (CONVERSATION-TREE.md §4 row 3b): this used
+        # to keep the "Requested items: '<food_prompt>'" line even when a
+        # chain existed, redundant with the chain's own per-cell detail below
+        # -- unlike DELIVERY, which already dropped it. The chain is the
+        # authoritative source once it exists; this mirrors DELIVERY's
+        # structure (early branch, no Requested-items line, price question
+        # deferred until after the chain is settled) rather than the other
+        # way around, so the two modes are consistent for the same reason.
+        if request.order_chain:
+            goal = (
+                f"{intro} We would like to place a pickup order to collect in person. "
+                f"The order will be collected by {requester_name}; place it under that name. "
+                f"Preferred pickup time: {request.pickup_time}. "
+                f"First confirm: do you offer pickup orders, and are you currently open? "
+                f"This is a hard gate: if either is no, thank them and end the call politely "
+                f"without ordering anything — skip the item chain entirely. "
+                f"Then work through the order wish chain below item by item — do not ask for "
+                f"any total price before the items are settled. "
+                f"Only after the items are settled, ask for the EXACT total price in EUR. "
+                f"There is no delivery fee, we collect ourselves. Also ask exactly when the "
+                f"order will be ready for collection. "
+                f"If the total price is within our limit of {request.max_budget_eur:.2f} EUR, "
+                f"confirm the pickup order. "
+                f"An approximate price is not acceptable: if no exact total is given, do not order."
+                f"{fallback}"
+            )
+            goal += "\n\n" + build_order_chain_instruction(request.order_chain, language.locale)
+            return goal + confirmation + callback
         goal = (
             f"{intro} We would like to place a pickup order to collect in person. "
             f"The order will be collected by {requester_name}; place it under that name. "
@@ -262,8 +290,6 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
             f"An approximate price is not acceptable: if no exact total is given, do not order."
             f"{fallback}"
         )
-        if request.order_chain:
-            goal += "\n\n" + build_order_chain_instruction(request.order_chain, language.locale)
         return goal + confirmation + callback
 
     if request.mode == Mode.RESERVATION:
