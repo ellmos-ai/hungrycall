@@ -100,6 +100,15 @@ HungryCall addresses an entirely different class of problem — **a multi-candid
 7. **Human Confirmation Contact**:
    - The web form collects first name, last name and a required E.164 requester callback number. The number is carried only in transient request state, is included in each live call goal for restaurant questions or human confirmation, and is repeated at the end of that goal. It is not written to orders, saved results, history exports or fixture transcripts.
 
+8. **Closing Routine with Binding Confirmation**:
+   - Every call that places an order or reservation ends with a mandatory closing routine: read back the complete order or booking, state clearly that it is hereby placed, and obtain the other side's confirmation. A condition that surfaces only after that summary — a fee, a changed price, a changed time — is re-checked against the caller's authority; if it exceeds it, the agent retracts aloud instead of leaving the restaurant believing something stands that was never actually authorised.
+
+9. **Call Language, Independent of the Interface Language**:
+   - `HUNGRYCALL_CALL_LOCALE` (`de` by default, `en` optional) selects the language CALL-E is asked to conduct the phone call in, and with it the language of every verbatim-quoted sentence in the goal text (`hungrycall/call_language.py`). This is separate from the web interface's own German/English switch below, which only affects what the browser shows.
+
+10. **Order Receipt via Call Attempts**:
+    - Every dialled attempt — accepted or rejected — is stored with its provider run id, status, rejection reason and masked transcript as soon as the cascade evaluates it, not only the final outcome. `GET /api/order-attempts?order_id=...` serves the list under the same session rule as the live event stream.
+
 ---
 
 ## Real CALL-E Service Dynamics (Measured Findings)
@@ -127,6 +136,12 @@ HungryCall incorporates empirical findings measured against the live CALL-E serv
 6. **Serial Execution Safety**:
    - Concurrency limits remain unverified; HungryCall strictly uses serial cascade ordering (stopping immediately on first success) to avoid duplicate food orders or extra call costs.
 
+7. **Poll Resilience and Create-Retry**:
+   - A single transient network or 5xx failure no longer aborts a running cascade: status polling tolerates up to 3 consecutive failures before giving up. A `POST /v1/calls` that times out on the client side is retried up to 3 times with the SAME `Idempotency-Key`, so a retry re-attaches to a call the provider may already have placed ("ghost call") instead of dialling a second time. Full write-up: `FINDINGS.md` §9.
+
+8. **Payload Diagnostics (Opt-In)**:
+   - Setting `HUNGRYCALL_DEBUG_PAYLOAD_DIR` writes the masked terminal API payload of each live call to that local directory — used to diagnose exactly what the API returned when a live result looked wrong. Off by default; local files only, phone numbers masked before they are written.
+
 ---
 
 ## Data Flow & Privacy Disclosure
@@ -147,6 +162,7 @@ HungryCall incorporates empirical findings measured against the live CALL-E serv
 HungryCall adheres strictly to the CALL-E repository safety guidelines:
 
 - **Call Dry-Run by Default**: Unless `--live` and `--confirm-live` are explicitly supplied, the call cascade uses local fixtures and needs no CALL-E account. Restaurant discovery is a separate boundary: normal web searches use OpenStreetMap, while an explicit, clearly labelled restaurant test mode is fully local.
+- **Field-Trial Mode**: `HUNGRYCALL_FIELD_TRIAL_PHONE` reroutes every live candidate's phone number to one explicitly consenting test number before a cascade starts; restaurant names and ranking stay real, only the dialled wire is redirected. Fail-closed: a set-but-invalid number refuses the live run instead of silently falling back to real numbers. Only under this override may a restaurant sourced from the fixture/test-mode scenarios go out on a live wire — never with a real restaurant's own number.
 - **Explicit User Intent**: Calls are only initiated upon direct user action.
 - **E.164 Validation**: All target phone numbers are validated against standard E.164 format (`+441632960090`) prior to dialing.
 - **Phone Number Masking**: All phone numbers in console logs, JSON reports, and summaries are masked (e.g. `+49 ••• ••••123`).
@@ -268,7 +284,12 @@ The interface states these where you are working, rather than hiding them:
   and a normal restaurant search reports the network failure; explicit test mode
   remains available. No fonts, scripts or styles are fetched from anywhere.
 
-* **No field trial with real restaurants has taken place.**
+* **No field trial with real restaurants has taken place.** A supervised field trial
+  did take place on 2026-08-11, but under `HUNGRYCALL_FIELD_TRIAL_PHONE`: every
+  candidate's dialled number was replaced with one consenting test line, never with a
+  real restaurant's own number. Findings from those calls are in `FINDINGS.md` §9 and
+  the hardening they led to is listed under Key Features and Real CALL-E Service
+  Dynamics above.
 
 ### Launching the Web UI
 ```bash

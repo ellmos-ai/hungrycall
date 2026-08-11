@@ -104,6 +104,27 @@ strukturierte Agentenantwort. Frei angelegte Tags gruppieren die Abschlussübers
 Ketten lassen sich als Vorlagen speichern; jede abgeschickte Bestellung kann aus dem Verlauf
 geladen, geändert und erneut durch den Trockenlauf geschickt werden.
 
+## Abschlussroutine, Anrufsprache und Bestellbeleg
+
+Jeder Anruf, der bestellt oder reserviert, endet mit einer verbindlichen **Abschlussroutine**:
+die komplette Bestellung oder Buchung wird vorgelesen, ausdrücklich als verbindlich erklärt und
+von der Gegenseite bestätigt. Taucht danach noch eine neue Bedingung auf — eine Gebühr, ein
+geänderter Preis, eine geänderte Zeit —, prüft der Agent sie erneut gegen seine Vollmacht und
+zieht die Bestellung hörbar zurück, statt die Gegenseite im Glauben zu lassen, es stünde etwas,
+das nie erteilt wurde.
+
+Die **Anrufsprache** ist von der Sprache der Weboberfläche getrennt: `HUNGRYCALL_CALL_LOCALE`
+(Standard `de`, optional `en`) legt fest, in welcher Sprache CALL-E das Telefonat führt, und
+damit auch die Sprache jedes wörtlich zitierten Satzes in der Gesprächsanweisung
+(`hungrycall/call_language.py`). Der Sprachschalter im Kopf der Weboberfläche (siehe unten)
+ändert nur, was im Browser angezeigt wird — nicht, in welcher Sprache tatsächlich telefoniert
+wird.
+
+Jeder gewählte Versuch — angenommen oder abgelehnt — wird mit Anbieter-Kennung (`run_id`),
+Status, Ablehnungsgrund und maskiertem Transkript als **Bestellbeleg** gespeichert, sobald die
+Kaskade ihn auswertet, nicht erst am Ende. `GET /api/order-attempts?order_id=...` liefert diese
+Liste unter derselben Sitzungsregel wie der Live-Ereignisstrom.
+
 ---
 
 ## Kernprobe für Juroren — 30 Sekunden, ohne Zugang
@@ -226,6 +247,19 @@ widersprechen ihr:
    `result_schema`, und ein über MCP gestarteter Anruf ist über REST gar nicht abrufbar —
    getrennte ID-Räume.
 
+Aus dem betreuten Feldversuch am 2026-08-11 (Einzelheiten in `FINDINGS.md` §9):
+
+5. **Ein Netzwerkaussetzer beendet die Kaskade nicht mehr, und ein hängender POST
+   verdoppelt keinen Anruf.** Das Status-Polling verträgt bis zu 3 aufeinanderfolgende
+   Netzwerk-/5xx-Fehler, bevor es aufgibt. Ein `POST /v1/calls`, der clientseitig in den
+   Timeout läuft, wird bis zu dreimal mit **demselben** `Idempotency-Key` wiederholt — ein
+   Wiederholungsversuch hängt sich so an einen bereits laufenden „Geisteranruf" an, statt
+   ein zweites Mal zu wählen.
+6. **`HUNGRYCALL_DEBUG_PAYLOAD_DIR` schreibt das maskierte End-Payload jedes Live-Anrufs
+   lokal mit.** Nur mit gesetzter Variable, nur lokal, Rufnummern vorher maskiert —
+   entstanden, um zu klären, was die API bei einem unerwarteten Ergebnis wirklich
+   zurückgegeben hatte.
+
 ---
 
 ## Datenfluss und Datenschutz
@@ -251,6 +285,13 @@ widersprechen ihr:
   `--confirm-live` nutzt die Anrufkaskade lokale Fixtures und braucht kein CALL-E-Konto.
   Die Restaurantquelle ist davon getrennt: Im Web fragt der Normalbetrieb
   OpenStreetMap ab; nur ein ausdrücklich gewählter Restaurant-Testmodus ist vollständig lokal.
+* **Feldversuchsmodus:** `HUNGRYCALL_FIELD_TRIAL_PHONE` leitet vor Kaskadenstart die
+  Rufnummer jedes Live-Kandidaten auf eine einzige, ausdrücklich zustimmende Testnummer um;
+  Restaurantnamen und Ranking bleiben echt, nur die gewählte Leitung wird umgeleitet.
+  Fail-closed: Eine gesetzte, aber ungültige Nummer verweigert den Live-Lauf, statt
+  stillschweigend auf echte Nummern zurückzufallen. Nur unter dieser Umleitung darf ein
+  Restaurant aus den Fixture-/Testmodus-Szenarien überhaupt auf eine Live-Leitung gehen —
+  nie mit der echten Nummer eines echten Betriebs.
 * **Nur auf ausdrückliche Handlung** wird gewählt.
 * **E.164-Prüfung** jeder Zielnummer vor dem Wählen.
 * **Rufnummern-Maskierung** in Konsole, JSON-Berichten und Zusammenfassungen.
@@ -292,7 +333,12 @@ Die Oberfläche schreibt das dort hin, wo man arbeitet, statt es zu verstecken:
 * **Kartenkacheln kommen von OpenStreetMap.** Ohne Verbindung bleibt die Karte grau und
   eine normale Restaurantsuche meldet den Netzwerkfehler; der ausdrückliche Testmodus
   bleibt verfügbar. Schriften, Skripte und Stile werden von nirgendwo nachgeladen.
-* **Ein Feldversuch mit echten Betrieben hat nicht stattgefunden.**
+* **Ein Feldversuch mit echten Betrieben hat nicht stattgefunden.** Ein betreuter
+  Feldversuch fand am 2026-08-11 statt, aber unter `HUNGRYCALL_FIELD_TRIAL_PHONE`: Die
+  gewählte Nummer jedes Kandidaten war durchgehend eine einzige zustimmende Testleitung,
+  nie die echte Nummer eines echten Betriebs. Die Befunde aus diesen Anrufen stehen in
+  `FINDINGS.md` §9, die daraus entstandene Härtung oben unter „Abschlussroutine,
+  Anrufsprache und Bestellbeleg" sowie in „Am echten Dienst gemessen".
 
 ## Tests
 
