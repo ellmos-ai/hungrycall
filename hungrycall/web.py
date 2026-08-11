@@ -321,6 +321,21 @@ def build_user_request(
     if seating is not Seating.CUSTOM and seating_custom:
         raise ValueError("seating_custom requires custom seating to be selected")
 
+    # Coverage-map finding #22 (CONVERSATION-TREE.md §4 row 22): build_call_goal
+    # only ever renders special_instructions inside the RESERVATION branch
+    # (special_clause). There is no delivery/pickup web field for it today, so
+    # this used to be reachable only by hand-crafting a request -- but nothing
+    # here stopped that request from being accepted and the note silently
+    # dropped, which is a trap for whoever adds that field later without
+    # reading build_call_goal first. Reject it now, the same way seating_custom
+    # is rejected outside custom seating, rather than accepting and discarding it.
+    special_instructions = optional_text("special_instructions", 500)
+    if mode is not Mode.RESERVATION and special_instructions:
+        raise ValueError(
+            "special_instructions is only supported for reservations; "
+            f"{mode.value} has no way to pass it on to the restaurant"
+        )
+
     return UserRequest(
         mode=mode,
         customer_name=customer_name,
@@ -341,7 +356,7 @@ def build_user_request(
         last_name=last_name,
         requester_callback_number=requester_callback_number,
         seating_custom=seating_custom,
-        special_instructions=optional_text("special_instructions", 500),
+        special_instructions=special_instructions,
         earlier_hours=earlier_hours if mode is Mode.RESERVATION else 0,
         later_hours=later_hours if mode is Mode.RESERVATION else 0,
         earlier_minutes=earlier_minutes if mode is Mode.RESERVATION else 0,

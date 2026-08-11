@@ -388,7 +388,7 @@ is the reason row 13 below needed a fix rather than only a prompt fragment.
 | 19 | order chain: `posten[].wenn_nichts_verfuegbar` (`posten_weglassen`/`bestellung_abbrechen`) | web chain builder | Position end rule, two structurally different instructions incl. the total-price prohibition (§2.4) | **Covered** | `_apply_position_end_rule` applies the configured rule directly; there is nothing for the agent to misreport here since the app decides the outcome from `verfuegbar`/criteria evidence alone |
 | 20 | order chain: `posten[].tags` | web chain builder | Printed as `"Position N (tags: <tags>):"` | **Finding** (minor) — reaches the prompt, but no instruction anywhere tells the agent what to do with it; it exists solely for the result screen's grouping and appears to leak into the agent's view by accident | n/a |
 | 21 | `requester_callback_number` | web form (required) / `--requester-callback-number` | `_requester_callback_clause()` (§3.3) | **Covered** | — (no check that it was actually spoken; it is redacted from stored output, not verified for delivery) |
-| 22 | `special_instructions` | web form (**reservation branch only**; `build_user_request` itself reads the field for any mode) | `special_clause`, built **only** inside the `Mode.RESERVATION` branch of `build_call_goal` | **Finding** (latent) — there is no delivery/pickup UI for this today, so it cannot currently be set for those modes. But the web-parsing layer does not gate it by mode, and the goal builder does either: if a future delivery/pickup form field ever wrote to `special_instructions`, it would be silently dropped, not surfaced as an error | n/a |
+| 22 | `special_instructions` | web form (**reservation branch only**) | `special_clause`, built **only** inside the `Mode.RESERVATION` branch of `build_call_goal` | **Before the fix: Finding (latent)** — there was no delivery/pickup UI for this, but `build_user_request` did not gate the field by mode either, so a hand-crafted request carrying it for delivery/pickup was accepted and the note silently dropped, never surfaced as an error. **After the fix: rejected, not silently dropped** — `build_user_request` now raises `ValueError` if `special_instructions` is set for any mode other than `RESERVATION`, the same way `seating_custom` is rejected outside custom seating. Support for delivery/pickup notes was **not** added — only the trap was closed; adding real support is a separate, larger decision (a new form field, plus deciding what "leave it with the neighbour" even means for a phone order) that nobody asked for here | n/a |
 | 23 | `earlier_hours` / `earlier_minutes` | web form / `--earlier-hours --earlier-minutes` | `_reservation_authority_clause()` step 2 (§2.7) | **Covered** (reservation only) | `CascadeEngine.check_reservation_authority` recomputes the confirmed-vs-requested delta itself and rejects anything outside the granted window |
 | 24 | `later_hours` / `later_minutes` | web form / `--later-hours --later-minutes` | `_reservation_authority_clause()` step 3 (§2.7) | **Covered** (reservation only) | Same audit as row 23 |
 | 25 | `max_booking_fee_eur` | web form / `--max-booking-fee-eur` | `_reservation_authority_clause()` fee step or fixed refusal (§2.7) | **Covered** (reservation only) | `check_reservation_authority` rejects a reported fee above this value regardless of what the agent verbally accepted — the live proof is `EVIDENCE.md` §16.3 |
@@ -415,9 +415,15 @@ why the *original* three labels could not simply have been wired up as-is — an
 **#15 has since been fixed the other way round from #12: by removal, not wiring.** Row 15 above
 lays out why — unlike concessions, tags or `special_instructions`, `cell.kind` had no sentence to
 be wired *to*; the plain removal was the honest fix rather than inventing prompt text nobody
-needed just to make the setting "reach" somewhere. Status of the remaining four as of this
-writing: **#3b, #11, #20, #22 — open**, tracked for the same priority-ordered fix pass as #12
-and #15.
+needed just to make the setting "reach" somewhere.
+
+**#22 has since been fixed a third way: by rejection, not wiring or removal.** Unlike `cell.kind`,
+`special_instructions` *does* have somewhere to go (reservation's `special_clause`) — the gap was
+that delivery/pickup could carry the field without either reaching the goal or being told they
+could not. Row 22 above documents the fix: `build_user_request` now raises rather than silently
+dropping it, closing the trap without inventing delivery/pickup support nobody asked for. Status
+of the remaining three as of this writing: **#3b, #11, #20 — open**, tracked for the same
+priority-ordered fix pass as #12, #15 and #22.
 
 ---
 

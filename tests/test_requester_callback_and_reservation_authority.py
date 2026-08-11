@@ -270,6 +270,43 @@ def test_legacy_reservation_concessions_cannot_expand_new_limits():
     assert "3 EUR more than the maximum budget" not in goal
 
 
+def test_special_instructions_is_rejected_for_delivery_and_pickup():
+    """Coverage-map finding #22: build_call_goal only ever renders
+    special_instructions inside the RESERVATION branch. Before this fix, a
+    delivery or pickup request carrying it was accepted and the note simply
+    never reached anyone -- silent, not an error. It must now be rejected at
+    parse time instead, the same way seating_custom is rejected outside
+    custom seating.
+    """
+    base = {
+        "first_name": "Ada",
+        "last_name": "Lovelace",
+        "requester_callback_number": CALLBACK,
+        "food_prompt": "Burger",
+        "max_budget_eur": "35",
+        "delivery_address": "Dorfstraße 10, 12345 Dorfstadt",
+        "special_instructions": "Please leave it with the neighbour",
+    }
+    for mode in ("delivery", "pickup"):
+        fields = dict(base, mode=mode)
+        try:
+            build_user_request(fields)
+        except ValueError as exc:
+            assert "special_instructions" in str(exc)
+            assert mode in str(exc)
+        else:
+            raise AssertionError(f"special_instructions silently accepted for {mode}")
+
+    # Unset or blank is fine for delivery/pickup -- only a non-empty note is rejected.
+    request = build_user_request(dict(base, mode="delivery", special_instructions=""))
+    assert request.special_instructions is None
+    # Reservation is unaffected -- this is the one mode the field is for.
+    reservation_fields = dict(base, mode="reservation", reservation_date="2026-08-07",
+                               reservation_time="19:00", party_size="4")
+    request = build_user_request(reservation_fields)
+    assert request.special_instructions == "Please leave it with the neighbour"
+
+
 def test_free_reservation_notes_share_the_high_risk_content_gate():
     request = reservation_request(special_instructions="Please call the hospital instead")
     engine = CascadeEngine(SAMPLE_RESTAURANTS)
