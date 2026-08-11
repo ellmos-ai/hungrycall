@@ -96,7 +96,8 @@ def test_soft_criterion_moves_to_the_next_replacement():
                 "kriterium_index": 0, "preis_bekannt": True, "preis_eur": 12,
             }],
         },
-        {"zelle_index": 1, "verfuegbar": True, "kriterien": []},
+        # Toast (cell 1) is the winning cell here, quantity 2 per make_chain().
+        {"zelle_index": 1, "verfuegbar": True, "menge_bestellt": 2, "kriterien": []},
     )
 
     evaluation = evaluate_order_chain(make_chain(), result)
@@ -104,6 +105,73 @@ def test_soft_criterion_moves_to_the_next_replacement():
     assert evaluation.success is True
     assert evaluation.accepted[0].cell_index == 1
     assert evaluation.accepted[0].cell.product == "Toast"
+
+
+# AUFTRAG F, live-measured 2026-08-11 (FINDINGS.md): a chain required 2 x Pasta
+# Napoli, the voice agent placed 1 x, and the app accepted the result — nothing
+# in order_chain_results ever asked what quantity was actually ordered, only
+# which cell was taken. The four tests below close that gap: match, mismatch,
+# a taken cell missing the field entirely, and an untaken cell that correctly
+# needs no quantity at all (its absence there is not an error).
+
+def _single_cell_chain(quantity: int, product: str = "Pasta Napoli") -> OrderChain:
+    return OrderChain.from_dict({
+        "posten": [{
+            "zellen": [{"menge": quantity, "produkt": product, "art": "essen", "kriterien": []}],
+            "tags": [], "wenn_nichts_verfuegbar": "posten_weglassen",
+        }],
+    })
+
+
+def test_ordered_quantity_matching_the_configured_amount_is_accepted():
+    chain = _single_cell_chain(quantity=2)
+    result = position_result({
+        "zelle_index": 0, "verfuegbar": True, "menge_bestellt": 2, "kriterien": [],
+    })
+
+    evaluation = evaluate_order_chain(chain, result)
+
+    assert evaluation.success is True
+    assert evaluation.accepted[0].cell.quantity == 2
+
+
+def test_ordered_quantity_below_the_configured_amount_is_rejected():
+    """The exact live shape: configured 2, agent placed 1."""
+    chain = _single_cell_chain(quantity=2)
+    result = position_result({
+        "zelle_index": 0, "verfuegbar": True, "menge_bestellt": 1, "kriterien": [],
+    })
+
+    evaluation = evaluate_order_chain(chain, result)
+
+    assert evaluation.success is False
+    assert evaluation.reason == "Ordered quantity 1 does not match the configured 2 x Pasta Napoli"
+
+
+def test_a_taken_cell_missing_the_ordered_quantity_is_rejected():
+    chain = _single_cell_chain(quantity=2)
+    result = position_result({"zelle_index": 0, "verfuegbar": True, "kriterien": []})
+
+    evaluation = evaluate_order_chain(chain, result)
+
+    assert evaluation.success is False
+    assert "menge_bestellt" in evaluation.reason
+
+
+def test_an_untaken_cell_needs_no_ordered_quantity():
+    """Absence of menge_bestellt is exactly how a cell that was NOT taken is
+    represented (schema docstring, ORDER_CHAIN_RESULT_SCHEMA) — an unavailable
+    first cell must not be required to report a quantity it never ordered;
+    only the cell that actually wins the position needs one."""
+    result = position_result(
+        {"zelle_index": 0, "verfuegbar": False, "kriterien": []},
+        {"zelle_index": 1, "verfuegbar": True, "menge_bestellt": 2, "kriterien": []},
+    )
+
+    evaluation = evaluate_order_chain(make_chain(), result)
+
+    assert evaluation.success is True
+    assert evaluation.accepted[0].cell_index == 1
 
 
 def test_hard_criterion_stops_the_replacement_chain_then_skips_the_position():
@@ -155,7 +223,7 @@ def test_question_uses_its_configured_yes_and_no_reactions():
         }],
     })
     yes = position_result({
-        "zelle_index": 0, "verfuegbar": True,
+        "zelle_index": 0, "verfuegbar": True, "menge_bestellt": 1,
         "kriterien": [{"kriterium_index": 0, "antwort_ja": True}],
     })
     no = position_result({

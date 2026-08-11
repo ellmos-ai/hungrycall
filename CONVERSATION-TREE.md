@@ -259,6 +259,35 @@ the agent *reports* — the 2026-08-11 field trial's third live cascade is the s
 works: the agent verbally accepted a 5 EUR fee against an authorised maximum of 0 EUR, and the
 authority audit rejected the result deterministically regardless (`EVIDENCE.md` §16.3).
 
+### 2.8 Quantity verification (`menge_bestellt`, AUFTRAG F fix, 2026-08-11)
+
+The §2.1 quantity commitment (*"order `<quantity>` x `<product>` for this position"*) is a
+correct prompt fragment that a live call still violated: a chain requiring 2 x Pasta Napoli was
+placed as 1 x, and `evaluate_order_chain` accepted it, because nothing in `order_chain_results`
+carried the quantity actually ordered — only which cell was taken. Two changes closed the gap,
+neither of which existed before this finding (§4 row 13 tracks both the finding and the fix):
+
+1. **Reinforcement, at the point of commitment.** Immediately after the existing quantity
+   sentence, `build_order_chain_instruction` now adds: *"When you later place and summarize the
+   order, place and confirm exactly `<quantity>` x `<product>` for this position — never a
+   smaller or different amount, even if the conversation drifted."* The evidence-reporting
+   instruction at the end of the chain block was extended the same way, telling the agent to
+   report the placed quantity in a new `menge_bestellt` field for every cell it took, and to omit
+   the field entirely for a cell it did not take.
+2. **Verification, independent of the transcript.** `ORDER_CHAIN_RESULT_SCHEMA` gained an
+   optional `menge_bestellt` integer property per cell — optional because its *absence* is how
+   an untaken cell (unavailable, or rejected by a criterion) is represented; a schema-level
+   `required` entry would force every cell, taken or not, to report a quantity, which the
+   position it was never asked to fill is not owed. `evaluate_order_chain` now checks, for every
+   cell it is about to accept as a position's winner, that `menge_bestellt` is present and equal
+   to `cell.quantity`; a missing or mismatched value rejects the whole evaluation with
+   `"Ordered quantity <N> does not match the configured <M> x <product>"` (or, if the field is
+   simply absent, `"...is missing the ordered quantity (menge_bestellt)"`).
+
+Tested in `tests/test_order_chains.py`: the exact match case, the exact live mismatch (configured
+2, reported 1), a taken cell missing the field entirely, and — the negative case that must *not*
+raise — an untaken cell that correctly reports no quantity at all.
+
 ---
 
 ## 3. Closing routine, retract-aloud, and the human callback
@@ -319,36 +348,49 @@ user-configurable (or intended to be) but does **not** currently reach the promp
 would reasonably expect it to — listed here as discovered, not silently fixed, per this
 document's own mandate.
 
-| # | Setting | Configured via | Prompt fragment / builder | Status |
-|---|---|---|---|---|
-| 1 | `mode` | web form / CLI subcommand | Dispatches all of §1 (`build_call_goal`) | **Covered** |
-| 2 | `first_name` / `last_name` (→ `requester_name()`) | web form / `--customer-name` | Intro, "place the order under that name", "confirm the reservation under the name" | **Covered** |
-| 3a | `food_prompt` (simple, no chain) | web form / `--food` | `"Requested items: '<food_prompt>'."` (delivery-simple, pickup) | **Covered** |
-| 3b | `food_prompt` (= `chain.summary()` in chain mode) | derived from chain | Pickup: kept alongside the chain (redundant). Delivery: dropped entirely, chain is authoritative. Reservation: never used. | **Finding** — inconsistent between delivery and pickup; documented in §1.2 |
-| 3c | `food_prompt` (reservation's cuisine wish) | web form (`table.wish` field) | never in the goal — used only by `ranking.py` to pick which restaurants get called | **App-side only** — by design: the restaurant was already selected for matching that cuisine before it was dialled |
-| 4 | `max_budget_eur` | web form / `--budget` | `"within our maximum budget limit of <X> EUR"` / `"within our limit of <X> EUR"` | **Covered** (delivery/pickup; correctly absent for reservation) |
-| 5 | `delivery_address` | web form / `--address` | `"delivery to <address>"`, `"do you deliver to this address?"` | **Covered** (delivery only) |
-| 6 | `reservation_date` / `reservation_time` / `party_size` | web form / `--date --time --party` | `"reserve a table on <date> at <time> for <party_size> people"` | **Covered** (reservation only) |
-| 7 | `seating` / `seating_custom` | web form / `--seating --seating-custom` | seating_clause (§1.3) | **Covered** (reservation only) |
-| 8 | `pickup_time` | web form / `--pickup-time` | `"Preferred pickup time: <X>"` | **Covered** (pickup only) |
-| 9 | `max_distance_km` | web form | `ranking.py` hard cutoff, before any call | **App-side only** — the restaurant does not need to know the caller's distance limit; it decides *which* candidates are dialled, not what is said |
-| 10 | `day_of_week` / `time_of_request` | derived (reservation date, or system clock) | `ranking.py` opening-hours pre-filter | **App-side only** — pickup independently re-asks *"are you currently open?"* live (§1.2), so this is not the only check, just the earliest one |
-| 11 | `favorite_restaurant_ids` | — (no web field, no CLI flag) | `ranking.py` `is_fav` ranking boost | **Finding** — modelled and used by ranking, but there is currently no way for a user to actually populate it |
-| 12 | `concessions` (`TABLE_CONCESSIONS`: `indoor_ok`, `time_flex`, `deposit_ok`) | intended: web form checkboxes | `_concession_clause()` — fully implemented, tier-ordered fallback ladder, independently audited (§2.6) | **Finding** — the mechanism is complete and correct, but no checkbox anywhere emits `name="concessions"`; `templates.py` only ever writes a hidden pass-through field for a value nothing can set. In practice `request.concessions` is always empty on delivery/pickup, and explicitly forbidden on reservation (`build_call_goal` raises `ValueError`) |
-| 13 | order chain: `cells[].quantity` | web chain builder | `"order <quantity> x <product> for this position"` | **Covered** |
-| 14 | order chain: `cells[].product` | web chain builder | Availability question + every criterion/quantity sentence for that cell | **Covered** |
-| 15 | order chain: `cells[].art` (`ProductKind`: `essen`/`getraenk`) | web chain builder (real dropdown, `app.js`) | — | **Finding** — the UI lets a user mark a cell as food or drink; nothing in `build_order_chain_instruction` or `_cell_availability_question` ever reads `cell.kind`. The voice agent cannot tell a drink item from a food item |
-| 16 | order chain: `criteria[].art` (`hoechstpreis`/`sonderwunsch`/`rueckfrage`) | web chain builder | `_criterion_instruction()`, three distinct question forms (§2.2) | **Covered** |
-| 17 | order chain: `criteria[].wert` | web chain builder | Interpolated into the criterion's question | **Covered** |
-| 18 | order chain: `criteria[].reaktion_ja` / `reaktion_nein` | web chain builder | `_reaction_instruction()`, three distinct reactions (§2.3) | **Covered** |
-| 19 | order chain: `posten[].wenn_nichts_verfuegbar` (`posten_weglassen`/`bestellung_abbrechen`) | web chain builder | Position end rule, two structurally different instructions incl. the total-price prohibition (§2.4) | **Covered** |
-| 20 | order chain: `posten[].tags` | web chain builder | Printed as `"Position N (tags: <tags>):"` | **Finding** (minor) — reaches the prompt, but no instruction anywhere tells the agent what to do with it; it exists solely for the result screen's grouping and appears to leak into the agent's view by accident |
-| 21 | `requester_callback_number` | web form (required) / `--requester-callback-number` | `_requester_callback_clause()` (§3.3) | **Covered** |
-| 22 | `special_instructions` | web form (**reservation branch only**; `build_user_request` itself reads the field for any mode) | `special_clause`, built **only** inside the `Mode.RESERVATION` branch of `build_call_goal` | **Finding** (latent) — there is no delivery/pickup UI for this today, so it cannot currently be set for those modes. But the web-parsing layer does not gate it by mode, and the goal builder does either: if a future delivery/pickup form field ever wrote to `special_instructions`, it would be silently dropped, not surfaced as an error |
-| 23 | `earlier_hours` / `earlier_minutes` | web form / `--earlier-hours --earlier-minutes` | `_reservation_authority_clause()` step 2 (§2.7) | **Covered** (reservation only) |
-| 24 | `later_hours` / `later_minutes` | web form / `--later-hours --later-minutes` | `_reservation_authority_clause()` step 3 (§2.7) | **Covered** (reservation only) |
-| 25 | `max_booking_fee_eur` | web form / `--max-booking-fee-eur` | `_reservation_authority_clause()` fee step or fixed refusal (§2.7) | **Covered** (reservation only) |
-| 26 | `HUNGRYCALL_CALL_LOCALE` (env, not a `UserRequest` field) | operator environment | `call_language()` → intro, closing-routine examples, chain availability question, chain worked example, and `call_client.py`'s recipient `region`/`locale` | **Covered** (2026-08-11, `call_language.py`) |
+**Prompt coverage is not result coverage** (AUFTRAG F, live-measured 2026-08-11 — see
+`FINDINGS.md`). A setting can drive perfectly correct goal text and still be silently violated:
+the delivery-chain goal told the agent, verbatim, to *"order 2 x Pasta Napoli for this
+position"* — genuinely **Covered** by every measure in this table's original sense — and the
+voice agent still placed and confirmed only one, and `evaluate_order_chain` accepted the result,
+because `order_chain_results` had no field to compare the ordered quantity against the
+configured one. The **Result verification** column below is therefore a second, independent
+question for every row: even where the setting reaches the prompt, does anything on the
+*receiving* end check that the outcome actually matched it, or does correctness rest entirely on
+trusting the transcript? Most rows have no such check and are marked `—`; that is not itself a
+finding (asking CALL-E to prove every single instruction was followed is not tractable), but it
+is the reason row 13 below needed a fix rather than only a prompt fragment.
+
+| # | Setting | Configured via | Prompt fragment / builder | Status | Result verification |
+|---|---|---|---|---|---|
+| 1 | `mode` | web form / CLI subcommand | Dispatches all of §1 (`build_call_goal`) | **Covered** | — |
+| 2 | `first_name` / `last_name` (→ `requester_name()`) | web form / `--customer-name` | Intro, "place the order under that name", "confirm the reservation under the name" | **Covered** | — |
+| 3a | `food_prompt` (simple, no chain) | web form / `--food` | `"Requested items: '<food_prompt>'."` (delivery-simple, pickup) | **Covered** | — |
+| 3b | `food_prompt` (= `chain.summary()` in chain mode) | derived from chain | Pickup: kept alongside the chain (redundant). Delivery: dropped entirely, chain is authoritative. Reservation: never used. | **Finding** — inconsistent between delivery and pickup; documented in §1.2 | — |
+| 3c | `food_prompt` (reservation's cuisine wish) | web form (`table.wish` field) | never in the goal — used only by `ranking.py` to pick which restaurants get called | **App-side only** — by design: the restaurant was already selected for matching that cuisine before it was dialled | — |
+| 4 | `max_budget_eur` | web form / `--budget` | `"within our maximum budget limit of <X> EUR"` / `"within our limit of <X> EUR"` | **Covered** (delivery/pickup; correctly absent for reservation) | `CascadeEngine.check_price_and_order` rejects `total_price_eur > max_budget_eur` independently of what the agent reports |
+| 5 | `delivery_address` | web form / `--address` | `"delivery to <address>"`, `"do you deliver to this address?"` | **Covered** (delivery only) | — (relies on `delivers_to_address` as reported) |
+| 6 | `reservation_date` / `reservation_time` / `party_size` | web form / `--date --time --party` | `"reserve a table on <date> at <time> for <party_size> people"` | **Covered** (reservation only) | date/time re-derived and bounds-checked, see row 23-25 |
+| 7 | `seating` / `seating_custom` | web form / `--seating --seating-custom` | seating_clause (§1.3) | **Covered** (reservation only) | `CascadeEngine.evaluate_result` rejects `seating_confirmed` that does not match the requested indoor/outdoor value |
+| 8 | `pickup_time` | web form / `--pickup-time` | `"Preferred pickup time: <X>"` | **Covered** (pickup only) | — |
+| 9 | `max_distance_km` | web form | `ranking.py` hard cutoff, before any call | **App-side only** — the restaurant does not need to know the caller's distance limit; it decides *which* candidates are dialled, not what is said | n/a (never in the prompt to begin with) |
+| 10 | `day_of_week` / `time_of_request` | derived (reservation date, or system clock) | `ranking.py` opening-hours pre-filter | **App-side only** — pickup independently re-asks *"are you currently open?"* live (§1.2), so this is not the only check, just the earliest one | n/a |
+| 11 | `favorite_restaurant_ids` | — (no web field, no CLI flag) | `ranking.py` `is_fav` ranking boost | **Finding** — modelled and used by ranking, but there is currently no way for a user to actually populate it | n/a |
+| 12 | `concessions` (`TABLE_CONCESSIONS`: `indoor_ok`, `time_flex`, `deposit_ok`) | intended: web form checkboxes | `_concession_clause()` — fully implemented, tier-ordered fallback ladder, independently audited (§2.6) | **Finding** — the mechanism is complete and correct, but no checkbox anywhere emits `name="concessions"`; `templates.py` only ever writes a hidden pass-through field for a value nothing can set. In practice `request.concessions` is always empty on delivery/pickup, and explicitly forbidden on reservation (`build_call_goal` raises `ValueError`) | `CascadeEngine.check_concession_authority` rejects a reported `tier_applied` that is not in `granted_concession_keys()` |
+| 13 | order chain: `cells[].quantity` | web chain builder | `"order <quantity> x <product> for this position"`, reinforced at the binding-placement step (§2.5) | **Covered, and now result-verified** — **AUFTRAG F fix, 2026-08-11**: `evaluate_order_chain` compares the reported `menge_bestellt` against `cell.quantity` for every taken cell and rejects a mismatch with `"Ordered quantity <N> does not match the configured <M> x <product>"`. Before this fix the prompt fragment existed and was correct, but nothing checked it held | `evaluate_order_chain` (see Status column — this row's own fix) |
+| 14 | order chain: `cells[].product` | web chain builder | Availability question + every criterion/quantity sentence for that cell | **Covered** | Implicitly, via `zelle_index`/position matching — a wrong product cannot be reported under the right cell index without the evidence shape itself being invalid |
+| 15 | order chain: `cells[].art` (`ProductKind`: `essen`/`getraenk`) | web chain builder (real dropdown, `app.js`) | — | **Finding** — the UI lets a user mark a cell as food or drink; nothing in `build_order_chain_instruction` or `_cell_availability_question` ever reads `cell.kind`. The voice agent cannot tell a drink item from a food item | n/a (not in the prompt to verify against) |
+| 16 | order chain: `criteria[].art` (`hoechstpreis`/`sonderwunsch`/`rueckfrage`) | web chain builder | `_criterion_instruction()`, three distinct question forms (§2.2) | **Covered** | `evaluate_order_chain` recomputes the reaction from raw evidence (`preis_eur`, `bestaetigt`, `antwort_ja`) itself; a reported outcome label is never trusted (module docstring) |
+| 17 | order chain: `criteria[].wert` | web chain builder | Interpolated into the criterion's question | **Covered** | For `hoechstpreis`, the reported `preis_eur` is compared against this value directly in `_criterion_reaction` |
+| 18 | order chain: `criteria[].reaktion_ja` / `reaktion_nein` | web chain builder | `_reaction_instruction()`, three distinct reactions (§2.3) | **Covered** | Same re-derivation as row 16 — the configured reaction, not a reported one, decides accept/replace/reject |
+| 19 | order chain: `posten[].wenn_nichts_verfuegbar` (`posten_weglassen`/`bestellung_abbrechen`) | web chain builder | Position end rule, two structurally different instructions incl. the total-price prohibition (§2.4) | **Covered** | `_apply_position_end_rule` applies the configured rule directly; there is nothing for the agent to misreport here since the app decides the outcome from `verfuegbar`/criteria evidence alone |
+| 20 | order chain: `posten[].tags` | web chain builder | Printed as `"Position N (tags: <tags>):"` | **Finding** (minor) — reaches the prompt, but no instruction anywhere tells the agent what to do with it; it exists solely for the result screen's grouping and appears to leak into the agent's view by accident | n/a |
+| 21 | `requester_callback_number` | web form (required) / `--requester-callback-number` | `_requester_callback_clause()` (§3.3) | **Covered** | — (no check that it was actually spoken; it is redacted from stored output, not verified for delivery) |
+| 22 | `special_instructions` | web form (**reservation branch only**; `build_user_request` itself reads the field for any mode) | `special_clause`, built **only** inside the `Mode.RESERVATION` branch of `build_call_goal` | **Finding** (latent) — there is no delivery/pickup UI for this today, so it cannot currently be set for those modes. But the web-parsing layer does not gate it by mode, and the goal builder does either: if a future delivery/pickup form field ever wrote to `special_instructions`, it would be silently dropped, not surfaced as an error | n/a |
+| 23 | `earlier_hours` / `earlier_minutes` | web form / `--earlier-hours --earlier-minutes` | `_reservation_authority_clause()` step 2 (§2.7) | **Covered** (reservation only) | `CascadeEngine.check_reservation_authority` recomputes the confirmed-vs-requested delta itself and rejects anything outside the granted window |
+| 24 | `later_hours` / `later_minutes` | web form / `--later-hours --later-minutes` | `_reservation_authority_clause()` step 3 (§2.7) | **Covered** (reservation only) | Same audit as row 23 |
+| 25 | `max_booking_fee_eur` | web form / `--max-booking-fee-eur` | `_reservation_authority_clause()` fee step or fixed refusal (§2.7) | **Covered** (reservation only) | `check_reservation_authority` rejects a reported fee above this value regardless of what the agent verbally accepted — the live proof is `EVIDENCE.md` §16.3 |
+| 26 | `HUNGRYCALL_CALL_LOCALE` (env, not a `UserRequest` field) | operator environment | `call_language()` → intro, closing-routine examples, chain availability question, chain worked example, and `call_client.py`'s recipient `region`/`locale` | **Covered** (2026-08-11, `call_language.py`) | — |
 
 ### 4.1 Findings, gathered
 
@@ -357,9 +399,12 @@ between delivery and pickup), **#11** (`favorite_restaurant_ids` has no way to b
 (the whole concessions ladder is unreachable in practice), **#15** (`cell.kind` never reaches the
 prompt — a real gap between what the UI lets you configure and what the agent is told), **#20**
 (`tags` leaks into the prompt without instructing anything), and **#22** (`special_instructions`
-would silently vanish if ever wired up for delivery/pickup). None of these were fixed while
-building this document, in keeping with the instruction that a gap is a finding first and a
-fix second, in its own reviewable commit.
+would silently vanish if ever wired up for delivery/pickup). None of these were fixed while this
+document was first built, in keeping with the instruction that a gap is a finding first and a fix
+second, in its own reviewable commit. **#13 (order-chain quantity) was a seventh finding of the
+same shape, discovered live on 2026-08-11 rather than while building this table, and has since
+been fixed** (`evaluate_order_chain`, AUFTRAG F) — its row above documents both the original gap
+and the fix, rather than being silently updated to just say "Covered".
 
 ---
 

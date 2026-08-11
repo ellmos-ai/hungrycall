@@ -177,6 +177,16 @@ def build_order_chain_instruction(chain: OrderChain, locale: Optional[str] = Non
                 f"order {cell.quantity} x {cell.product} for this position, "
                 "then continue with the next position."
             )
+            # Field-trial finding 2026-08-11: the agent stated the quantity
+            # here correctly but silently placed and confirmed a smaller
+            # amount later in the same call. The commitment must be repeated
+            # at the point where it is actually placed, not stated once and
+            # assumed to carry through the rest of the conversation.
+            lines.append(
+                f"    When you later place and summarize the order, place and confirm exactly "
+                f"{cell.quantity} x {cell.product} for this position — never a smaller or "
+                "different amount, even if the conversation drifted."
+            )
         if position.if_nothing_available is NothingAvailableRule.SKIP_ITEM:
             lines.append(
                 "  If no cell carries, say briefly that this item is dropped, record this "
@@ -193,7 +203,10 @@ def build_order_chain_instruction(chain: OrderChain, locale: Optional[str] = Non
         "dropping, and at the end whether you are placing an order at all.",
         *_order_chain_style_example(locale),
         "Never ask for a total price when nothing has been settled for the order.",
-        "Return evidence for every attempted cell in order_chain_results; never infer a price or answer.",
+        "Return evidence for every attempted cell in order_chain_results; never infer a price or "
+        "answer. For every cell you took (available and every criterion passed), report the "
+        "quantity you actually placed in menge_bestellt — it must equal the quantity stated for "
+        "that cell above. Omit menge_bestellt entirely for a cell you did not take.",
         "Place the order only after all positions have resolved under these rules.",
     ])
     return "\n".join(lines)
@@ -321,6 +334,34 @@ def evaluate_order_chain(
                 break
             if try_next:
                 continue
+
+            # Field-trial finding 2026-08-11: everything above this point checks
+            # WHICH cell was taken, never HOW MANY were actually ordered. A cell
+            # that is available and passes every criterion still is not this
+            # position's answer unless the ordered quantity matches what the
+            # goal told the agent to order (build_order_chain_instruction:
+            # "order {cell.quantity} x {cell.product}"). Prompt coverage is not
+            # result coverage — see CONVERSATION-TREE.md's Verification column.
+            ordered_quantity = cell_result.get("menge_bestellt")
+            if not isinstance(ordered_quantity, int):
+                return OrderChainEvaluation(
+                    False, accepted=evaluation.accepted,
+                    skipped_positions=evaluation.skipped_positions,
+                    reason=(
+                        f"result for position {position_index + 1}, cell {cell_index + 1} is "
+                        "missing the ordered quantity (menge_bestellt)"
+                    ),
+                )
+            if ordered_quantity != cell.quantity:
+                return OrderChainEvaluation(
+                    False, accepted=evaluation.accepted,
+                    skipped_positions=evaluation.skipped_positions,
+                    reason=(
+                        f"Ordered quantity {ordered_quantity} does not match the configured "
+                        f"{cell.quantity} x {cell.product}"
+                    ),
+                )
+
             evaluation.accepted.append(OrderSelection(
                 position_index=position_index,
                 cell_index=cell_index,
@@ -378,6 +419,7 @@ def simulate_order_chain_result(
             "zellen": [{
                 "zelle_index": 0,
                 "verfuegbar": True,
+                "menge_bestellt": cell.quantity,
                 "kriterien": criteria,
             }],
         })
@@ -409,6 +451,25 @@ ORDER_CHAIN_RESULT_SCHEMA: Dict[str, Any] = {
                     "properties": {
                         "zelle_index": {"type": "integer"},
                         "verfuegbar": {"type": "boolean"},
+                        # Field-trial finding 2026-08-11: the chain instruction told the
+                        # agent to order 2 x Pasta Napoli; it placed 1 x, and the app
+                        # accepted the result because nothing here ever asked what
+                        # quantity was actually ordered. Deliberately NOT in this cell's
+                        # "required" list and NOT a nullable type (the API rejects
+                        # nullable union types, upstream issue #120) -- its absence is
+                        # how a cell that was never taken (unavailable or rejected by a
+                        # criterion) is represented. evaluate_order_chain() enforces it
+                        # as mandatory for a cell that WAS taken; the schema alone cannot
+                        # express "required only when verfuegbar is true and every
+                        # criterion passed" for every CALL-E-accepted schema shape.
+                        "menge_bestellt": {
+                            "type": "integer",
+                            "description": (
+                                "The quantity actually ordered for THIS cell, if and only "
+                                "if it was taken (available and every criterion passed). "
+                                "Omit entirely for a cell that was not taken."
+                            ),
+                        },
                         "kriterien": {
                             "type": "array",
                             "items": {
