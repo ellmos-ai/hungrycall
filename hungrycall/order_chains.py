@@ -158,8 +158,15 @@ def build_order_chain_instruction(chain: OrderChain, locale: Optional[str] = Non
         "For each position, try its cells in order. Never order more than one cell from one position.",
     ]
     for position_index, position in enumerate(chain.positions, start=1):
-        tags = ", ".join(position.tags) if position.tags else "none"
-        lines.append(f"Position {position_index} (tags: {tags}):")
+        # Coverage-map finding #20 (CONVERSATION-TREE.md §4 row 20): tags
+        # used to be printed here as "(tags: X)", but nothing ever told the
+        # agent what to do with them -- they exist solely for the result
+        # screen's grouping (render_tag_summary, populated straight from
+        # position.tags via evaluate_order_chain's OrderSelection, never
+        # from this text). Text in the prompt nobody needs is noise for the
+        # voice agent; dropped rather than paired with an instruction that
+        # would have had to invent a purpose the tags do not actually have.
+        lines.append(f"Position {position_index}:")
         for cell_index, cell in enumerate(position.cells, start=1):
             question = _cell_availability_question(locale, cell.product)
             lines.append(

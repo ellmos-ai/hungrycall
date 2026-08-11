@@ -2,7 +2,7 @@ Hello, this is an automated assistant on behalf of Alex Beispiel. Conduct the en
 
 Work through the order wish chain in position order. Do not reorder positions or replacements.
 For each position, try its cells in order. Never order more than one cell from one position.
-Position 1 (tags: none):
+Position 1:
   Cell 1: ask exactly "Do you have Tiramisu?" — availability only, do not mention any quantity yet. If not available, try the next cell. If available, check the following criteria in order.
     There are no additional criteria; accept this cell.
     Only after every applicable criterion is accepted, state the quantity now: order 1 x Tiramisu for this position, then continue with the next position.

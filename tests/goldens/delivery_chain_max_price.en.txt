@@ -2,7 +2,7 @@ Hello, this is an automated assistant on behalf of Alex Beispiel. Conduct the en
 
 Work through the order wish chain in position order. Do not reorder positions or replacements.
 For each position, try its cells in order. Never order more than one cell from one position.
-Position 1 (tags: none):
+Position 1:
   Cell 1: ask exactly "Do you have Pasta Napoli?" — availability only, do not mention any quantity yet. If not available, try the next cell. If available, check the following criteria in order.
     Criterion 1 (hoechstpreis): ask for the exact unit price. At or below 9.50 EUR: accept the criterion and continue with this cell; above it, vague, or missing: discard this cell and try the next replacement cell.
     Only after every applicable criterion is accepted, state the quantity now: order 1 x Pasta Napoli for this position, then continue with the next position.

@@ -245,19 +245,24 @@ def _check_delivery_chain_abort_rule(goal: str, lang: str) -> None:
 
 
 def _delivery_chain_multi_position() -> UserRequest:
+    # Tag values deliberately do not collide with anything else the goal
+    # legitimately contains (the default customer_name is "Alex Beispiel").
     chain = _chain(
-        _position(_cell("Burger", quantity=2), tags=["Alex"]),
-        _position(_cell("Pommes"), tags=["Alex", "Beilage"]),
+        _position(_cell("Burger", quantity=2), tags=["urgent"]),
+        _position(_cell("Pommes"), tags=["urgent", "side-dish"]),
     )
     return _delivery(order_chain=chain, food_prompt=chain.summary())
 
 
 def _check_delivery_chain_multi_position(goal: str, lang: str) -> None:
-    # §2, §2.5: positions are worked in order; tags reach the prompt as a
-    # label only (CONVERSATION-TREE.md §4 row 20 — no instruction reads them).
+    # §2, §2.5: positions are worked in order. Tags do NOT reach the prompt
+    # (CONVERSATION-TREE.md §4 row 20, fixed) -- they exist only for the
+    # result screen's grouping (render_tag_summary), read from
+    # position.tags directly, never parsed back out of this text.
     assert goal.index("Position 1") < goal.index("Position 2")
-    assert "(tags: Alex)" in goal
-    assert "(tags: Alex, Beilage)" in goal
+    assert "tags" not in goal.lower()
+    assert "urgent" not in goal  # the tag values themselves must not leak either
+    assert "side-dish" not in goal
     assert "order 2 x Burger for this position" in goal
 
 

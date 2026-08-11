@@ -386,7 +386,7 @@ is the reason row 13 below needed a fix rather than only a prompt fragment.
 | 17 | order chain: `criteria[].wert` | web chain builder | Interpolated into the criterion's question | **Covered** | For `hoechstpreis`, the reported `preis_eur` is compared against this value directly in `_criterion_reaction` |
 | 18 | order chain: `criteria[].reaktion_ja` / `reaktion_nein` | web chain builder | `_reaction_instruction()`, three distinct reactions (§2.3) | **Covered** | Same re-derivation as row 16 — the configured reaction, not a reported one, decides accept/replace/reject |
 | 19 | order chain: `posten[].wenn_nichts_verfuegbar` (`posten_weglassen`/`bestellung_abbrechen`) | web chain builder | Position end rule, two structurally different instructions incl. the total-price prohibition (§2.4) | **Covered** | `_apply_position_end_rule` applies the configured rule directly; there is nothing for the agent to misreport here since the app decides the outcome from `verfuegbar`/criteria evidence alone |
-| 20 | order chain: `posten[].tags` | web chain builder | Printed as `"Position N (tags: <tags>):"` | **Finding** (minor) — reaches the prompt, but no instruction anywhere tells the agent what to do with it; it exists solely for the result screen's grouping and appears to leak into the agent's view by accident | n/a |
+| 20 | order chain: `posten[].tags` | web chain builder | — (no longer printed, see Status) | **Before the fix: Finding (minor)** — printed as `"Position N (tags: <tags>):"`, but no instruction anywhere told the agent what to do with it; it exists solely for the result screen's grouping and leaked into the agent's view by accident. **After the fix: removed, not instructed** — `build_order_chain_instruction` prints `"Position N:"` with no tag mention at all. The tags feature itself is unchanged: the web UI's tag input, `position.tags`, and `render_tag_summary`'s result-screen grouping all still work exactly as before, because that grouping reads `OrderSelection.tags` (from `evaluate_order_chain`, itself reading `position.tags` directly) and never depended on the prompt text in the first place | n/a (field still real, just no longer sent to the voice agent) |
 | 21 | `requester_callback_number` | web form (required) / `--requester-callback-number` | `_requester_callback_clause()` (§3.3) | **Covered** | — (no check that it was actually spoken; it is redacted from stored output, not verified for delivery) |
 | 22 | `special_instructions` | web form (**reservation branch only**) | `special_clause`, built **only** inside the `Mode.RESERVATION` branch of `build_call_goal` | **Before the fix: Finding (latent)** — there was no delivery/pickup UI for this, but `build_user_request` did not gate the field by mode either, so a hand-crafted request carrying it for delivery/pickup was accepted and the note silently dropped, never surfaced as an error. **After the fix: rejected, not silently dropped** — `build_user_request` now raises `ValueError` if `special_instructions` is set for any mode other than `RESERVATION`, the same way `seating_custom` is rejected outside custom seating. Support for delivery/pickup notes was **not** added — only the trap was closed; adding real support is a separate, larger decision (a new form field, plus deciding what "leave it with the neighbour" even means for a phone order) that nobody asked for here | n/a |
 | 23 | `earlier_hours` / `earlier_minutes` | web form / `--earlier-hours --earlier-minutes` | `_reservation_authority_clause()` step 2 (§2.7) | **Covered** (reservation only) | `CascadeEngine.check_reservation_authority` recomputes the confirmed-vs-requested delta itself and rejects anything outside the granted window |
@@ -413,17 +413,24 @@ food-appropriate `FOOD_CONCESSIONS` set (row 12 above documents both the origina
 why the *original* three labels could not simply have been wired up as-is — and the fix).
 
 **#15 has since been fixed the other way round from #12: by removal, not wiring.** Row 15 above
-lays out why — unlike concessions, tags or `special_instructions`, `cell.kind` had no sentence to
-be wired *to*; the plain removal was the honest fix rather than inventing prompt text nobody
-needed just to make the setting "reach" somewhere.
+lays out why — `cell.kind` had no sentence to be wired *to*; the plain removal was the honest fix
+rather than inventing prompt text nobody needed just to make the setting "reach" somewhere.
 
-**#22 has since been fixed a third way: by rejection, not wiring or removal.** Unlike `cell.kind`,
-`special_instructions` *does* have somewhere to go (reservation's `special_clause`) — the gap was
-that delivery/pickup could carry the field without either reaching the goal or being told they
-could not. Row 22 above documents the fix: `build_user_request` now raises rather than silently
-dropping it, closing the trap without inventing delivery/pickup support nobody asked for. Status
-of the remaining three as of this writing: **#3b, #11, #20 — open**, tracked for the same
-priority-ordered fix pass as #12, #15 and #22.
+**#20 turned out to be the same shape as #15, not the same shape as #12 or #22** (this table's own
+first pass at describing it undersold that — corrected here): `tags` had no more of a genuine
+sentence to be wired to than `cell.kind` did. Row 20 above documents the fix: the `(tags: ...)`
+label is gone from `build_order_chain_instruction`, and the tags feature itself — the web UI's
+input, `position.tags`, `render_tag_summary`'s result-screen grouping — is completely unaffected,
+because none of it ever depended on the prompt text.
+
+**#22 has since been fixed a third, genuinely different way: by rejection, not wiring or
+removal.** Unlike `cell.kind` and `tags`, `special_instructions` *does* have somewhere to go
+(reservation's `special_clause`) — the gap was that delivery/pickup could carry the field without
+either reaching the goal or being told they could not. Row 22 above documents the fix:
+`build_user_request` now raises rather than silently dropping it, closing the trap without
+inventing delivery/pickup support nobody asked for. Status of the remaining two as of this
+writing: **#3b, #11 — open**, tracked for the same priority-ordered fix pass as #12, #15, #20
+and #22.
 
 ---
 
