@@ -133,13 +133,26 @@ def build_order_chain_instruction(chain: OrderChain) -> str:
             )
         if position.if_nothing_available is NothingAvailableRule.SKIP_ITEM:
             lines.append(
-                "  If no cell carries, record this position as skipped and continue with the next position."
+                "  If no cell carries, say briefly that this item is dropped, record this "
+                "position as skipped and continue with the next position."
             )
         else:
             lines.append(
-                "  If no cell carries, do not place any order; thank them and end the conversation politely."
+                "  If no cell carries, the whole order is off: say clearly that you will "
+                "not order anything, thank them and end the conversation politely. Do NOT "
+                "move on to any later position and do NOT ask for any total price."
             )
     lines.extend([
+        "Announce every decision aloud as you go: which item you are taking, which you are "
+        "dropping, and at the end whether you are placing an order at all.",
+        "Example of the expected conversational style (German; adapt to the actual items):",
+        '  Sie: "Die Pizza ist meinem Auftraggeber leider zu teuer. Haben Sie stattdessen Pasta Napoli?"',
+        '  Restaurant: "Ja." - Sie: "Was kostet die?" - Restaurant: "9 Euro."',
+        '  Sie: "Das ist ein akzeptabler Preis, dann nehmen wir zwei davon."',
+        "And when a hard limit fails at the end, announce the abort the same way:",
+        '  Sie: "Damit liegt die Bestellung insgesamt über dem Budget meines Auftraggebers. '
+        'Dann bestellen wir heute leider nichts. Vielen Dank, auf Wiederhören!"',
+        "Never ask for a total price when nothing has been settled for the order.",
         "Return evidence for every attempted cell in order_chain_results; never infer a price or answer.",
         "Place the order only after all positions have resolved under these rules.",
     ])

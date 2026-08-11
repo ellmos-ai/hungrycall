@@ -83,7 +83,8 @@ def test_translator_preserves_position_cell_criterion_and_end_rule_order():
     assert 'ask exactly "Haben Sie Burger?"' in text
     assert "order 1 x Burger for this position" in text
     assert "discard this cell and try the next replacement cell" in text
-    assert "do not place any order" in text
+    assert "you will not order anything" in text
+    assert "do NOT ask for any total price" in text.replace("Do NOT", "do NOT")
 
 
 def test_soft_criterion_moves_to_the_next_replacement():

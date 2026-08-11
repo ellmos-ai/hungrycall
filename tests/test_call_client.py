@@ -211,3 +211,39 @@ def test_transcript_rebuilt_from_live_turns_payload():
     assert "[00:00] BOT: Hallo, hier spricht ein automatisierter Assistent." in text
     assert "[01:05] USER: Ja, wir liefern dorthin." in text
     assert LiveCallClient._transcript_from_turns({"status": "completed"}) == ""
+
+
+def test_create_retries_with_same_idempotency_key_on_transient_failure(monkeypatch):
+    """A timed-out POST may still have created a call (ghost call, 2026-08-11);
+    the retry must reuse the SAME Idempotency-Key so it re-attaches instead of
+    dialling twice."""
+    from hungrycall.call_client import CalleSettings, LiveCallClient
+    from hungrycall.fixtures import SAMPLE_RESTAURANTS
+    from hungrycall.models import Mode, UserRequest
+
+    client = LiveCallClient(
+        CalleSettings(api_key="test_key_never_logged"), confirmed=True,
+        poll_seconds=0, first_poll_seconds=0,
+    )
+    calls = []
+
+    def fake_request(method, path, payload=None, idempotency_key=None):
+        calls.append((method, path, idempotency_key))
+        if method == "POST" and len([c for c in calls if c[0] == "POST"]) < 3:
+            raise RuntimeError("CALL-E API was unreachable during POST /v1/calls.")
+        if method == "POST":
+            return {"id": "call_test123", "status": "queued"}
+        return {"status": "completed", "task_completed": True, "recipients": []}
+
+    monkeypatch.setattr(client, "_request", fake_request)
+    monkeypatch.setattr("time.sleep", lambda *_: None)
+    request = UserRequest(
+        mode=Mode.PICKUP, customer_name="Alex Beispiel",
+        food_prompt="Burger", max_budget_eur=20.0, pickup_time="19:30",
+        requester_callback_number="+4910004069001",
+    )
+    result = client.execute_candidate_call(SAMPLE_RESTAURANTS[0], request, "idem-key-1")
+    posts = [c for c in calls if c[0] == "POST"]
+    assert len(posts) == 3
+    assert all(key == "idem-key-1" for _, _, key in posts)
+    assert result.call_id == "call_test123"

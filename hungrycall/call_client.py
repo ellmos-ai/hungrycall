@@ -459,9 +459,24 @@ class LiveCallClient(CallClient):
                 "hungrycall_mode": user_request.mode.value,
             },
         }
-        created = self._request(
-            "POST", "/v1/calls", payload=payload, idempotency_key=idempotency_key
-        )
+        # A timed-out create is NOT proof that no call exists: the field trial
+        # 2026-08-11 produced a "ghost call" — the client gave up after 30s,
+        # the provider dialled anyway, and the cascade lost track of a running
+        # conversation. Retrying with the SAME Idempotency-Key is safe by
+        # design and re-attaches to whatever the first attempt created.
+        created = None
+        for create_attempt in range(3):
+            try:
+                created = self._request(
+                    "POST", "/v1/calls", payload=payload, idempotency_key=idempotency_key
+                )
+                break
+            except (RuntimeError, CalleAPIError) as exc:
+                if isinstance(exc, CalleAPIError) and exc.status_code < 500:
+                    raise
+                if create_attempt == 2:
+                    raise
+                time.sleep(3 * (create_attempt + 1))
         run_id = self._value(created, "id", "call_id", "run_id")
         if not isinstance(run_id, str) or not run_id:
             raise RuntimeError("CALL-E create response did not include a call id.")
