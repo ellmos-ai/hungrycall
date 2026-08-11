@@ -635,6 +635,10 @@
     "de": "Verbindung steht. Pro Anruf rund 40 Sekunden Vorlauf.",
     "en": "Connected. Around 40 seconds of setup per call."
   },
+  "cascade.field_trial": {
+    "de": "FELDVERSUCH: Alle Anrufe gehen an die eingeweihte Testnummer {phone}. Restaurantnamen und Ablauf bleiben echt, gewählt wird nur diese Nummer.",
+    "en": "FIELD TRIAL: every call goes to the consenting test number {phone}. Restaurant names and flow stay real; only this number is dialled."
+  },
   "cascade.dialing": {
     "de": "Wähle {name} …",
     "en": "Dialling {name} …"

@@ -17,6 +17,7 @@ from hungrycall.call_client import (
     probe_calle_connection,
 )
 from hungrycall.engine import CascadeEngine
+from hungrycall import field_trial
 from hungrycall.phone_utils import mask_phone, normalize_e164, validate_e164
 from hungrycall.safety import SafetyError, SINGAPORE_ENDPOINT_NOTICE
 
@@ -210,7 +211,19 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"Unknown subcommand {args.subcommand}", file=sys.stderr)
         return 1
 
-    engine = CascadeEngine(candidate_pool=SAMPLE_RESTAURANTS, call_client=call_client)
+    candidate_pool = SAMPLE_RESTAURANTS
+    if args.live:
+        # Fixture numbers belong to nobody we may dial. A live run either
+        # carries the consenting field-trial number or refuses to start.
+        try:
+            candidate_pool, trial_number = field_trial.apply(candidate_pool)
+        except SafetyError as err:
+            print(f"SAFETY ERROR: {err}", file=sys.stderr)
+            return 3
+        if trial_number:
+            print(f"FIELD TRIAL: every live call goes to {mask_phone(trial_number)}")
+
+    engine = CascadeEngine(candidate_pool=candidate_pool, call_client=call_client)
 
     try:
         summary = engine.run(req)

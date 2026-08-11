@@ -24,7 +24,7 @@ from fastapi import FastAPI, Form, Query, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from hungrycall import huckepack_storage, huckepack_web
+from hungrycall import field_trial, huckepack_storage, huckepack_web
 from hungrycall.call_client import CalleAPIError, DryRunCallClient, LiveCallClient
 from hungrycall.calle_key import resolve_call_settings
 from hungrycall.db import (
@@ -632,9 +632,13 @@ async def start_cascade(request: Request):
         )
 
     scenario = fields.get("scenario") or DEFAULT_SCENARIOS[user_request.mode]
+    trial_number = None
     if live_mode:
         try:
             call_client = live_call_client()
+            # Search results and fixtures carry strangers' numbers; a live
+            # field trial rewires every candidate to the consenting test line.
+            call_order, trial_number = field_trial.apply(call_order)
         except SafetyError as exc:
             return HTMLResponse(
                 '<div class="notice warn" style="margin-top:1rem;">'
@@ -670,6 +674,7 @@ async def start_cascade(request: Request):
         "branch": branch,
         "call_client": call_client,
         "live_mode": live_mode,
+        "field_trial_number": trial_number,
         # Which browser session this cascade belongs to. An order id is an
         # identifier, not a permission: this dictionary lives in one process
         # that, hosted, several visitors share. See active_order().
@@ -743,6 +748,14 @@ async def cascade_stream(request: Request, order_id: str = Query(...)):
 
     async def event_generator():
         yield sse({"type": "status", "text": t("cascade.init", lang)})
+        if order.get("field_trial_number"):
+            yield sse({
+                "type": "status",
+                "text": t(
+                    "cascade.field_trial", lang,
+                    phone=mask_phone(order["field_trial_number"]),
+                ),
+            })
         await asyncio.sleep(0.3)
 
         calls_made = 0
