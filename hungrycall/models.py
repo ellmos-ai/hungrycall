@@ -286,6 +286,14 @@ class UserRequest:
     max_distance_km: Optional[float] = None  # hard cut-off, matters for pickup
     day_of_week: str = "Fri"
     time_of_request: str = "19:00"
+    # Coverage-map finding #11 (CONVERSATION-TREE.md §4 row 11): a per-user
+    # favourite, independent of Restaurant.is_favorite (which is a static
+    # flag on the fixture/search data, not something the requester chose).
+    # Planned, not yet usable: no web field or CLI flag sets this today --
+    # it can only be populated by constructing a UserRequest directly, e.g.
+    # in a test or a future integration. ranking.py already reads it
+    # (filter_and_rank_restaurants' is_fav boost), so wiring a UI to it
+    # later needs no further plumbing here.
     favorite_restaurant_ids: List[str] = field(default_factory=list)
     concessions: List[Concession] = field(default_factory=list)
     order_chain: Optional[OrderChain] = None

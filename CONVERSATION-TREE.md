@@ -378,7 +378,7 @@ is the reason row 13 below needed a fix rather than only a prompt fragment.
 | 8 | `pickup_time` | web form / `--pickup-time` | `"Preferred pickup time: <X>"` | **Covered** (pickup only) | — |
 | 9 | `max_distance_km` | web form | `ranking.py` hard cutoff, before any call | **App-side only** — the restaurant does not need to know the caller's distance limit; it decides *which* candidates are dialled, not what is said | n/a (never in the prompt to begin with) |
 | 10 | `day_of_week` / `time_of_request` | derived (reservation date, or system clock) | `ranking.py` opening-hours pre-filter | **App-side only** — pickup independently re-asks *"are you currently open?"* live (§1.2), so this is not the only check, just the earliest one | n/a |
-| 11 | `favorite_restaurant_ids` | — (no web field, no CLI flag) | `ranking.py` `is_fav` ranking boost | **Finding** — modelled and used by ranking, but there is currently no way for a user to actually populate it | n/a |
+| 11 | `favorite_restaurant_ids` | — (no web field, no CLI flag) | `ranking.py` `is_fav` ranking boost | **Before the fix: Finding** — modelled and used by ranking, but there was currently no way for a user to actually populate it, and nothing said so. **After the fix: marked, not silently carried** — `UserRequest.favorite_restaurant_ids`'s field comment in `models.py` now states plainly that it is planned, not yet reachable via any UI or CLI, and points at `ranking.py` for where a future UI would plug in. No web field or CLI flag was added — this is the smallest finding on this table and a real favourites UI (persistence, a toggle in search results) is a separate, larger decision nobody asked for here | n/a |
 | 12 | `concessions` (`FOOD_CONCESSIONS`: `wait_longer_ok`, `higher_price_ok`, `substitute_ok`) | web form checkboxes (delivery/pickup) | `_concession_clause()` — tier-ordered fallback ladder, independently audited (§2.6) | **Before the fix: Finding** — the mechanism was complete and correct, but no checkbox anywhere emitted `name="concessions"`; `templates.py` only ever wrote a hidden pass-through field for a value nothing could set. `request.concessions` was always empty in practice. **After the fix: Covered** — three real checkboxes on the delivery/pickup form now emit `name="concessions"`, read by the existing `form.getlist("concessions")` in `web.py`. The content also changed, not just the wiring: the checkboxes used to be named `TABLE_CONCESSIONS` and carried reservation-only labels (an indoor table, a €15 deposit) that would have made no sense on a food order and were already superseded there by the earlier/later/fee fields (row 23-25) — see the comment above `FOOD_CONCESSIONS` in `templates.py`. Reservation still has no checkbox and still raises `ValueError` if `concessions` is set (unchanged, and correct — see §1.3) | `CascadeEngine.check_concession_authority` rejects a reported `tier_applied` that is not in `granted_concession_keys()` |
 | 13 | order chain: `cells[].quantity` | web chain builder | `"order <quantity> x <product> for this position"`, reinforced at the binding-placement step (§2.5) | **Before the AUFTRAG F fix (live-measured 2026-08-11): Prompt coverage yes, result/verification coverage no** — the goal text correctly said *"order 2 x Pasta Napoli"*, the live agent placed 1 x, and `evaluate_order_chain` accepted it, because nothing compared the two. **After the fix, same day: Covered AND result-verified** — `evaluate_order_chain` now compares the reported `menge_bestellt` against `cell.quantity` for every taken cell and rejects a mismatch with `"Ordered quantity <N> does not match the configured <M> x <product>"` | `evaluate_order_chain` (see Status column — this row's own fix) |
 | 14 | order chain: `cells[].product` | web chain builder | Availability question + every criterion/quantity sentence for that cell | **Covered** | Implicitly, via `zelle_index`/position matching — a wrong product cannot be reported under the right cell index without the evidence shape itself being invalid |
@@ -438,8 +438,22 @@ differently-shaped goals for delivery and pickup with no documented reason. Row 
 document the fix: pickup's chain branch was restructured to match delivery's (drop the
 `Requested items` line, defer the exact-total-price question until after the chain resolves)
 rather than the reverse, because delivery's structure was already the one without the redundancy.
-Status of the remaining finding as of this writing: **#11 — open**, tracked for the same
-priority-ordered fix pass as #12, #15, #20, #22 and #3b.
+
+**#11 has since been fixed the smallest way of all six: by naming the gap in the field itself, not
+by building a UI for it.** `favorite_restaurant_ids` is already modelled and already read by
+`ranking.py`'s `is_fav` boost — the finding was never that it does nothing, only that nothing lets
+a user set it, and nothing said so. `UserRequest.favorite_restaurant_ids`'s field comment in
+`models.py` now states plainly that it is planned and not yet reachable via any UI or CLI, rather
+than looking, on a casual read, like a setting that simply never got wired up. A real favourites
+UI — persistence across sessions, a toggle somewhere in the search results — is a separate, larger
+decision this finding did not ask for.
+
+**All six findings from the original pass, plus #13 discovered afterward, are now fixed.** Five
+different shapes of fix were needed, not one: wiring with new content (#12), removal (#15, #20),
+rejection at parse time (#22, and originally #13's own verification-side fix), unifying two
+builders (#3b), and naming a gap in a comment (#11) — the common thread is that none of the five
+UI/prompt findings were fixed by inventing a purpose a setting did not actually have; where a
+setting truly had nowhere to go, it was removed or rejected rather than forced into the goal text.
 
 ---
 
