@@ -212,6 +212,76 @@ def test_live_payload_locale_follows_the_call_language_seam(monkeypatch):
     assert "Hallo, hier spricht" not in requests[0][2]["task"]
 
 
+@pytest.mark.parametrize("lang,other_intro", [
+    ("de", "Hello, this is an automated assistant"),
+    ("en", "Hallo, hier spricht ein automatisierter Assistent"),
+])
+def test_recipient_region_locale_and_goal_language_cannot_diverge(lang, other_intro, monkeypatch):
+    """Regression guard for a sister-app defect (2026-08-11, reported by the
+    operator): a '--language de' flag there did not propagate to the CALL-E
+    recipient's own region/locale, so the plan header showed
+    'de (en-US, region US)' -- the spoken-language setting and the API
+    fields the provider actually reads had drifted apart.
+
+    HungryCall cannot have two settings drift apart because it never had
+    two: call_language.py is read exactly once per call by build_call_goal
+    (intro/closing-routine/chain text) and once by
+    LiveCallClient.execute_candidate_call (recipient region/locale) -- same
+    function, same env var, same process. This test proves the invariant
+    directly on one live payload rather than trusting that description:
+    the chain text's language, the intro's language, and the recipient's
+    locale must all agree, and the OTHER language's mandatory sentence must
+    not appear anywhere in the same payload.
+    """
+    from hungrycall.call_language import CALL_LOCALE_ENV
+    from hungrycall.models import OrderChain
+
+    monkeypatch.setenv(CALL_LOCALE_ENV, lang)
+    client = LiveCallClient(
+        CalleSettings("fixture-token", "https://api.example.invalid"),
+        confirmed=True, first_poll_seconds=0, poll_seconds=0, poll_timeout_seconds=1,
+    )
+    requests = []
+    responses = iter([
+        {"id": f"rest-call-{lang}"},
+        {"status": "completed", "task_completed": True, "recipients": []},
+    ])
+
+    def fake_request(method, path, payload=None, idempotency_key=None):
+        requests.append((method, path, payload, idempotency_key))
+        return next(responses)
+
+    chain = OrderChain.from_dict({
+        "posten": [{
+            "zellen": [{"menge": 1, "produkt": "Burger", "art": "essen", "kriterien": []}],
+            "tags": [], "wenn_nichts_verfuegbar": "posten_weglassen",
+        }],
+    })
+    request = UserRequest(
+        mode=Mode.DELIVERY, customer_name="Test User", food_prompt=chain.summary(),
+        max_budget_eur=25.0, delivery_address="Teststr. 1", order_chain=chain,
+        requester_callback_number="+4910004069000",
+    )
+    with patch.object(client, "_request", side_effect=fake_request):
+        client.execute_candidate_call(SAMPLE_RESTAURANTS[0], request, f"lang-invariant-{lang}")
+
+    payload = requests[0][2]
+    recipient = payload["recipients"][0]
+    task = payload["task"]
+
+    # One seam, three places it must agree: the recipient's own locale, the
+    # region CALL-E dials into, and the language of the goal text itself.
+    assert recipient["locale"] == lang
+    assert recipient["region"] == "DE"
+    if lang == "de":
+        assert "Haben Sie Burger?" in task
+    else:
+        assert "Do you have Burger?" in task
+    # The other language's mandatory sentence must be absent from the SAME
+    # payload -- not just absent from one field while present in another.
+    assert other_intro not in task
+
+
 def test_cli_preflight_prints_only_safe_metadata(tmp_path, capsys, monkeypatch):
     env_file = tmp_path / "call-e.env"
     write_env(env_file)

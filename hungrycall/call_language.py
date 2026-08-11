@@ -14,6 +14,16 @@ language on its own; that split is why ``build_call_goal`` and
 ``build_order_chain_instruction`` translate only their quoted examples and
 leave the rest of the English instruction text untouched regardless of the
 resolved locale.
+
+Deliberately the ONLY lever: there is no separate ``--language`` CLI flag or
+web-form field, and none should be added that bypasses ``call_language()`` --
+a sister project shipped one that did (2026-08-11, reported by the operator):
+its own language flag never propagated to the CALL-E recipient's region/locale,
+so the two drifted apart (a plan reported "de (en-US, region US)"). Here the
+recipient's region/locale (``call_client.py``) and the goal text's language
+(``engine.py``/``order_chains.py``) both come from calling this same function,
+so they cannot drift apart the way that did — see
+``tests/test_call_client.py::test_recipient_region_locale_and_goal_language_cannot_diverge``.
 """
 
 from __future__ import annotations
