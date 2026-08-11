@@ -243,13 +243,13 @@
     product.addEventListener("input", function () { cell.produkt = product.value; syncOrderChain(); });
     grid.appendChild(field(HC.text.product, product));
 
-    var kind = document.createElement("select");
-    kind.appendChild(option("essen", HC.text.food, cell.art));
-    kind.appendChild(option("getraenk", HC.text.drink, cell.art));
-    kind.addEventListener("change", function () { cell.art = kind.value; syncOrderChain(); });
-    var kindField = field(HC.text.kind, kind);
-    kindField.style.gridColumn = "1 / -1";
-    grid.appendChild(kindField);
+    // Coverage-map finding #15: there used to be a food/drink selector here.
+    // Nothing downstream ever read cell.art for anything the call needs -- a
+    // restaurant employee already knows whether "Cola" is a drink from their
+    // own menu, so the field never changed a question or a sentence. Removed
+    // rather than left offering a choice with no effect (CONVERSATION-TREE.md
+    // §4 row 15). cell.art still exists in the data model, always "essen",
+    // for JSON-shape stability -- see models.py OrderCell.kind.
     card.appendChild(grid);
 
     var tools = make("div", "order-cell-tools");

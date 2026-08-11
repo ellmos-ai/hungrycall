@@ -871,18 +871,6 @@
     "de": "Produkt",
     "en": "Product"
   },
-  "order.kind": {
-    "de": "Art",
-    "en": "Type"
-  },
-  "order.kind.food": {
-    "de": "Essen",
-    "en": "Food"
-  },
-  "order.kind.drink": {
-    "de": "Getränk",
-    "en": "Drink"
-  },
   "order.tags": {
     "de": "Tags, durch Komma getrennt",
     "en": "Tags, separated by commas"

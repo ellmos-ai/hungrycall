@@ -148,6 +148,14 @@ class OrderCriterion:
 class OrderCell:
     quantity: int
     product: str
+    # Coverage-map finding #15 (CONVERSATION-TREE.md §4 row 15): the
+    # chain-builder UI used to let a user mark a cell as food or drink, but
+    # nothing in build_order_chain_instruction ever read it -- a restaurant
+    # employee already knows whether "Cola" is a drink from their own menu,
+    # so the field never changed a question or a sentence. The selector was
+    # removed from app.js; this field stays FOOD-only and unreachable via
+    # any UI, kept purely for the order_chain_json shape (round-tripping an
+    # older saved template must not break).
     kind: ProductKind = ProductKind.FOOD
     criteria: List[OrderCriterion] = field(default_factory=list)
 

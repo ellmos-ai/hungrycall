@@ -106,7 +106,7 @@ test("an interactive document initializes visible order inputs before the add bu
     window: { HC: {
       text: {
         position: "Position", wish: "Wish", replacement: "Replacement", quantity: "Quantity",
-        product: "Product", kind: "Type", food: "Food", drink: "Drink", tags: "Tags",
+        product: "Product", tags: "Tags",
         criteria: "Criteria", remove: "Remove", addReplacement: "Replacement",
         ruleSkip: "Skip", ruleAbort: "Abort", budgetDelivery: "Budget", budgetPickup: "Budget",
         addressDelivery: "Address", addressPickup: "Address"
