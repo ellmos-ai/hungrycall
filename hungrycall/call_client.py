@@ -352,15 +352,25 @@ class LiveCallClient(CallClient):
 
     @classmethod
     def _structured_result(cls, value: Dict[str, Any]) -> Dict[str, Any]:
+        """The recipient's answers, not the batch envelope.
+
+        Live payloads carry TWO structured results (measured 2026-08-11): the
+        top-level one answers ``result_schema`` (just ``completed_count``) and
+        SHADOWED the per-recipient answers three cascades long — every filled
+        result was mistaken for "missing required fields". The recipient's
+        ``recipient_result_schema`` answers are the ones a candidate call is
+        about, so they win; the top level is only a fallback.
+        """
+        for container in cls._containers(value):
+            recipients = container.get("recipients")
+            if isinstance(recipients, list) and recipients and isinstance(recipients[0], dict):
+                for key in ("structured_result", "structuredResult"):
+                    if isinstance(recipients[0].get(key), dict) and recipients[0][key]:
+                        return recipients[0][key]
         for container in cls._containers(value):
             for key in ("structured_result", "structuredResult"):
                 if isinstance(container.get(key), dict):
                     return container[key]
-            recipients = container.get("recipients")
-            if isinstance(recipients, list) and recipients and isinstance(recipients[0], dict):
-                for key in ("structured_result", "structuredResult"):
-                    if isinstance(recipients[0].get(key), dict):
-                        return recipients[0][key]
         return {}
 
     @classmethod

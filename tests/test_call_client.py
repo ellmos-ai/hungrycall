@@ -247,3 +247,29 @@ def test_create_retries_with_same_idempotency_key_on_transient_failure(monkeypat
     assert len(posts) == 3
     assert all(key == "idem-key-1" for _, _, key in posts)
     assert result.call_id == "call_test123"
+
+
+def test_recipient_answers_win_over_the_batch_envelope():
+    """Measured 2026-08-11: the top-level result_schema payload
+    ({'completed_count': 1}) shadowed the filled recipient answers for three
+    live cascades — every real order looked like 'missing required fields'."""
+    from hungrycall.call_client import LiveCallClient
+
+    payload = {
+        "status": "completed",
+        "structured_result": {"completed_count": 1},
+        "recipients": [{
+            "structured_result": {
+                "delivers_to_address": True, "price_known": True,
+                "order_placed": True, "total_price_eur": 19,
+            },
+            "attempts": [],
+        }],
+    }
+    result = LiveCallClient._structured_result(payload)
+    assert result["order_placed"] is True
+    assert "completed_count" not in result
+    # Without recipient answers the envelope is still better than nothing.
+    assert LiveCallClient._structured_result(
+        {"structured_result": {"completed_count": 0}, "recipients": []}
+    ) == {"completed_count": 0}
