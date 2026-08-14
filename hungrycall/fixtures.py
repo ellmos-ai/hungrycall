@@ -1,14 +1,19 @@
 """Fixtures and mock responses for dry-run execution without network or account."""
 
-from typing import Dict, List, Any
-from hungrycall.models import Restaurant, OpeningHours, CallResult, CallStatus, Mode, UserRequest
+from typing import Any
 
+from hungrycall.models import (
+    CallStatus,
+    OpeningHours,
+    Restaurant,
+    UserRequest,
+)
 
 ALL_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 # The one default candidate pool. location.py serves copies of this list rather
 # than keeping a second, slowly diverging one.
-SAMPLE_RESTAURANTS: List[Restaurant] = [
+SAMPLE_RESTAURANTS: list[Restaurant] = [
     Restaurant(
         id="rest_burger_house",
         name="Burger House Dorfstadt",
@@ -116,7 +121,7 @@ SAMPLE_RESTAURANTS: List[Restaurant] = [
 ]
 
 
-def format_transcript_text(transcript_list: List[Dict[str, str]]) -> str:
+def format_transcript_text(transcript_list: list[dict[str, str]]) -> str:
     """Format transcript list into standard CALL-E string format: [mm:ss] SPRECHER: Text"""
     lines = []
     for turn in transcript_list:
@@ -136,7 +141,7 @@ def format_transcript_text(transcript_list: List[Dict[str, str]]) -> str:
     return "\n".join(lines)
 
 
-def deduplicate_activity(activity_events: List[str]) -> List[str]:
+def deduplicate_activity(activity_events: list[str]) -> list[str]:
     """
     Deduplicate real-time STT streaming drafts in activity log.
     Speech recognition initially emits raw draft ('Callee said: hallo')
@@ -145,7 +150,7 @@ def deduplicate_activity(activity_events: List[str]) -> List[str]:
     """
     if not activity_events:
         return []
-    
+
     deduped = []
     for i, event in enumerate(activity_events):
         if "Callee said:" in event and i < len(activity_events) - 1:
@@ -159,7 +164,7 @@ def deduplicate_activity(activity_events: List[str]) -> List[str]:
     return deduped
 
 
-def render_fixture_data(mock_entry: Dict[str, Any], req: UserRequest, restaurant: Restaurant) -> Dict[str, Any]:
+def render_fixture_data(mock_entry: dict[str, Any], req: UserRequest, restaurant: Restaurant) -> dict[str, Any]:
     """Interpolate actual user request inputs into fixture data templates."""
     fmt_kwargs = {
         "customer_name": req.customer_name,
@@ -225,7 +230,7 @@ def render_fixture_data(mock_entry: Dict[str, Any], req: UserRequest, restaurant
 
 
 # Mock responses mapped by scenario preset name and restaurant ID
-SCENARIO_FIXTURES: Dict[str, Dict[str, Any]] = {
+SCENARIO_FIXTURES: dict[str, dict[str, Any]] = {
     # Scenario 1: Immediate success
     "success_direct": {
         "rest_burger_house": {
@@ -262,7 +267,7 @@ SCENARIO_FIXTURES: Dict[str, Dict[str, Any]] = {
             ]
         }
     },
-    
+
     # Scenario 2: First candidate vague price, second candidate succeeds
     "vague_price_cascade": {
         "rest_burger_house": {
@@ -321,7 +326,7 @@ SCENARIO_FIXTURES: Dict[str, Dict[str, Any]] = {
             ]
         }
     },
-    
+
     # Scenario 3: First candidate exceeds max budget, second candidate succeeds
     "budget_exceeded_cascade": {
         "rest_burger_house": {
@@ -376,7 +381,7 @@ SCENARIO_FIXTURES: Dict[str, Dict[str, Any]] = {
             ]
         }
     },
-    
+
     # Scenario 4: Table reservation cascade
     "reservation_cascade": {
         "rest_trattoria_luigi": {
@@ -409,7 +414,7 @@ SCENARIO_FIXTURES: Dict[str, Dict[str, Any]] = {
             ]
         }
     },
-    
+
     # Scenario 5: Pickup cascade
     "pickup_cascade": {
         "rest_burger_house": {

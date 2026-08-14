@@ -1,6 +1,7 @@
 """Integration tests for HungryCall CLI."""
 
 import json
+
 from hungrycall.cli import main
 
 

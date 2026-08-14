@@ -5,10 +5,9 @@ from __future__ import annotations
 import html
 import os
 import urllib.parse
-from typing import Mapping, Optional
+from collections.abc import Mapping
 
 from hungrycall.i18n import t
-
 
 ENV_VAR = "HUNGRYCALL_RESTAURANT_TEST_MODE"
 COOKIE_NAME = "hungrycall_restaurant_test_mode"
@@ -16,7 +15,7 @@ FIXTURE_DAY = "Fri"
 FIXTURE_TIME = "19:00"
 
 
-def feature_enabled(environ: Optional[Mapping[str, str]] = None) -> bool:
+def feature_enabled(environ: Mapping[str, str] | None = None) -> bool:
     """Return whether the installation exposes restaurant fixture mode.
 
     It is available by default while HungryCall is being evaluated. Set the
@@ -31,12 +30,12 @@ def feature_enabled(environ: Optional[Mapping[str, str]] = None) -> bool:
     return value.strip().lower() == "on"
 
 
-def active(cookies: Mapping[str, str], environ: Optional[Mapping[str, str]] = None) -> bool:
+def active(cookies: Mapping[str, str], environ: Mapping[str, str] | None = None) -> bool:
     """Test mode is active only when both installation and browser opt in."""
     return feature_enabled(environ) and cookies.get(COOKIE_NAME) == "on"
 
 
-def safe_return_path(path: Optional[str]) -> str:
+def safe_return_path(path: str | None) -> str:
     """Keep toggle redirects on a HungryCall page."""
     candidate = str(path or "/order")
     return candidate if candidate in {"/", "/order", "/reserve"} else "/order"

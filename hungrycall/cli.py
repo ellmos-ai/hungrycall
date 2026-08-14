@@ -4,11 +4,8 @@ import argparse
 import json
 import math
 import sys
-from typing import List, Optional
 
-from hungrycall.models import Mode, Seating, UserRequest
-from hungrycall.fixtures import SAMPLE_RESTAURANTS, SCENARIO_FIXTURES
-from hungrycall.geo import weekday_key
+from hungrycall import field_trial
 from hungrycall.call_client import (
     CalleAPIError,
     DryRunCallClient,
@@ -17,9 +14,11 @@ from hungrycall.call_client import (
     probe_calle_connection,
 )
 from hungrycall.engine import CascadeEngine
-from hungrycall import field_trial
+from hungrycall.fixtures import SAMPLE_RESTAURANTS, SCENARIO_FIXTURES
+from hungrycall.geo import weekday_key
+from hungrycall.models import Mode, Seating, UserRequest
 from hungrycall.phone_utils import mask_phone, normalize_e164, validate_e164
-from hungrycall.safety import SafetyError, SINGAPORE_ENDPOINT_NOTICE
+from hungrycall.safety import SINGAPORE_ENDPOINT_NOTICE, SafetyError
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -39,7 +38,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="HungryCall — Sequential automated voice cascade for food delivery, reservations, and pickup.",
         parents=[common_parser]
     )
-    
+
     subparsers = parser.add_subparsers(dest="subcommand", help="HungryCall command modes")
 
     # Delivery subcommand
@@ -91,7 +90,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
@@ -279,7 +278,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     print("\n" + "=" * 60)
     if summary.success:
-        print(f"RESULT: SUCCESS")
+        print("RESULT: SUCCESS")
         print(f"SUMMARY: {summary.message}")
         if summary.final_result:
             if summary.final_result.raw_transcript_text:

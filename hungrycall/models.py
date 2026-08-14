@@ -1,17 +1,17 @@
 """Data models for HungryCall agent cascade."""
 
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Dict, List, Optional
+from enum import StrEnum
+from typing import Any
 
 
-class Mode(str, Enum):
+class Mode(StrEnum):
     DELIVERY = "delivery"
     RESERVATION = "reservation"
     PICKUP = "pickup"
 
 
-class Branch(str, Enum):
+class Branch(StrEnum):
     """The two things a user can start from on the landing page.
 
     A branch is not a mode: FOOD covers both DELIVERY and PICKUP, because
@@ -21,13 +21,13 @@ class Branch(str, Enum):
     TABLE = "table"
 
     @property
-    def modes(self) -> List[Mode]:
+    def modes(self) -> list[Mode]:
         if self is Branch.FOOD:
             return [Mode.DELIVERY, Mode.PICKUP]
         return [Mode.RESERVATION]
 
 
-class Seating(str, Enum):
+class Seating(StrEnum):
     """Where the guest wants to sit. ANY means the criterion does not apply."""
     ANY = "any"
     INDOOR = "indoor"
@@ -35,7 +35,7 @@ class Seating(str, Enum):
     CUSTOM = "custom"
 
 
-class CallStatus(str, Enum):
+class CallStatus(StrEnum):
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
     NO_ANSWER = "NO_ANSWER"
@@ -46,33 +46,33 @@ class CallStatus(str, Enum):
     EXPIRED = "EXPIRED"
 
 
-class ProductKind(str, Enum):
+class ProductKind(StrEnum):
     """The two product kinds named by the approved order-chain blueprint."""
 
     FOOD = "essen"
     DRINK = "getraenk"
 
 
-class CriterionKind(str, Enum):
+class CriterionKind(StrEnum):
     MAX_PRICE = "hoechstpreis"
     SPECIAL_REQUEST = "sonderwunsch"
     QUESTION = "rueckfrage"
 
 
-class CriterionReaction(str, Enum):
+class CriterionReaction(StrEnum):
     ACCEPT = "annehmen"
     NEXT_REPLACEMENT = "naechster_ersatz"
     REJECT = "ablehnen"
 
 
-class NothingAvailableRule(str, Enum):
+class NothingAvailableRule(StrEnum):
     SKIP_ITEM = "posten_weglassen"
     ABORT_ORDER = "bestellung_abbrechen"
 
 
 @dataclass
 class OpeningHours:
-    days: List[str]  # e.g. ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    days: list[str]  # e.g. ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     open_time: str   # "11:00"
     close_time: str  # "22:00"
 
@@ -115,7 +115,7 @@ class OrderCriterion:
     on_yes: CriterionReaction = CriterionReaction.ACCEPT
     on_no: CriterionReaction = CriterionReaction.NEXT_REPLACEMENT
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "art": self.kind.value,
             "wert": self.value,
@@ -124,7 +124,7 @@ class OrderCriterion:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "OrderCriterion":
+    def from_dict(cls, data: dict[str, Any]) -> "OrderCriterion":
         kind = CriterionKind(data.get("art"))
         value = data.get("wert")
         if kind is CriterionKind.MAX_PRICE:
@@ -157,9 +157,9 @@ class OrderCell:
     # any UI, kept purely for the order_chain_json shape (round-tripping an
     # older saved template must not break).
     kind: ProductKind = ProductKind.FOOD
-    criteria: List[OrderCriterion] = field(default_factory=list)
+    criteria: list[OrderCriterion] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "menge": self.quantity,
             "produkt": self.product,
@@ -168,7 +168,7 @@ class OrderCell:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "OrderCell":
+    def from_dict(cls, data: dict[str, Any]) -> "OrderCell":
         try:
             quantity = int(data.get("menge", 1))
         except (TypeError, ValueError) as exc:
@@ -188,11 +188,11 @@ class OrderCell:
 
 @dataclass
 class OrderPosition:
-    cells: List[OrderCell]
-    tags: List[str] = field(default_factory=list)
+    cells: list[OrderCell]
+    tags: list[str] = field(default_factory=list)
     if_nothing_available: NothingAvailableRule = NothingAvailableRule.SKIP_ITEM
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "zellen": [cell.to_dict() for cell in self.cells],
             "tags": self.tags,
@@ -200,11 +200,11 @@ class OrderPosition:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "OrderPosition":
+    def from_dict(cls, data: dict[str, Any]) -> "OrderPosition":
         cells = [OrderCell.from_dict(item) for item in data.get("zellen", [])]
         if not cells:
             raise ValueError("each posten requires at least one zelle")
-        tags: List[str] = []
+        tags: list[str] = []
         for raw in data.get("tags", []):
             tag = str(raw).strip()
             if tag and tag not in tags:
@@ -222,13 +222,13 @@ class OrderPosition:
 class OrderChain:
     """The single config shared by the UI, call goal and result evaluator."""
 
-    positions: List[OrderPosition]
+    positions: list[OrderPosition]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"version": 1, "posten": [position.to_dict() for position in self.positions]}
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "OrderChain":
+    def from_dict(cls, data: dict[str, Any]) -> "OrderChain":
         if not isinstance(data, dict):
             raise ValueError("order chain must be an object")
         positions = [OrderPosition.from_dict(item) for item in data.get("posten", [])]
@@ -242,8 +242,8 @@ class OrderChain:
             for position in self.positions
         )
 
-    def all_tags(self) -> List[str]:
-        seen: List[str] = []
+    def all_tags(self) -> list[str]:
+        seen: list[str] = []
         for position in self.positions:
             for tag in position.tags:
                 if tag not in seen:
@@ -256,19 +256,19 @@ class Restaurant:
     id: str
     name: str
     phone: str  # E.164 format, e.g. +441632960090
-    cuisines: List[str]  # e.g. ["Burger", "American"]
+    cuisines: list[str]  # e.g. ["Burger", "American"]
     opening_hours: OpeningHours
     is_favorite: bool = False
     supports_delivery: bool = True
     supports_pickup: bool = True
     supports_reservation: bool = True
     address: str = ""
-    email: Optional[str] = None
+    email: str | None = None
     lat: float = 52.5200
     lon: float = 13.4050
     has_outdoor_seating: bool = False
     max_party_size: int = 8
-    distance_km: Optional[float] = None  # filled in by the search, not by hand
+    distance_km: float | None = None  # filled in by the search, not by hand
 
 
 @dataclass
@@ -276,14 +276,14 @@ class UserRequest:
     mode: Mode
     customer_name: str
     food_prompt: str
-    max_budget_eur: Optional[float] = None  # Mandatory for delivery and pickup
-    delivery_address: Optional[str] = None  # Mandatory for delivery
-    reservation_date: Optional[str] = None  # Mandatory for reservation (YYYY-MM-DD)
-    reservation_time: Optional[str] = None  # HH:MM
-    party_size: Optional[int] = None        # Number of guests
+    max_budget_eur: float | None = None  # Mandatory for delivery and pickup
+    delivery_address: str | None = None  # Mandatory for delivery
+    reservation_date: str | None = None  # Mandatory for reservation (YYYY-MM-DD)
+    reservation_time: str | None = None  # HH:MM
+    party_size: int | None = None        # Number of guests
     seating: Seating = Seating.ANY          # indoor / outdoor wish for a table
-    pickup_time: Optional[str] = None       # Preferred pickup time (HH:MM)
-    max_distance_km: Optional[float] = None  # hard cut-off, matters for pickup
+    pickup_time: str | None = None       # Preferred pickup time (HH:MM)
+    max_distance_km: float | None = None  # hard cut-off, matters for pickup
     day_of_week: str = "Fri"
     time_of_request: str = "19:00"
     # Coverage-map finding #11 (CONVERSATION-TREE.md §4 row 11): a per-user
@@ -294,9 +294,9 @@ class UserRequest:
     # in a test or a future integration. ranking.py already reads it
     # (filter_and_rank_restaurants' is_fav boost), so wiring a UI to it
     # later needs no further plumbing here.
-    favorite_restaurant_ids: List[str] = field(default_factory=list)
-    concessions: List[Concession] = field(default_factory=list)
-    order_chain: Optional[OrderChain] = None
+    favorite_restaurant_ids: list[str] = field(default_factory=list)
+    concessions: list[Concession] = field(default_factory=list)
+    order_chain: OrderChain | None = None
     # ``customer_name`` remains the compatibility carrier used by existing
     # CLI/dry-run callers.  The web flow collects the two parts separately so
     # restaurants receive an unambiguous booking/order name.
@@ -304,9 +304,9 @@ class UserRequest:
     last_name: str = ""
     # Intentionally transient: web.py carries this through the form steps but
     # never writes it to HungryCall's database or result history.
-    requester_callback_number: Optional[str] = None
-    seating_custom: Optional[str] = None
-    special_instructions: Optional[str] = None
+    requester_callback_number: str | None = None
+    seating_custom: str | None = None
+    special_instructions: str | None = None
     # Reservation fallbacks are explicit upper bounds. The minute fields add
     # precision to the selected whole-hour allowance (for example 1 h 30 m).
     earlier_hours: int = 0
@@ -315,7 +315,7 @@ class UserRequest:
     later_minutes: int = 0
     max_booking_fee_eur: float = 0.0
 
-    def granted_concession_keys(self) -> List[str]:
+    def granted_concession_keys(self) -> list[str]:
         return [c.key for c in self.concessions]
 
     def requester_name(self) -> str:
@@ -349,22 +349,22 @@ class CallResult:
     status: CallStatus
     task_completed: bool
     completion_confidence: float
-    structured_result: Dict[str, Any]
-    transcript: List[Dict[str, Any]]
+    structured_result: dict[str, Any]
+    transcript: list[dict[str, Any]]
     post_summary: str
-    rejection_reason: Optional[str] = None
-    activity: List[str] = field(default_factory=list)
-    raw_transcript_text: Optional[str] = None
+    rejection_reason: str | None = None
+    activity: list[str] = field(default_factory=list)
+    raw_transcript_text: str | None = None
 
 
 @dataclass
 class AttemptRecord:
     restaurant: Restaurant
-    call_result: Optional[CallResult]
+    call_result: CallResult | None
     passed_criteria: bool
-    rejection_reason: Optional[str]
+    rejection_reason: str | None
     timestamp: str
-    concession_used: Optional[str] = None  # key of the concession the agent played
+    concession_used: str | None = None  # key of the concession the agent played
 
 
 @dataclass
@@ -372,8 +372,8 @@ class CascadeSummary:
     success: bool
     mode: Mode
     user_request: UserRequest
-    attempts: List[AttemptRecord]
-    successful_restaurant: Optional[Restaurant] = None
-    final_result: Optional[CallResult] = None
+    attempts: list[AttemptRecord]
+    successful_restaurant: Restaurant | None = None
+    final_result: CallResult | None = None
     message: str = ""
-    concession_used: Optional[str] = None
+    concession_used: str | None = None

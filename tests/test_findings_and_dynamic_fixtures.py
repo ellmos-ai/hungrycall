@@ -1,10 +1,9 @@
 """Tests for measured FINDINGS.md behavior and dynamic input fixture reflection."""
 
-import pytest
-from hungrycall.models import Mode, UserRequest
-from hungrycall.fixtures import SAMPLE_RESTAURANTS, deduplicate_activity, format_transcript_text
 from hungrycall.call_client import DryRunCallClient
 from hungrycall.cli import main
+from hungrycall.fixtures import SAMPLE_RESTAURANTS, deduplicate_activity
+from hungrycall.models import Mode, UserRequest
 
 
 def test_dynamic_user_input_reflection_in_transcript():

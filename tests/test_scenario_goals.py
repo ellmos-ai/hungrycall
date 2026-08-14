@@ -31,8 +31,8 @@ instead of through a form.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Dict, List
 
 import pytest
 
@@ -40,7 +40,11 @@ from hungrycall.call_language import CALL_LOCALE_ENV
 from hungrycall.engine import build_call_goal
 from hungrycall.fixtures import SAMPLE_RESTAURANTS
 from hungrycall.models import (
-    Concession, Mode, OrderChain, Seating, UserRequest,
+    Concession,
+    Mode,
+    OrderChain,
+    Seating,
+    UserRequest,
 )
 
 RESTAURANT = SAMPLE_RESTAURANTS[0]  # build_call_goal never reads restaurant fields
@@ -54,47 +58,47 @@ LANGUAGES = ("de", "en")
 # --------------------------------------------------------------------------
 
 def _delivery(**overrides) -> UserRequest:
-    base = dict(
-        mode=Mode.DELIVERY,
-        customer_name="Alex Beispiel",
-        first_name="Alex",
-        last_name="Beispiel",
-        food_prompt="Burger",
-        max_budget_eur=25.0,
-        delivery_address="Musterstrasse 5, 12345 Dorfstadt",
-        requester_callback_number=CALLBACK,
-    )
+    base = {
+        "mode": Mode.DELIVERY,
+        "customer_name": "Alex Beispiel",
+        "first_name": "Alex",
+        "last_name": "Beispiel",
+        "food_prompt": "Burger",
+        "max_budget_eur": 25.0,
+        "delivery_address": "Musterstrasse 5, 12345 Dorfstadt",
+        "requester_callback_number": CALLBACK,
+    }
     base.update(overrides)
     return UserRequest(**base)
 
 
 def _pickup(**overrides) -> UserRequest:
-    base = dict(
-        mode=Mode.PICKUP,
-        customer_name="Alex Beispiel",
-        first_name="Alex",
-        last_name="Beispiel",
-        food_prompt="Pizza",
-        max_budget_eur=20.0,
-        pickup_time="19:30",
-        requester_callback_number=CALLBACK,
-    )
+    base = {
+        "mode": Mode.PICKUP,
+        "customer_name": "Alex Beispiel",
+        "first_name": "Alex",
+        "last_name": "Beispiel",
+        "food_prompt": "Pizza",
+        "max_budget_eur": 20.0,
+        "pickup_time": "19:30",
+        "requester_callback_number": CALLBACK,
+    }
     base.update(overrides)
     return UserRequest(**base)
 
 
 def _reservation(**overrides) -> UserRequest:
-    base = dict(
-        mode=Mode.RESERVATION,
-        customer_name="Alex Beispiel",
-        first_name="Alex",
-        last_name="Beispiel",
-        food_prompt="Italian",
-        reservation_date="2026-08-07",
-        reservation_time="19:00",
-        party_size=4,
-        requester_callback_number=CALLBACK,
-    )
+    base = {
+        "mode": Mode.RESERVATION,
+        "customer_name": "Alex Beispiel",
+        "first_name": "Alex",
+        "last_name": "Beispiel",
+        "food_prompt": "Italian",
+        "reservation_date": "2026-08-07",
+        "reservation_time": "19:00",
+        "party_size": 4,
+        "requester_callback_number": CALLBACK,
+    }
     base.update(overrides)
     return UserRequest(**base)
 
@@ -111,7 +115,7 @@ def _chain(*positions: dict) -> OrderChain:
     return OrderChain.from_dict({"version": 1, "posten": list(positions)})
 
 
-def _position(*cells: dict, tags: List[str] = None, end_rule: str = "posten_weglassen") -> dict:
+def _position(*cells: dict, tags: list[str] | None = None, end_rule: str = "posten_weglassen") -> dict:
     return {"zellen": list(cells), "tags": tags or [], "wenn_nichts_verfuegbar": end_rule}
 
 
@@ -357,7 +361,7 @@ def _check_reservation_special_instructions(goal: str, lang: str) -> None:
     assert "'Please note the anniversary.'" in goal
 
 
-SCENARIOS: Dict[str, "tuple[Callable[[], UserRequest], Check]"] = {
+SCENARIOS: dict[str, tuple[Callable[[], UserRequest], Check]] = {
     "delivery_simple": (_delivery_simple, _check_delivery_simple),
     "delivery_concession_one": (_delivery_concession_one, _check_delivery_concession_one),
     "delivery_concession_many": (_delivery_concession_many, _check_delivery_concession_many),

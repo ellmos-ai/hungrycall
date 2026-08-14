@@ -9,24 +9,33 @@ that the agent may only play concessions the user actually granted.
 import math
 import time
 from datetime import datetime
-from typing import List, Optional, Tuple
 
 from hungrycall.call_client import CallClient, DryRunCallClient
 from hungrycall.call_language import call_language
 from hungrycall.models import (
-    AttemptRecord, CallResult, CallStatus, CascadeSummary,
-    Concession, Mode, Restaurant, Seating, UserRequest
-)
-from hungrycall.phone_utils import (
-    mask_phone, normalize_e164, redact_specific_phone, validate_e164,
+    AttemptRecord,
+    CallResult,
+    CallStatus,
+    CascadeSummary,
+    Concession,
+    Mode,
+    Restaurant,
+    Seating,
+    UserRequest,
 )
 from hungrycall.order_chains import build_order_chain_instruction, evaluate_order_chain
+from hungrycall.phone_utils import (
+    mask_phone,
+    normalize_e164,
+    redact_specific_phone,
+    validate_e164,
+)
 from hungrycall.ranking import filter_and_rank_restaurants
 from hungrycall.safety import generate_idempotency_key, verify_content_safety
 from hungrycall.schemas import get_result_schema
 
 
-def _concession_clause(concessions: List[Concession]) -> str:
+def _concession_clause(concessions: list[Concession]) -> str:
     """Turn granted concessions into an ordered instruction for the voice agent.
 
     The order is the point. Bundling them into one sentence would make the
@@ -76,7 +85,7 @@ def _reservation_authority_clause(request: UserRequest) -> str:
     steps = [
         "Step 1: first request the exact stated time, the stated seating preference, and no booking fee."
     ]
-    authority_keys: List[str] = []
+    authority_keys: list[str] = []
     step_number = 2
     earlier = request.earlier_tolerance_minutes()
     later = request.later_tolerance_minutes()
@@ -140,7 +149,7 @@ def _call_intro(locale: str, requester_name: str) -> str:
     )
 
 
-def _closing_routine_examples(locale: str) -> Tuple[str, str, str]:
+def _closing_routine_examples(locale: str) -> tuple[str, str, str]:
     """The three VERBATIM-quoted example fragments in the closing routine.
 
     Returns (confirmation_question, readback_question, readback_answer).
@@ -330,8 +339,8 @@ class CascadeEngine:
 
     def __init__(
         self,
-        candidate_pool: List[Restaurant],
-        call_client: Optional[CallClient] = None,
+        candidate_pool: list[Restaurant],
+        call_client: CallClient | None = None,
         preserve_order: bool = False,
     ):
         """
@@ -343,7 +352,7 @@ class CascadeEngine:
         self.call_client = call_client or DryRunCallClient()
         self.preserve_order = preserve_order
 
-    def plan(self, request: UserRequest) -> List[Tuple[Restaurant, float]]:
+    def plan(self, request: UserRequest) -> list[tuple[Restaurant, float]]:
         """The call order this run would use, without calling anyone."""
         if self.preserve_order:
             return [(r, 0.0) for r in self.candidate_pool]
@@ -369,7 +378,7 @@ class CascadeEngine:
                 message="No open or compatible restaurant candidates found for your request."
             )
 
-        attempts: List[AttemptRecord] = []
+        attempts: list[AttemptRecord] = []
 
         for restaurant, _score in ranked_candidates:
             ts = time.time()
@@ -439,7 +448,7 @@ class CascadeEngine:
             f"Callback at {masked_cb}."
         )
 
-    def evaluate_result(self, request: UserRequest, result: CallResult) -> Tuple[bool, Optional[str]]:
+    def evaluate_result(self, request: UserRequest, result: CallResult) -> tuple[bool, str | None]:
         """Evaluate one call result against the criteria of this request."""
         if result.status != CallStatus.COMPLETED:
             return False, f"Call failed with status '{result.status.value}'"
@@ -501,7 +510,7 @@ class CascadeEngine:
 
     @staticmethod
     def redact_requester_callback(
-        result: CallResult, requester_callback_number: Optional[str]
+        result: CallResult, requester_callback_number: str | None
     ) -> None:
         """Remove an echoed requester number before evaluation, output or save."""
         if not requester_callback_number:
@@ -520,7 +529,7 @@ class CascadeEngine:
         )
 
     @staticmethod
-    def _reservation_delta_minutes(request: UserRequest, struct: dict) -> Optional[int]:
+    def _reservation_delta_minutes(request: UserRequest, struct: dict) -> int | None:
         """Return confirmed minus requested minutes; absent legacy fields mean exact."""
         confirmed_time = struct.get("reservation_time_confirmed")
         if not confirmed_time:
@@ -539,7 +548,7 @@ class CascadeEngine:
 
     def check_reservation_authority(
         self, request: UserRequest, struct: dict
-    ) -> Optional[str]:
+    ) -> str | None:
         """Reject times, fees, or reported fallbacks outside explicit grants."""
         delta = self._reservation_delta_minutes(request, struct)
         if delta is None:
@@ -593,7 +602,7 @@ class CascadeEngine:
     @staticmethod
     def check_order_chain(
         request: UserRequest, struct: dict
-    ) -> Tuple[bool, Optional[str]]:
+    ) -> tuple[bool, str | None]:
         if request.order_chain is None:
             return True, None
         evaluation = evaluate_order_chain(request.order_chain, struct)
@@ -601,7 +610,7 @@ class CascadeEngine:
             return False, evaluation.reason or "Order wish chain did not resolve"
         return True, None
 
-    def check_concession_authority(self, request: UserRequest, struct: dict) -> Optional[str]:
+    def check_concession_authority(self, request: UserRequest, struct: dict) -> str | None:
         """Reject results that used a concession the user never granted."""
         tier_applied = struct.get("tier_applied")
         if not tier_applied:
@@ -613,7 +622,7 @@ class CascadeEngine:
             )
         return None
 
-    def check_price_and_order(self, request: UserRequest, struct: dict) -> Tuple[bool, Optional[str]]:
+    def check_price_and_order(self, request: UserRequest, struct: dict) -> tuple[bool, str | None]:
         """The money gate, shared by delivery and pickup.
 
         Deliberately strict: a vague quote is a rejection, never an estimate.

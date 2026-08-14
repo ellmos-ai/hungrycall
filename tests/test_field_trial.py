@@ -12,7 +12,6 @@ from hungrycall import field_trial
 from hungrycall.fixtures import SAMPLE_RESTAURANTS
 from hungrycall.safety import SafetyError
 
-
 TEST_NUMBER = "+4910004069001"
 
 

@@ -7,9 +7,10 @@ import os
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any
 
 from hungrycall.call_language import call_language
 from hungrycall.fixtures import (
@@ -17,12 +18,11 @@ from hungrycall.fixtures import (
     deduplicate_activity,
     render_fixture_data,
 )
-from hungrycall.models import CallResult, CallStatus, Mode, Restaurant, UserRequest
+from hungrycall.models import CallResult, CallStatus, Restaurant, UserRequest
 from hungrycall.order_chains import simulate_order_chain_result
 from hungrycall.phone_utils import mask_phones_in_text, normalize_e164
 from hungrycall.safety import SafetyError, verify_phone_safety
 from hungrycall.schemas import get_result_schema
-
 
 DEFAULT_CALLE_ENV_FILE = Path(r"C:\_Local_DEV\CREDENTIALS\call-e\call-e.env")
 DEFAULT_CALLE_BASE_URL = "https://api.heycall-e.com"
@@ -35,7 +35,7 @@ class CalleSettings:
 
     api_key: str = field(repr=False)
     base_url: str = DEFAULT_CALLE_BASE_URL
-    env_file: Optional[Path] = None
+    env_file: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -58,10 +58,10 @@ class CalleAPIError(RuntimeError):
         super().__init__(f"CALL-E API returned HTTP {status_code} during {operation}.")
 
 
-def _parse_env_file(path: Path) -> Dict[str, str]:
+def _parse_env_file(path: Path) -> dict[str, str]:
     """Read the three supported settings without importing python-dotenv."""
 
-    values: Dict[str, str] = {}
+    values: dict[str, str] = {}
     try:
         lines = path.read_text(encoding="utf-8-sig").splitlines()
     except FileNotFoundError:
@@ -88,8 +88,8 @@ def _parse_env_file(path: Path) -> Dict[str, str]:
 
 
 def load_calle_settings(
-    env_file: Optional[str | Path] = None,
-    environment: Optional[Mapping[str, str]] = None,
+    env_file: str | Path | None = None,
+    environment: Mapping[str, str] | None = None,
 ) -> CalleSettings:
     """Resolve environment first, then the external ``call-e.env`` fallback.
 
@@ -132,7 +132,7 @@ def load_calle_settings(
 
 
 def probe_calle_connection(
-    settings: Optional[CalleSettings] = None,
+    settings: CalleSettings | None = None,
     *,
     timeout_seconds: float = 10.0,
 ) -> PreflightResult:
@@ -289,9 +289,9 @@ class LiveCallClient(CallClient):
         cls,
         *,
         confirmed: bool = False,
-        env_file: Optional[str | Path] = None,
+        env_file: str | Path | None = None,
         **kwargs: Any,
-    ) -> "LiveCallClient":
+    ) -> LiveCallClient:
         return cls(
             load_calle_settings(env_file=env_file),
             confirmed=confirmed,
@@ -302,9 +302,9 @@ class LiveCallClient(CallClient):
         self,
         method: str,
         path: str,
-        payload: Optional[Dict[str, Any]] = None,
-        idempotency_key: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        payload: dict[str, Any] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
         headers = {
             "Authorization": f"Bearer {self.settings.api_key}",
             "Accept": "application/json",
@@ -336,14 +336,14 @@ class LiveCallClient(CallClient):
         return value
 
     @staticmethod
-    def _containers(value: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _containers(value: dict[str, Any]) -> list[dict[str, Any]]:
         containers = [value]
         if isinstance(value.get("result"), dict):
             containers.insert(0, value["result"])
         return containers
 
     @classmethod
-    def _status(cls, value: Dict[str, Any]) -> Optional[str]:
+    def _status(cls, value: dict[str, Any]) -> str | None:
         for container in cls._containers(value):
             status = container.get("status") or container.get("call_status")
             if isinstance(status, str):
@@ -352,7 +352,7 @@ class LiveCallClient(CallClient):
         return None
 
     @classmethod
-    def _structured_result(cls, value: Dict[str, Any]) -> Dict[str, Any]:
+    def _structured_result(cls, value: dict[str, Any]) -> dict[str, Any]:
         """The recipient's answers, not the batch envelope.
 
         Live payloads carry TWO structured results (measured 2026-08-11): the
@@ -375,7 +375,7 @@ class LiveCallClient(CallClient):
         return {}
 
     @classmethod
-    def _value(cls, value: Dict[str, Any], *keys: str, default: Any = None) -> Any:
+    def _value(cls, value: dict[str, Any], *keys: str, default: Any = None) -> Any:
         for container in cls._containers(value):
             for key in keys:
                 if container.get(key) is not None:
@@ -383,11 +383,11 @@ class LiveCallClient(CallClient):
         return default
 
     @classmethod
-    def _activity(cls, value: Dict[str, Any]) -> List[str]:
+    def _activity(cls, value: dict[str, Any]) -> list[str]:
         raw = cls._value(value, "activity", default=[])
         if not isinstance(raw, list):
             return []
-        lines: List[str] = []
+        lines: list[str] = []
         for event in raw:
             if isinstance(event, str):
                 line = event
@@ -402,7 +402,7 @@ class LiveCallClient(CallClient):
         return deduplicate_activity(lines)
 
     @classmethod
-    def _transcript_from_turns(cls, value: Dict[str, Any]) -> str:
+    def _transcript_from_turns(cls, value: dict[str, Any]) -> str:
         """Rebuild the verbatim conversation from recipients[].attempts[].
 
         Format: one line per turn, ``[mm:ss] SPEAKER: text`` — the same shape

@@ -9,6 +9,16 @@
 
 **[English](README.md) · Deutsch**
 
+[![Ecosystem: ellmos-ai](https://img.shields.io/badge/ecosystem-ellmos--ai-blue.svg)](https://github.com/ellmos-ai)
+[![Umbrella: open-bricks](https://img.shields.io/badge/umbrella-open--bricks-indigo.svg)](https://github.com/open-bricks)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Tests](https://img.shields.io/badge/tests-301%20passed-brightgreen.svg)](tests/)
+[![llms.txt](https://img.shields.io/badge/llms.txt-standardisiert-green.svg)](llms.txt)
+
+> [!TIP]
+> **LLM-Kontext & KI-Agent-Integration**: Siehe [`llms.txt`](llms.txt) für maschinenlesbare Architektur und Dokumentation, optimiert für LLMs und KI-Coding-Assistenten.
+
 > **Einreichung zum CALL-E-Hackathon („Your Code Is Calling")**
 >
 > Automatisierte Sprachagenten-Kaskade für Lieferung, Tischreservierung und Abholung,

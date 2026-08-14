@@ -1,13 +1,12 @@
 """JSON Schemas for CALL-E result_schema definition across all HungryCall modes."""
 
 from copy import deepcopy
-from typing import Any, Dict, Optional
+from typing import Any
 
 from hungrycall.models import Mode, OrderChain
 from hungrycall.order_chains import ORDER_CHAIN_RESULT_SCHEMA
 
-
-DELIVERY_RESULT_SCHEMA: Dict[str, Any] = {
+DELIVERY_RESULT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
     "required": ["delivers_to_address", "price_known"],
@@ -44,7 +43,7 @@ DELIVERY_RESULT_SCHEMA: Dict[str, Any] = {
 }
 
 
-RESERVATION_RESULT_SCHEMA: Dict[str, Any] = {
+RESERVATION_RESULT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
     "required": [
@@ -105,7 +104,7 @@ RESERVATION_RESULT_SCHEMA: Dict[str, Any] = {
 }
 
 
-PICKUP_RESULT_SCHEMA: Dict[str, Any] = {
+PICKUP_RESULT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
     "required": ["pickup_available", "price_known"],
@@ -142,7 +141,7 @@ PICKUP_RESULT_SCHEMA: Dict[str, Any] = {
 }
 
 
-def get_result_schema(mode: Mode, order_chain: Optional[OrderChain] = None) -> Dict[str, Any]:
+def get_result_schema(mode: Mode, order_chain: OrderChain | None = None) -> dict[str, Any]:
     """Retrieve the designated result_schema for a given HungryCall mode."""
     if mode == Mode.DELIVERY:
         schema = DELIVERY_RESULT_SCHEMA
@@ -156,6 +155,6 @@ def get_result_schema(mode: Mode, order_chain: Optional[OrderChain] = None) -> D
     if order_chain is None:
         return schema
     result = deepcopy(schema)
-    result["required"] = list(result.get("required", [])) + ["order_chain_results"]
+    result["required"] = [*result.get("required", []), "order_chain_results"]
     result["properties"]["order_chain_results"] = deepcopy(ORDER_CHAIN_RESULT_SCHEMA)
     return result

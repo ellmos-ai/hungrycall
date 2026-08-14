@@ -1,9 +1,9 @@
 """Integration tests for sequential cascade execution across modes."""
 
-from hungrycall.models import Mode, Seating, UserRequest
-from hungrycall.fixtures import SAMPLE_RESTAURANTS
 from hungrycall.call_client import DryRunCallClient
 from hungrycall.engine import CascadeEngine, build_call_goal
+from hungrycall.fixtures import SAMPLE_RESTAURANTS
+from hungrycall.models import Mode, Seating, UserRequest
 
 
 def test_cascade_stops_immediately_on_first_success():
@@ -15,13 +15,13 @@ def test_cascade_stops_immediately_on_first_success():
         max_budget_eur=35.00,
         delivery_address="Hauptstraße 12, 12345 Dorfstadt"
     )
-    
+
     # scenario 'success_direct': First candidate succeeds immediately
     client = DryRunCallClient(scenario_name="success_direct")
     engine = CascadeEngine(candidate_pool=SAMPLE_RESTAURANTS, call_client=client)
-    
+
     summary = engine.run(req)
-    
+
     assert summary.success is True
     # ONLY 1 attempt made because it stopped immediately after success!
     assert len(summary.attempts) == 1
@@ -40,12 +40,12 @@ def test_reservation_cascade():
         reservation_time="19:00",
         party_size=4
     )
-    
+
     client = DryRunCallClient(scenario_name="reservation_cascade")
     engine = CascadeEngine(candidate_pool=SAMPLE_RESTAURANTS, call_client=client)
-    
+
     summary = engine.run(req)
-    
+
     assert summary.success is True
     assert summary.successful_restaurant.id == "rest_trattoria_luigi"
     assert "Table reserved" in summary.message
@@ -61,12 +61,12 @@ def test_pickup_cascade():
         max_budget_eur=25.00,
         pickup_time="19:30"
     )
-    
+
     client = DryRunCallClient(scenario_name="pickup_cascade")
     engine = CascadeEngine(candidate_pool=SAMPLE_RESTAURANTS, call_client=client)
-    
+
     summary = engine.run(req)
-    
+
     assert summary.success is True
     assert summary.successful_restaurant.id == "rest_burger_house"
     assert "Pickup order placed" in summary.message
@@ -74,16 +74,16 @@ def test_pickup_cascade():
 
 
 def build_reservation_request(seating=Seating.ANY, **overrides):
-    values = dict(
-        mode=Mode.RESERVATION,
-        customer_name="Alex",
-        food_prompt="Italian",
-        reservation_date="2026-08-05",
-        reservation_time="19:00",
-        party_size=4,
-        seating=seating,
-        requester_callback_number="+4910004069000",
-    )
+    values = {
+        "mode": Mode.RESERVATION,
+        "customer_name": "Alex",
+        "food_prompt": "Italian",
+        "reservation_date": "2026-08-05",
+        "reservation_time": "19:00",
+        "party_size": 4,
+        "seating": seating,
+        "requester_callback_number": "+4910004069000",
+    }
     values.update(overrides)
     return UserRequest(**values)
 

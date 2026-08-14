@@ -9,6 +9,16 @@
 
 **English · [Deutsch](README_de.md)**
 
+[![Ecosystem: ellmos-ai](https://img.shields.io/badge/ecosystem-ellmos--ai-blue.svg)](https://github.com/ellmos-ai)
+[![Umbrella: open-bricks](https://img.shields.io/badge/umbrella-open--bricks-indigo.svg)](https://github.com/open-bricks)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Tests](https://img.shields.io/badge/tests-301%20passed-brightgreen.svg)](tests/)
+[![llms.txt](https://img.shields.io/badge/llms.txt-standardized-green.svg)](llms.txt)
+
+> [!TIP]
+> **LLM Context & AI Agent Integration**: See [`llms.txt`](llms.txt) for machine-readable architecture and documentation optimized for LLMs and AI coding assistants.
+
 > **Hackathon Submission for CALL-E ("Your Code Is Calling")**
 >
 > Automated voice agent cascade for food delivery, table reservations, and pickup based on the **Generalized Calling Cascade Pattern** (`MUSTER.md`).

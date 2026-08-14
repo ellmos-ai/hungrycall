@@ -1,7 +1,7 @@
 """Phone number validation and masking utilities adhering to E.164 standards."""
 
 import re
-from typing import Any, Optional
+from typing import Any
 
 # E.164 pattern: Starts with '+', followed by country code and subscriber number (7 to 15 digits total)
 E164_REGEX = re.compile(r"^\+[1-9]\d{6,14}$")
@@ -40,21 +40,21 @@ def normalize_e164(phone: str, default_country: str = "+49") -> str:
 
 def mask_phone(phone: str) -> str:
     """Mask phone numbers for safe display in logs, outputs, and reports.
-    
+
     Example:
         '+441632960090' -> '+49 ••• ••••567'
     """
     if not phone:
         return "[MASKED-PHONE]"
-    
+
     cleaned = phone.strip().replace(" ", "")
     if len(cleaned) < 6:
         return "+•••"
-    
+
     prefix = cleaned[:4]  # e.g. "+491" or "+49"
     suffix = cleaned[-3:] # e.g. "567"
     masked_middle = " ••• ••••"
-    
+
     return f"{prefix}{masked_middle}{suffix}"
 
 
@@ -127,7 +127,7 @@ _DIGIT_WORD_GAP = (
 )
 
 
-def _spelled_out_digits_pattern(normalized_phone: str) -> Optional[re.Pattern]:
+def _spelled_out_digits_pattern(normalized_phone: str) -> re.Pattern | None:
     """Regex matching ``normalized_phone`` spoken as German digit words."""
     digits = normalized_phone.lstrip("+")
     if not digits.isdigit() or not digits:

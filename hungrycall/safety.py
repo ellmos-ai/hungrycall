@@ -2,11 +2,10 @@
 
 import hashlib
 import time
-from typing import List, Tuple
+
 from hungrycall.phone_utils import validate_e164
 
-
-PROHIBITED_KEYWORDS: List[str] = [
+PROHIBITED_KEYWORDS: list[str] = [
     "hospital", "doctor", "police", "fire", "emergency", "ambulance",
     "court", "lawyer", "legal", "bank", "credit card", "tax", "medical",
     "notarzt", "krankenhaus", "polizei", "feuerwehr", "gericht", "anwalt"
@@ -21,7 +20,6 @@ SINGAPORE_ENDPOINT_NOTICE = (
 
 class SafetyError(Exception):
     """Raised when a safety rule or compliance check is violated."""
-    pass
 
 
 def verify_content_safety(food_prompt: str, notes: str = "") -> None:
@@ -51,7 +49,7 @@ def verify_live_safety(live_flag: bool, user_confirmed: bool) -> None:
         )
 
 
-def generate_idempotency_key(mode: str, restaurant_id: str, timestamp_sec: float = None) -> str:
+def generate_idempotency_key(mode: str, restaurant_id: str, timestamp_sec: float | None = None) -> str:
     """Generate a unique idempotency key to prevent duplicate calls to the same restaurant."""
     ts = int(timestamp_sec or time.time())
     raw = f"hungrycall:{mode}:{restaurant_id}:{ts // 300}"  # 5-minute bucket idempotency

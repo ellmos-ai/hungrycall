@@ -29,8 +29,8 @@ so they cannot drift apart the way that did — see
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Mapping, Optional
 
 CALL_LOCALE_ENV = "HUNGRYCALL_CALL_LOCALE"
 DEFAULT_CALL_LOCALE = "de"
@@ -60,7 +60,7 @@ _REGION_BY_LOCALE = {
 }
 
 
-def call_language(environment: Optional[Mapping[str, str]] = None) -> CallLanguage:
+def call_language(environment: Mapping[str, str] | None = None) -> CallLanguage:
     """Resolve the language a live call is conducted in.
 
     Reads ``HUNGRYCALL_CALL_LOCALE`` (case-insensitive); unset or

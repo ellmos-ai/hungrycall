@@ -15,10 +15,15 @@ from fastapi.testclient import TestClient
 from hungrycall import web
 from hungrycall.call_client import DryRunCallClient
 from hungrycall.db import (
-    create_order_record, init_db, list_saved_results, save_cascade_result
+    create_order_record,
+    init_db,
+    list_saved_results,
+    save_cascade_result,
 )
 from hungrycall.location import (
-    geocode_location, get_offline_restaurants, search_overpass_restaurants
+    geocode_location,
+    get_offline_restaurants,
+    search_overpass_restaurants,
 )
 from hungrycall.models import CallResult, CallStatus
 from hungrycall.web import app

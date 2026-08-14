@@ -1,9 +1,13 @@
 """Unit tests for safety and policy guardrails."""
 
 import pytest
+
 from hungrycall.safety import (
-    SafetyError, verify_content_safety, verify_phone_safety,
-    verify_live_safety, generate_idempotency_key
+    SafetyError,
+    generate_idempotency_key,
+    verify_content_safety,
+    verify_live_safety,
+    verify_phone_safety,
 )
 
 
@@ -23,7 +27,7 @@ def test_verify_content_safety_prohibited_keywords():
 
 def test_verify_phone_safety():
     verify_phone_safety("+441632960090")
-    
+
     with pytest.raises(SafetyError):
         verify_phone_safety("07700900090")
 

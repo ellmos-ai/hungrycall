@@ -2,10 +2,11 @@
 
 import copy
 import logging
-from typing import Dict, List, Tuple, Optional
+
 import httpx
-from hungrycall.models import Restaurant, OpeningHours
+
 from hungrycall.fixtures import SAMPLE_RESTAURANTS
+from hungrycall.models import OpeningHours, Restaurant
 from hungrycall.phone_utils import normalize_e164, validate_e164
 
 logger = logging.getLogger(__name__)
@@ -41,7 +42,7 @@ class NoRestaurantsFound(RestaurantSearchError):
 
 
 # Preset geocoding coordinates for offline/fixture mode (International support)
-OFFLINE_LOCATIONS: Dict[str, Tuple[float, float]] = {
+OFFLINE_LOCATIONS: dict[str, tuple[float, float]] = {
     "singapore": (1.3521, 103.8198),
     "london": (51.5074, -0.1278),
     "new york": (40.7128, -74.0060),
@@ -52,7 +53,7 @@ OFFLINE_LOCATIONS: Dict[str, Tuple[float, float]] = {
 }
 
 # Rich offline fixtures per location for offline demo presentation
-OFFLINE_RESTAURANTS_BY_LOC: Dict[str, List[Restaurant]] = {
+OFFLINE_RESTAURANTS_BY_LOC: dict[str, list[Restaurant]] = {
     "singapore": [
         Restaurant(
             id="rest_sg_hawker",
@@ -133,7 +134,7 @@ def geocode_location(
     city: str,
     country: str,
     test_mode: bool = False,
-) -> Tuple[float, float]:
+) -> tuple[float, float]:
     """Resolve a location through Nominatim, or fixtures in explicit test mode."""
     city_clean = city.strip().lower()
     country_clean = country.strip().lower()
@@ -180,7 +181,7 @@ def search_overpass_restaurants(
     radius_km: float = 3.0,
     test_mode: bool = False,
     city: str = ""
-) -> List[Restaurant]:
+) -> list[Restaurant]:
     """
     Search restaurants around center point using OSM Overpass API.
     Only explicit test mode returns offline fixtures. Live lookup failures raise
@@ -232,8 +233,8 @@ def search_overpass_restaurants(
         raise SearchServiceUnavailable("Overpass returned an invalid response shape")
 
     elements = data["elements"]
-    restaurants: List[Restaurant] = []
-            
+    restaurants: list[Restaurant] = []
+
     for idx, elem in enumerate(elements):
         if not isinstance(elem, dict):
             continue
@@ -246,13 +247,13 @@ def search_overpass_restaurants(
         if not validate_e164(normalized_phone):
             logger.info("Skipping OSM restaurant %s with unusable phone metadata", elem.get("id", idx))
             continue
-                    
+
         elem_lat = elem.get("lat") or elem.get("center", {}).get("lat", lat)
         elem_lon = elem.get("lon") or elem.get("center", {}).get("lon", lon)
-                
+
         cuisine_raw = tags.get("cuisine", "General")
         cuisines = [c.strip().capitalize() for c in cuisine_raw.split(";")]
-                
+
         street = tags.get("addr:street", "")
         housenumber = tags.get("addr:housenumber", "")
         address = f"{street} {housenumber}".strip() or f"Near ({elem_lat:.4f}, {elem_lon:.4f})"
@@ -285,7 +286,7 @@ def search_overpass_restaurants(
     return annotate_distances(restaurants, lat, lon)
 
 
-def get_offline_restaurants(city: str = "") -> List[Restaurant]:
+def get_offline_restaurants(city: str = "") -> list[Restaurant]:
     """Retrieve the offline candidate pool for a city, or the default village.
 
     Returns deep copies. The search annotates each candidate with its distance

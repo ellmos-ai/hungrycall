@@ -16,11 +16,10 @@ from hungrycall.db import (
 from hungrycall.engine import CascadeEngine, build_call_goal
 from hungrycall.fixtures import SAMPLE_RESTAURANTS
 from hungrycall.models import CallResult, CallStatus, Mode, Seating, UserRequest
-from hungrycall.schemas import get_result_schema
 from hungrycall.safety import SafetyError
-from hungrycall.web import build_user_request
+from hungrycall.schemas import get_result_schema
 from hungrycall.templates import render_history
-
+from hungrycall.web import build_user_request
 
 CALLBACK = "+4910004069000"
 

@@ -238,31 +238,30 @@ def test_the_visitors_key_reaches_no_store_and_no_log(monkeypatch, caplog):
     use_mode(monkeypatch, "huckepack-only-host")
     monkeypatch.setattr(web, "live_call_client", lambda: DryRunCallClient("jury_30s_demo"))
 
-    with caplog.at_level(logging.DEBUG):
-        with TestClient(web.app) as client:
-            client.cookies.set("hungrycall_restaurant_test_mode", "on")
-            response = client.post(
-                "/api/search?lang=de",
-                data={
-                    "branch": "food",
-                    "mode": "delivery",
-                    "first_name": "Ada",
-                    "last_name": "Test",
-                    "requester_callback_number": "+4910004069000",
-                    "food_prompt": "Pizza",
-                    "city": "Dorfstadt",
-                    "postcode": "12345",
-                    "radius_km": "3",
-                    "transport": "dry_run",
-                },
-                headers={calle_key.KEY_HEADER: VISITOR_KEY, SESSION_HEADER: TOKEN},
-            )
-            assert response.status_code == 200
-            assert VISITOR_KEY not in response.text
+    with caplog.at_level(logging.DEBUG), TestClient(web.app) as client:
+        client.cookies.set("hungrycall_restaurant_test_mode", "on")
+        response = client.post(
+            "/api/search?lang=de",
+            data={
+                "branch": "food",
+                "mode": "delivery",
+                "first_name": "Ada",
+                "last_name": "Test",
+                "requester_callback_number": "+4910004069000",
+                "food_prompt": "Pizza",
+                "city": "Dorfstadt",
+                "postcode": "12345",
+                "radius_km": "3",
+                "transport": "dry_run",
+            },
+            headers={calle_key.KEY_HEADER: VISITOR_KEY, SESSION_HEADER: TOKEN},
+        )
+        assert response.status_code == 200
+        assert VISITOR_KEY not in response.text
 
-            snapshot = client.get(
-                "/huckepack/session", headers={SESSION_HEADER: TOKEN}
-            ).content
+        snapshot = client.get(
+            "/huckepack/session", headers={SESSION_HEADER: TOKEN}
+        ).content
 
     assert VISITOR_KEY.encode() not in snapshot
     assert VISITOR_KEY not in caplog.text

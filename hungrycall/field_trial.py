@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import os
 from dataclasses import replace
-from typing import List, Optional, Tuple
 
 from hungrycall.models import Restaurant
 from hungrycall.phone_utils import normalize_e164, validate_e164
@@ -24,7 +23,7 @@ from hungrycall.safety import SafetyError
 ENV_VAR = "HUNGRYCALL_FIELD_TRIAL_PHONE"
 
 
-def trial_phone() -> Optional[str]:
+def trial_phone() -> str | None:
     """The configured test number, normalized — or ``None`` when unset.
 
     Raises ``SafetyError`` when the variable is set but not a usable E.164
@@ -43,7 +42,7 @@ def trial_phone() -> Optional[str]:
     return normalized
 
 
-def apply(candidates: List[Restaurant]) -> Tuple[List[Restaurant], Optional[str]]:
+def apply(candidates: list[Restaurant]) -> tuple[list[Restaurant], str | None]:
     """Rewrite every candidate's phone to the trial number, if one is set.
 
     Returns the (possibly rewritten) candidate list and the trial number —

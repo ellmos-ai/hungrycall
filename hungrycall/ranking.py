@@ -8,7 +8,6 @@ Two rules carry this module:
    three different journeys, so they cannot share one weighting.
 """
 
-from typing import List, Optional, Tuple
 
 from hungrycall.geo import haversine_km
 from hungrycall.models import Mode, Restaurant, Seating, UserRequest
@@ -24,10 +23,10 @@ DISTANCE_PENALTY_PER_KM = {
 
 
 def annotate_distances(
-    candidates: List[Restaurant],
-    origin_lat: Optional[float],
-    origin_lon: Optional[float],
-) -> List[Restaurant]:
+    candidates: list[Restaurant],
+    origin_lat: float | None,
+    origin_lon: float | None,
+) -> list[Restaurant]:
     """Fill in distance_km for every candidate, in place, and return the list."""
     if origin_lat is None or origin_lon is None:
         return candidates
@@ -82,7 +81,7 @@ def score_restaurant(restaurant: Restaurant, request: UserRequest) -> float:
     return score
 
 
-def filter_candidate(restaurant: Restaurant, request: UserRequest) -> Optional[str]:
+def filter_candidate(restaurant: Restaurant, request: UserRequest) -> str | None:
     """Return a reason to skip this candidate before calling, or None to keep it.
 
     Everything decided here saves a real phone call, so the bar is: only skip on
@@ -117,11 +116,11 @@ def filter_candidate(restaurant: Restaurant, request: UserRequest) -> Optional[s
 
 
 def filter_and_rank_restaurants(
-    candidates: List[Restaurant],
+    candidates: list[Restaurant],
     request: UserRequest,
-) -> List[Tuple[Restaurant, float]]:
+) -> list[tuple[Restaurant, float]]:
     """Drop candidates that cannot work, rank the rest, best first."""
-    ranked: List[Tuple[Restaurant, float]] = [
+    ranked: list[tuple[Restaurant, float]] = [
         (candidate, score_restaurant(candidate, request))
         for candidate in candidates
         if filter_candidate(candidate, request) is None

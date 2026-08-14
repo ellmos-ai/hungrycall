@@ -18,45 +18,81 @@ import math
 import os
 import time
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from fastapi import FastAPI, Form, Query, Request, Response
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
+from fastapi import FastAPI, Form, Query, Request
+from fastapi.responses import (
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+    StreamingResponse,
+)
 from fastapi.staticfiles import StaticFiles
 
-from hungrycall import field_trial, huckepack_storage, huckepack_web
+from hungrycall import (
+    field_trial,
+    huckepack_storage,
+    huckepack_web,
+    restaurant_test_mode,
+)
 from hungrycall.call_client import CalleAPIError, DryRunCallClient, LiveCallClient
 from hungrycall.calle_key import resolve_call_settings
 from hungrycall.db import (
-    create_order_record, get_order_record, get_order_template, init_db,
-    list_call_attempts, list_order_records, list_order_templates,
-    list_saved_results, list_tags, record_call_attempt, save_cascade_result,
-    save_order_template, save_tags,
+    create_order_record,
+    get_order_record,
+    get_order_template,
+    init_db,
+    list_call_attempts,
+    list_order_records,
+    list_order_templates,
+    list_saved_results,
+    list_tags,
+    record_call_attempt,
+    save_cascade_result,
+    save_order_template,
+    save_tags,
 )
 from hungrycall.engine import CascadeEngine, build_call_goal
 from hungrycall.fixtures import SCENARIO_FIXTURES
 from hungrycall.geo import today_weekday_key, weekday_key
 from hungrycall.i18n import LANG_COOKIE, resolve_lang, t
 from hungrycall.location import (
-    RestaurantSearchError, geocode_location, search_overpass_restaurants
+    RestaurantSearchError,
+    geocode_location,
+    search_overpass_restaurants,
 )
-from hungrycall.models import (
-    Branch, Concession, Mode, Restaurant, Seating, UserRequest
-)
+from hungrycall.models import Branch, Mode, Restaurant, Seating, UserRequest
 from hungrycall.order_chains import (
-    default_order_chain, evaluate_order_chain, order_chain_json, parse_order_chain
+    default_order_chain,
+    evaluate_order_chain,
+    order_chain_json,
+    parse_order_chain,
 )
 from hungrycall.phone_utils import (
-    mask_phone, mask_phones_in_text, normalize_e164, validate_e164,
+    mask_phone,
+    mask_phones_in_text,
+    normalize_e164,
+    validate_e164,
 )
-from hungrycall import restaurant_test_mode
-from hungrycall.server_mode import current_mode
 from hungrycall.ranking import filter_and_rank_restaurants, filter_candidate
-from hungrycall.safety import SafetyError, generate_idempotency_key, verify_content_safety
+from hungrycall.safety import (
+    SafetyError,
+    generate_idempotency_key,
+    verify_content_safety,
+)
+from hungrycall.server_mode import current_mode
 from hungrycall.templates import (
-    FOOD_CONCESSIONS, render_branch_page, render_candidate_step,
-    render_cascade_monitor, render_failure, render_history, render_landing,
-    render_page, render_result_card, render_result_sentence, render_search_error
+    FOOD_CONCESSIONS,
+    render_branch_page,
+    render_candidate_step,
+    render_cascade_monitor,
+    render_failure,
+    render_history,
+    render_landing,
+    render_page,
+    render_result_card,
+    render_result_sentence,
+    render_search_error,
 )
 
 logger = logging.getLogger(__name__)
@@ -75,7 +111,7 @@ if os.path.exists(STATIC_DIR):
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Per-order runtime state, only for the lifetime of one cascade.
-ACTIVE_ORDERS: Dict[str, Dict[str, Any]] = {}
+ACTIVE_ORDERS: dict[str, dict[str, Any]] = {}
 CANCELED_ORDERS: set = set()
 
 DEFAULT_SCENARIOS = {
@@ -95,7 +131,7 @@ DRY_RUN_TURN_SECONDS = 0.45
 # Language
 # --------------------------------------------------------------------------
 
-def lang_of(request: Request, explicit: Optional[str] = None) -> str:
+def lang_of(request: Request, explicit: str | None = None) -> str:
     return resolve_lang(
         query_lang=explicit or request.query_params.get("lang"),
         cookie_lang=request.cookies.get(LANG_COOKIE),
@@ -122,8 +158,8 @@ async def index(request: Request):
 @app.get("/order", response_class=HTMLResponse)
 async def order_page(
     request: Request,
-    history: Optional[str] = Query(None),
-    template: Optional[str] = Query(None),
+    history: str | None = Query(None),
+    template: str | None = Query(None),
 ):
     lang = lang_of(request)
     loaded_order = get_order_record(history) if history else None
@@ -218,10 +254,10 @@ def current_day() -> str:
 
 
 def build_user_request(
-    fields: Dict[str, Any],
+    fields: dict[str, Any],
     *,
-    day_override: Optional[str] = None,
-    time_override: Optional[str] = None,
+    day_override: str | None = None,
+    time_override: str | None = None,
 ) -> UserRequest:
     """Turn one submitted form into the request the engine works from."""
     mode = Mode(fields.get("mode") or "delivery")
@@ -239,7 +275,7 @@ def build_user_request(
         if mode is Mode.RESERVATION else current_day_value
     )
 
-    def as_float(key: str) -> Optional[float]:
+    def as_float(key: str) -> float | None:
         raw = fields.get(key)
         if raw in (None, "", "None"):
             return None
@@ -248,7 +284,7 @@ def build_user_request(
         except (TypeError, ValueError):
             return None
 
-    def as_int(key: str) -> Optional[int]:
+    def as_int(key: str) -> int | None:
         value = as_float(key)
         return int(value) if value is not None else None
 
@@ -305,7 +341,7 @@ def build_user_request(
     ):
         raise ValueError("max_booking_fee_eur must be between 0 and 1000")
 
-    def optional_text(key: str, maximum: int) -> Optional[str]:
+    def optional_text(key: str, maximum: int) -> str | None:
         value = str(fields.get(key) or "").strip()
         if len(value) > maximum:
             raise ValueError(f"{key} must be at most {maximum} characters")
@@ -371,7 +407,7 @@ def rebuild_pool(
     lon: float,
     radius_km: float,
     test_mode: bool = False,
-) -> List[Restaurant]:
+) -> list[Restaurant]:
     """Build a candidate pool from its explicitly selected restaurant source."""
     return search_overpass_restaurants(
         lat=lat, lon=lon, radius_km=radius_km, test_mode=test_mode, city=city
@@ -423,7 +459,7 @@ def criteria_line(request: UserRequest, lang: str) -> str:
 async def api_search(request: Request):
     form = await request.form()
     lang = lang_of(request)
-    fields = {k: form.get(k) for k in form.keys()}
+    fields = {k: form.get(k) for k in form}
     branch = Branch(fields.get("branch") or "food")
 
     city = fields.get("city") or "Dorfstadt"
@@ -527,7 +563,7 @@ async def api_preview_goal(request: Request):
     """The exact text that will leave the building — from the same function
     that builds it for real, never a copy of it written in JavaScript."""
     form = await request.form()
-    fields = {k: form.get(k) for k in form.keys()}
+    fields = {k: form.get(k) for k in form}
     fields["concessions"] = form.getlist("concessions")
     lang = lang_of(request)
     test_mode = restaurant_test_mode.active(request.cookies)
@@ -576,7 +612,7 @@ async def api_preview_goal(request: Request):
 async def start_cascade(request: Request):
     form = await request.form()
     lang = lang_of(request)
-    fields = {k: form.get(k) for k in form.keys()}
+    fields = {k: form.get(k) for k in form}
     fields["concessions"] = form.getlist("concessions")
 
     branch = Branch(fields.get("branch") or "food")
@@ -713,7 +749,7 @@ async def start_cascade(request: Request):
     ))
 
 
-def active_order(order_id: str) -> Optional[Dict[str, Any]]:
+def active_order(order_id: str) -> dict[str, Any] | None:
     """The running cascade with this id — if it belongs to this browser.
 
     In ``local`` nothing changes: one installation, one user. In a huckepack
@@ -754,7 +790,7 @@ def live_call_client() -> LiveCallClient:
     return LiveCallClient(resolve_call_settings(), confirmed=True)
 
 
-def sse(payload: Dict[str, Any]) -> str:
+def sse(payload: dict[str, Any]) -> str:
     return "data: " + json.dumps(payload, ensure_ascii=False) + "\n\n"
 
 
@@ -775,7 +811,7 @@ async def cascade_stream(request: Request, order_id: str = Query(...)):
         return StreamingResponse(gone(), media_type="text/event-stream")
 
     user_request: UserRequest = order["request"]
-    candidates: List[Restaurant] = order["candidates"]
+    candidates: list[Restaurant] = order["candidates"]
     client = order["call_client"]
     live_mode = bool(order.get("live_mode"))
     engine = CascadeEngine(candidate_pool=candidates, call_client=client, preserve_order=True)
@@ -1003,10 +1039,10 @@ def build_receipt_payload(
     order_id: str,
     mode: str,
     restaurant: Restaurant,
-    structured: Dict[str, Any],
+    structured: dict[str, Any],
     call_result: Any,
     customer_name: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """What the browser needs to write a receipt file — with numbers masked.
 
     Masked here rather than in the browser, so a payload that ends up in a

@@ -9,9 +9,8 @@ import pytest
 
 from hungrycall.engine import build_call_goal
 from hungrycall.fixtures import SAMPLE_RESTAURANTS
-from hungrycall.models import Mode, UserRequest
+from hungrycall.models import Mode
 from hungrycall.web import build_user_request
-
 
 BASE_FORM = {
     "mode": "delivery",

@@ -2,8 +2,10 @@
 
 from hungrycall.models import Mode
 from hungrycall.schemas import (
-    get_result_schema, DELIVERY_RESULT_SCHEMA,
-    RESERVATION_RESULT_SCHEMA, PICKUP_RESULT_SCHEMA
+    DELIVERY_RESULT_SCHEMA,
+    PICKUP_RESULT_SCHEMA,
+    RESERVATION_RESULT_SCHEMA,
+    get_result_schema,
 )
 
 

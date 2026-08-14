@@ -14,7 +14,6 @@ Two things are handled here rather than there:
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from hungrycall.translator import TranslationSystem
 
@@ -34,12 +33,12 @@ def _read_only(system: TranslationSystem) -> TranslationSystem:
     gone in a single page load. A web app reads its locale file; it never
     writes it.
     """
-    system._save_translations = lambda: None  # noqa: SLF001 - deliberate
+    system._save_translations = lambda: None
     return system
 
 
 # One system per language; both read the same locales/translations.json.
-_SYSTEMS: Dict[str, TranslationSystem] = {}
+_SYSTEMS: dict[str, TranslationSystem] = {}
 for _code in SUPPORTED:
     _system = _read_only(TranslationSystem(_code, app_dir=_PACKAGE_DIR))
     _system.set_language(_code)
@@ -54,7 +53,7 @@ if not _SYSTEMS[DEFAULT_LANG].translations:
     )
 
 
-def normalize_lang(value: Optional[str]) -> Optional[str]:
+def normalize_lang(value: str | None) -> str | None:
     """Reduce 'en-GB', 'EN', 'en_US' to 'en'. Unknown languages return None."""
     if not value:
         return None
@@ -63,9 +62,9 @@ def normalize_lang(value: Optional[str]) -> Optional[str]:
 
 
 def resolve_lang(
-    query_lang: Optional[str] = None,
-    cookie_lang: Optional[str] = None,
-    accept_language: Optional[str] = None,
+    query_lang: str | None = None,
+    cookie_lang: str | None = None,
+    accept_language: str | None = None,
 ) -> str:
     """Pick the language for one request.
 
@@ -100,13 +99,13 @@ def t(key: str, lang: str = DEFAULT_LANG, **fields: object) -> str:
     return text
 
 
-def all_keys() -> List[str]:
+def all_keys() -> list[str]:
     return sorted(_SYSTEMS[DEFAULT_LANG].translations.keys())
 
 
-def missing_translations() -> Dict[str, List[str]]:
+def missing_translations() -> dict[str, list[str]]:
     """Keys with an empty or absent value, per language. Empty dict means done."""
-    gaps: Dict[str, List[str]] = {}
+    gaps: dict[str, list[str]] = {}
     table = _SYSTEMS[DEFAULT_LANG].translations
     for code in SUPPORTED:
         holes = [key for key, entry in table.items() if not entry.get(code)]

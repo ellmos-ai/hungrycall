@@ -310,7 +310,7 @@ def chain_db(tmp_path):
 def test_tags_templates_and_submitted_order_round_trip(chain_db):
     chain = make_chain()
     saved_template = save_order_template("Friday", chain.to_dict())
-    save_tags(chain.all_tags() + ["Simon"])
+    save_tags([*chain.all_tags(), "Simon"])
     create_order_record(
         "ord_chain", "delivery", "Alex", chain.summary(), 35,
         "Dorfstraße 10", order_chain=chain.to_dict(),

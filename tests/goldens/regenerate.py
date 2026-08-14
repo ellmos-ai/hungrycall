@@ -21,13 +21,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from hungrycall.call_language import CALL_LOCALE_ENV  # noqa: E402
-import os  # noqa: E402
+import os
 
-from tests.test_scenario_goals import (  # noqa: E402
-    GOLDENS_DIR, LANGUAGES, RESTAURANT, SCENARIOS,
+from hungrycall.call_language import CALL_LOCALE_ENV
+from hungrycall.engine import build_call_goal
+from tests.test_scenario_goals import (
+    GOLDENS_DIR,
+    LANGUAGES,
+    RESTAURANT,
+    SCENARIOS,
 )
-from hungrycall.engine import build_call_goal  # noqa: E402
 
 
 def main() -> int:

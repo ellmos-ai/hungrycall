@@ -1,0 +1,47 @@
+# HungryCall — Machine-Readable LLM & AI Agent Context
+
+> Automated voice agent cascade for food delivery, table reservations, and pickup based on the Generalized Calling Cascade Pattern (`MUSTER.md`).
+
+## System Architecture
+
+- **Core Framework**: Python 3.11+, FastAPI (Web UI), SQLite (persistent history & templates), Jinja2 (HTML templates), Pytest (301 tests).
+- **Voice Platform**: CALL-E / AiRudder API (`plan_call` -> `run_call` -> `get_call_run`).
+- **Execution Pattern**: Sequential calling cascade with judgment and immediate early exit upon candidate success.
+- **Safety Architecture**: Full E.164 phone sanitization, strict number masking (`+49 ••• ••••567`), financial commitment limits (`max_budget_eur`), content moderation filters, and explicit user consent gates.
+- **Testability**: 100% dry-run fixture simulation mode without requiring live CALL-E credentials or network calls.
+
+## Core Modules & Symbols
+
+- `hungrycall.cascade` ([`CascadeRunner`](hungrycall/cascade.py)): Orchestrates the sequential candidate calling process. Iterates through ranked restaurants, executes calls via `CallClient`, evaluates structured responses, and terminates instantly on success.
+- `hungrycall.engine` ([`build_call_goal`](hungrycall/engine.py)): Constructs comprehensive prompt and mandate instructions for CALL-E voice agents including identity disclosure, order chains, boundaries, and closing routines.
+- `hungrycall.models` ([`UserRequest`](hungrycall/models.py), [`Restaurant`](hungrycall/models.py), [`OrderChain`](hungrycall/models.py), [`Mode`](hungrycall/models.py), [`Branch`](hungrycall/models.py)): Core Pydantic/dataclass data structures and enumeration types.
+- `hungrycall.ranking` ([`filter_and_rank_restaurants`](hungrycall/ranking.py)): Pre-call heuristic ranking engine optimizing candidates by cuisine match, distance decay, opening hours, and favorite weighting.
+- `hungrycall.safety` ([`verify_phone_safety`](hungrycall/safety.py), [`verify_content_safety`](hungrycall/safety.py), [`generate_idempotency_key`](hungrycall/safety.py)): Compliance filters enforcing telephony safety, sanitization, and duplicate call prevention.
+- `hungrycall.phone_utils` ([`mask_phone`](hungrycall/phone_utils.py), [`normalize_e164`](hungrycall/phone_utils.py)): E.164 phone formatting and safe log masking.
+- `hungrycall.schemas` ([`get_result_schema`](hungrycall/schemas.py)): JSON schema definitions defining expected CALL-E structured return values.
+- `hungrycall.call_client` ([`DryRunCallClient`](hungrycall/call_client.py), [`LiveCallClient`](hungrycall/call_client.py)): Abstraction layer interfacing simulated fixtures or live CALL-E API endpoints.
+- `hungrycall.order_chains` ([`OrderChain`](hungrycall/order_chains.py)): Multi-position conditional ordering tree supporting item replacements, budget caps, and quantity resolution.
+- `hungrycall.server_mode` ([`ServerMode`](hungrycall/server_mode.py)): Deployment modes (`local`, `huckepack-gift`, `huckepack-only-host`, `pay-membership`).
+- `hungrycall.web` ([`app`](hungrycall/web.py)): FastAPI web application providing interactive UI, candidate geocoding, preview generation, and live execution streams.
+
+## CLI & Entry Points
+
+```bash
+# Start Web UI (FastAPI on port 8000)
+python run_web.py
+
+# Run Test Suite
+python -m pytest
+
+# Code Quality & Linting
+python -m ruff check .
+```
+
+## Key Documentation
+
+- [`README.md`](README.md): English project overview, feature matrix, setup instructions, and privacy disclosures.
+- [`README_de.md`](README_de.md): German project overview.
+- [`MUSTER.md`](MUSTER.md): The Generalized Calling Cascade Pattern specification.
+- [`BLUEPRINT-BESTELLKETTEN.md`](BLUEPRINT-BESTELLKETTEN.md): Order-chain architecture specification.
+- [`BLUEPRINT-SERVERMODI.md`](BLUEPRINT-SERVERMODI.md): Server deployment modes and storage isolation.
+- [`AI-ACT-STATEMENT.md`](AI-ACT-STATEMENT.md): EU AI Act compliance statement.

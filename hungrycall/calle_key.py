@@ -19,9 +19,12 @@ from __future__ import annotations
 
 import re
 from contextvars import ContextVar
-from typing import Optional
 
-from hungrycall.call_client import CalleSettings, DEFAULT_CALLE_BASE_URL, load_calle_settings
+from hungrycall.call_client import (
+    DEFAULT_CALLE_BASE_URL,
+    CalleSettings,
+    load_calle_settings,
+)
 from hungrycall.safety import SafetyError
 from hungrycall.server_mode import ServerMode, current_mode, require_implemented
 
@@ -33,14 +36,14 @@ KEY_HEADER = "X-Calle-Key"
 #: about what would be dangerous: whitespace, control characters, absurd length.
 _KEY_PATTERN = re.compile(r"^[!-~]{8,512}$")
 
-_request_key: ContextVar[Optional[str]] = ContextVar("huckepack_request_key", default=None)
+_request_key: ContextVar[str | None] = ContextVar("huckepack_request_key", default=None)
 
 
 class UserKeyError(SafetyError):
     """A missing or unusable visitor key. Never contains the key itself."""
 
 
-def mask_key(value: Optional[str]) -> str:
+def mask_key(value: str | None) -> str:
     """The only representation of a key that may be shown, stored or logged."""
     if not value:
         return ""
@@ -49,14 +52,14 @@ def mask_key(value: Optional[str]) -> str:
     return f"••••{value[-4:]}"
 
 
-def describe_key(value: Optional[str]) -> str:
+def describe_key(value: str | None) -> str:
     """A sentence about a key that is safe in a log line."""
     if not value:
         return "no key"
     return f"key {mask_key(value)} ({len(value)} characters)"
 
 
-def validate_key(raw: Optional[str]) -> str:
+def validate_key(raw: str | None) -> str:
     """Check the shape and return the cleaned key, or say why it is refused."""
     value = (raw or "").strip()
     if not value:
@@ -69,7 +72,7 @@ def validate_key(raw: Optional[str]) -> str:
     return value
 
 
-def bind_request_key(raw: Optional[str]):
+def bind_request_key(raw: str | None):
     """Hold a visitor key for the current request. Returns the reset token."""
     value = (raw or "").strip() or None
     return _request_key.set(value)
@@ -79,7 +82,7 @@ def unbind_request_key(reset_token) -> None:
     _request_key.reset(reset_token)
 
 
-def current_request_key() -> Optional[str]:
+def current_request_key() -> str | None:
     return _request_key.get()
 
 
@@ -88,9 +91,9 @@ def current_key_fingerprint() -> str:
 
 
 def resolve_call_settings(
-    mode: Optional[ServerMode] = None,
+    mode: ServerMode | None = None,
     *,
-    base_url: Optional[str] = None,
+    base_url: str | None = None,
 ) -> CalleSettings:
     """The settings a live call must use in this mode.
 

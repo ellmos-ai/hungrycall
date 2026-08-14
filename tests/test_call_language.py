@@ -28,14 +28,14 @@ def make_chain() -> OrderChain:
 
 
 def _delivery_request(**overrides):
-    base = dict(
-        mode=Mode.DELIVERY,
-        customer_name="Alex Beispiel",
-        food_prompt="Burger",
-        max_budget_eur=25.0,
-        delivery_address="Musterstrasse 5, 12345 Dorfstadt",
-        requester_callback_number="+441632960090",
-    )
+    base = {
+        "mode": Mode.DELIVERY,
+        "customer_name": "Alex Beispiel",
+        "food_prompt": "Burger",
+        "max_budget_eur": 25.0,
+        "delivery_address": "Musterstrasse 5, 12345 Dorfstadt",
+        "requester_callback_number": "+441632960090",
+    }
     base.update(overrides)
     return UserRequest(**base)
 

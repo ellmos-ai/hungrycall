@@ -11,8 +11,13 @@ from pathlib import Path
 import pytest
 
 from hungrycall.i18n import (
-    DEFAULT_LANG, SUPPORTED, all_keys, missing_translations, normalize_lang,
-    resolve_lang, t
+    DEFAULT_LANG,
+    SUPPORTED,
+    all_keys,
+    missing_translations,
+    normalize_lang,
+    resolve_lang,
+    t,
 )
 
 PACKAGE_DIR = Path(__file__).resolve().parents[1] / "hungrycall"

@@ -5,9 +5,9 @@ rendered as cells in the browser, serialized as config, translated into the
 voice-agent task here, and used again to judge the structured answer.
 """
 
-from dataclasses import dataclass, field
 import json
-from typing import Any, Dict, List, Optional, Tuple, Union
+from dataclasses import dataclass, field
+from typing import Any
 
 from hungrycall.call_language import call_language
 from hungrycall.models import (
@@ -25,20 +25,20 @@ class OrderSelection:
     position_index: int
     cell_index: int
     cell: OrderCell
-    tags: List[str]
-    criterion_results: Dict[int, Dict[str, Any]] = field(default_factory=dict)
+    tags: list[str]
+    criterion_results: dict[int, dict[str, Any]] = field(default_factory=dict)
 
 
 @dataclass
 class OrderChainEvaluation:
     success: bool
     aborted: bool = False
-    accepted: List[OrderSelection] = field(default_factory=list)
-    skipped_positions: List[int] = field(default_factory=list)
-    reason: Optional[str] = None
+    accepted: list[OrderSelection] = field(default_factory=list)
+    skipped_positions: list[int] = field(default_factory=list)
+    reason: str | None = None
 
 
-def parse_order_chain(raw: Union[str, Dict[str, Any], OrderChain, None]) -> Optional[OrderChain]:
+def parse_order_chain(raw: str | dict[str, Any] | OrderChain | None) -> OrderChain | None:
     """Parse the JSON config carried by the web form.
 
     ``None`` and an empty string preserve compatibility with table bookings
@@ -117,7 +117,7 @@ def _cell_availability_question(locale: str, product: str) -> str:
     return f"Haben Sie {product}?"
 
 
-def _order_chain_style_example(locale: str) -> List[str]:
+def _order_chain_style_example(locale: str) -> list[str]:
     """The worked dialogue example, in the call's language (verbatim-quoted)."""
     if locale == "en":
         return [
@@ -140,7 +140,7 @@ def _order_chain_style_example(locale: str) -> List[str]:
     ]
 
 
-def build_order_chain_instruction(chain: OrderChain, locale: Optional[str] = None) -> str:
+def build_order_chain_instruction(chain: OrderChain, locale: str | None = None) -> str:
     """Translate section 3 of BLUEPRINT-BESTELLKETTEN.md into the call task.
 
     ``locale`` selects the language of the VERBATIM-quoted fragments (the
@@ -221,8 +221,8 @@ def build_order_chain_instruction(chain: OrderChain, locale: Optional[str] = Non
 
 def _criterion_reaction(
     criterion: OrderCriterion,
-    result: Dict[str, Any],
-) -> Tuple[Optional[CriterionReaction], Optional[str]]:
+    result: dict[str, Any],
+) -> tuple[CriterionReaction | None, str | None]:
     if criterion.kind is CriterionKind.MAX_PRICE:
         price = result.get("preis_eur")
         if result.get("preis_bekannt") is not True or not isinstance(price, (int, float)):
@@ -243,7 +243,7 @@ def _apply_position_end_rule(
     chain: OrderChain,
     position_index: int,
     evaluation: OrderChainEvaluation,
-) -> Optional[OrderChainEvaluation]:
+) -> OrderChainEvaluation | None:
     position = chain.positions[position_index]
     if position.if_nothing_available is NothingAvailableRule.SKIP_ITEM:
         evaluation.skipped_positions.append(position_index)
@@ -256,7 +256,7 @@ def _apply_position_end_rule(
 
 def evaluate_order_chain(
     chain: OrderChain,
-    structured_result: Dict[str, Any],
+    structured_result: dict[str, Any],
 ) -> OrderChainEvaluation:
     """Recompute the chain decision from raw structured evidence.
 
@@ -392,8 +392,8 @@ def evaluate_order_chain(
 
 def simulate_order_chain_result(
     chain: OrderChain,
-    structured_result: Dict[str, Any],
-) -> List[Dict[str, Any]]:
+    structured_result: dict[str, Any],
+) -> list[dict[str, Any]]:
     """Create complete local fixture evidence without network access.
 
     This is used only by ``DryRunCallClient``. Live results must supply their
@@ -405,12 +405,12 @@ def simulate_order_chain_result(
         for criterion in cell.criteria if criterion.kind is CriterionKind.MAX_PRICE
     ) or 1
     share = float(total) / price_slots if isinstance(total, (int, float)) else 0.0
-    positions: List[Dict[str, Any]] = []
+    positions: list[dict[str, Any]] = []
     for position_index, position in enumerate(chain.positions):
         cell = position.cells[0]
-        criteria: List[Dict[str, Any]] = []
+        criteria: list[dict[str, Any]] = []
         for criterion_index, criterion in enumerate(cell.criteria):
-            result: Dict[str, Any] = {"kriterium_index": criterion_index}
+            result: dict[str, Any] = {"kriterium_index": criterion_index}
             if criterion.kind is CriterionKind.MAX_PRICE:
                 result.update({
                     "preis_bekannt": True,
@@ -433,8 +433,8 @@ def simulate_order_chain_result(
     return positions
 
 
-def selections_by_tag(evaluation: OrderChainEvaluation) -> Dict[str, List[OrderSelection]]:
-    grouped: Dict[str, List[OrderSelection]] = {}
+def selections_by_tag(evaluation: OrderChainEvaluation) -> dict[str, list[OrderSelection]]:
+    grouped: dict[str, list[OrderSelection]] = {}
     for selection in evaluation.accepted:
         tags = selection.tags or [""]
         for tag in tags:
@@ -442,7 +442,7 @@ def selections_by_tag(evaluation: OrderChainEvaluation) -> Dict[str, List[OrderS
     return grouped
 
 
-ORDER_CHAIN_RESULT_SCHEMA: Dict[str, Any] = {
+ORDER_CHAIN_RESULT_SCHEMA: dict[str, Any] = {
     "type": "array",
     "description": "Evidence for every order position and every attempted replacement cell, using zero-based indexes.",
     "items": {

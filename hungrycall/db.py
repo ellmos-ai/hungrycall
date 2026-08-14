@@ -1,11 +1,11 @@
 """SQLite database layer for HungryCall web interface."""
 
 import json
-import sqlite3
 import os
+import sqlite3
 import time
 import uuid
-from typing import Dict, Any, List, Optional
+from typing import Any
 
 from hungrycall.huckepack_storage import open_connection
 
@@ -33,7 +33,7 @@ def get_db_connection() -> sqlite3.Connection:
     return conn
 
 
-def init_db(db_path_override: Optional[str] = None) -> None:
+def init_db(db_path_override: str | None = None) -> None:
     """Initialize database tables for orders and saved results."""
     target_path = db_path_override or db_path()
     conn = open_connection(target_path)
@@ -130,23 +130,23 @@ def create_order_record(
     mode: str,
     customer_name: str,
     food_prompt: str,
-    max_budget_eur: Optional[float] = None,
-    delivery_address: Optional[str] = None,
-    reservation_date: Optional[str] = None,
-    reservation_time: Optional[str] = None,
-    party_size: Optional[int] = None,
-    pickup_time: Optional[str] = None,
-    location_info: Optional[str] = None,
+    max_budget_eur: float | None = None,
+    delivery_address: str | None = None,
+    reservation_date: str | None = None,
+    reservation_time: str | None = None,
+    party_size: int | None = None,
+    pickup_time: str | None = None,
+    location_info: str | None = None,
     dry_run: bool = True,
-    order_chain: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    order_chain: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Insert a new order record into SQLite."""
     init_db()
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     created_at = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-    
+
     cursor.execute("""
         INSERT INTO orders (
             id, mode, customer_name, food_prompt, max_budget_eur,
@@ -159,10 +159,10 @@ def create_order_record(
         pickup_time, location_info, 1 if dry_run else 0, created_at,
         json.dumps(order_chain, ensure_ascii=False) if order_chain else None,
     ))
-    
+
     conn.commit()
     conn.close()
-    
+
     return {
         "id": order_id,
         "mode": mode,
@@ -179,14 +179,14 @@ def record_call_attempt(
     order_id: str,
     restaurant_id: str,
     restaurant_name: str,
-    run_id: Optional[str],
-    status: Optional[str],
+    run_id: str | None,
+    status: str | None,
     passed: bool,
-    rejection_reason: Optional[str],
-    post_summary: Optional[str],
-    transcript: Optional[str],
+    rejection_reason: str | None,
+    post_summary: str | None,
+    transcript: str | None,
     live: bool,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Persist one dialled attempt with its masked transcript."""
     init_db()
     conn = get_db_connection()
@@ -208,7 +208,7 @@ def record_call_attempt(
     return {"id": attempt_id, "order_id": order_id, "created_at": created_at}
 
 
-def list_call_attempts(order_id: str) -> List[Dict[str, Any]]:
+def list_call_attempts(order_id: str) -> list[dict[str, Any]]:
     """All dialled attempts of one order, oldest first."""
     init_db()
     conn = get_db_connection()
@@ -222,8 +222,8 @@ def list_call_attempts(order_id: str) -> List[Dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
-def _row_order(row: sqlite3.Row) -> Dict[str, Any]:
-    chain_raw = row["order_chain_json"] if "order_chain_json" in row.keys() else None
+def _row_order(row: sqlite3.Row) -> dict[str, Any]:
+    chain_raw = row["order_chain_json"] if "order_chain_json" in row.keys() else None  # noqa: SIM118
     try:
         chain = json.loads(chain_raw) if chain_raw else None
     except json.JSONDecodeError:
@@ -247,7 +247,7 @@ def _row_order(row: sqlite3.Row) -> Dict[str, Any]:
     }
 
 
-def get_order_record(order_id: str) -> Optional[Dict[str, Any]]:
+def get_order_record(order_id: str) -> dict[str, Any] | None:
     init_db()
     conn = get_db_connection()
     row = conn.execute("SELECT * FROM orders WHERE id = ?", (order_id,)).fetchone()
@@ -255,7 +255,7 @@ def get_order_record(order_id: str) -> Optional[Dict[str, Any]]:
     return _row_order(row) if row else None
 
 
-def list_order_records() -> List[Dict[str, Any]]:
+def list_order_records() -> list[dict[str, Any]]:
     init_db()
     conn = get_db_connection()
     rows = conn.execute("SELECT * FROM orders ORDER BY created_at DESC").fetchall()
@@ -263,7 +263,7 @@ def list_order_records() -> List[Dict[str, Any]]:
     return [_row_order(row) for row in rows]
 
 
-def save_tags(tags: List[str]) -> None:
+def save_tags(tags: list[str]) -> None:
     init_db()
     conn = get_db_connection()
     created_at = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
@@ -278,7 +278,7 @@ def save_tags(tags: List[str]) -> None:
     conn.close()
 
 
-def list_tags() -> List[str]:
+def list_tags() -> list[str]:
     init_db()
     conn = get_db_connection()
     rows = conn.execute("SELECT name FROM tags ORDER BY name COLLATE NOCASE").fetchall()
@@ -286,7 +286,7 @@ def list_tags() -> List[str]:
     return [row["name"] for row in rows]
 
 
-def save_order_template(name: str, order_chain: Dict[str, Any]) -> Dict[str, Any]:
+def save_order_template(name: str, order_chain: dict[str, Any]) -> dict[str, Any]:
     clean_name = name.strip()
     if not clean_name:
         raise ValueError("template name is required")
@@ -313,7 +313,7 @@ def save_order_template(name: str, order_chain: Dict[str, Any]) -> Dict[str, Any
     }
 
 
-def list_order_templates() -> List[Dict[str, Any]]:
+def list_order_templates() -> list[dict[str, Any]]:
     init_db()
     conn = get_db_connection()
     rows = conn.execute(
@@ -327,7 +327,7 @@ def list_order_templates() -> List[Dict[str, Any]]:
     } for row in rows]
 
 
-def get_order_template(template_id: str) -> Optional[Dict[str, Any]]:
+def get_order_template(template_id: str) -> dict[str, Any] | None:
     init_db()
     conn = get_db_connection()
     row = conn.execute(
@@ -351,12 +351,12 @@ def save_cascade_result(
     restaurant_name: str,
     masked_phone: str,
     callback_number: str,
-    total_price_eur: Optional[float],
-    eta_minutes: Optional[int],
+    total_price_eur: float | None,
+    eta_minutes: int | None,
     post_summary: str,
-    raw_transcript_text: Optional[str],
-    structured_result: Dict[str, Any]
-) -> Dict[str, Any]:
+    raw_transcript_text: str | None,
+    structured_result: dict[str, Any]
+) -> dict[str, Any]:
     """Save final successful cascade result to SQLite."""
     init_db()
     conn = get_db_connection()
@@ -392,7 +392,7 @@ def save_cascade_result(
     }
 
 
-def list_saved_results() -> List[Dict[str, Any]]:
+def list_saved_results() -> list[dict[str, Any]]:
     """Retrieve all saved results ordered by date descending."""
     init_db()
     conn = get_db_connection()

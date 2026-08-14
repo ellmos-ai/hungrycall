@@ -17,12 +17,15 @@ more.
 
 import html
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from hungrycall.i18n import SUPPORTED, t
-from hungrycall.models import Branch, Concession, Mode, OrderChain, Restaurant, Seating
+from hungrycall.models import Branch, Concession, Mode, OrderChain, Restaurant
 from hungrycall.order_chains import (
-    OrderChainEvaluation, default_order_chain, order_chain_json, selections_by_tag,
+    OrderChainEvaluation,
+    default_order_chain,
+    order_chain_json,
+    selections_by_tag,
 )
 from hungrycall.phone_utils import mask_phone
 
@@ -618,7 +621,7 @@ def render_page(
     *,
     path: str = "/",
     with_map: bool = False,
-    title: Optional[str] = None,
+    title: str | None = None,
     mode_banner: str = "",
 ) -> str:
     """Wrap page content in the shared shell."""
@@ -787,7 +790,7 @@ def render_landing(lang: str) -> str:
 # Branch pages
 # --------------------------------------------------------------------------
 
-def _scenario_options(scenarios: List[str], selected: str) -> str:
+def _scenario_options(scenarios: list[str], selected: str) -> str:
     return "".join(
         f'<option value="{esc(s)}"{" selected" if s == selected else ""}>{esc(s)}</option>'
         for s in scenarios
@@ -797,12 +800,12 @@ def _scenario_options(scenarios: List[str], selected: str) -> str:
 def render_branch_page(
     branch: Branch,
     lang: str,
-    scenarios: List[str],
+    scenarios: list[str],
     default_scenario: str,
-    order_chain: Optional[OrderChain] = None,
-    tags: Optional[List[str]] = None,
-    order_templates: Optional[List[Dict[str, Any]]] = None,
-    defaults: Optional[Dict[str, Any]] = None,
+    order_chain: OrderChain | None = None,
+    tags: list[str] | None = None,
+    order_templates: list[dict[str, Any]] | None = None,
+    defaults: dict[str, Any] | None = None,
     test_mode_active: bool = False,
 ) -> str:
     """Step 1 of a branch: where you are, plus the branch's own questions."""
@@ -924,10 +927,10 @@ HC.text = {json.dumps({
 
 def render_food_fields(
     lang: str,
-    order_chain: Optional[OrderChain] = None,
-    tags: Optional[List[str]] = None,
-    order_templates: Optional[List[Dict[str, Any]]] = None,
-    defaults: Optional[Dict[str, Any]] = None,
+    order_chain: OrderChain | None = None,
+    tags: list[str] | None = None,
+    order_templates: list[dict[str, Any]] | None = None,
+    defaults: dict[str, Any] | None = None,
 ) -> str:
     """The approved position -> cell -> criterion editor, plus food mode gates."""
     chain = order_chain or default_order_chain()
@@ -1125,7 +1128,7 @@ HC.orderTemplates = {script_json(order_templates)};
 # goal. These three are food/delivery/pickup-appropriate instead, along the
 # same independent axes (time, price, item) the rest of a food goal already
 # discusses, so they compose with it rather than introducing a new topic.
-FOOD_CONCESSIONS: List[Concession] = [
+FOOD_CONCESSIONS: list[Concession] = [
     Concession(
         key="wait_longer_ok",
         label="waiting up to 15 minutes longer than the time first given for delivery or collection is acceptable",
@@ -1296,8 +1299,8 @@ def render_search_error(
     error_code: str,
     radius_km: float,
     *,
-    lat: Optional[float] = None,
-    lon: Optional[float] = None,
+    lat: float | None = None,
+    lon: float | None = None,
 ) -> str:
     """Render a failed search without inventing a candidate list.
 
@@ -1336,12 +1339,12 @@ def render_search_error(
 def render_candidate_step(
     lang: str,
     branch: Branch,
-    ranked: List[Restaurant],
-    skipped: List[tuple],
+    ranked: list[Restaurant],
+    skipped: list[tuple],
     lat: float,
     lon: float,
     radius_km: float,
-    form_state: Dict[str, Any],
+    form_state: dict[str, Any],
     source_count: int,
     test_mode: bool,
 ) -> str:
@@ -1484,9 +1487,9 @@ def render_cascade_monitor(
     lang: str,
     order_id: str,
     mode: Mode,
-    max_budget_eur: Optional[float],
+    max_budget_eur: float | None,
     criteria_line: str,
-    concession_keys: List[str],
+    concession_keys: list[str],
     live_mode: bool = False,
 ) -> str:
     """The waiting screen. Waiting is not idleness, it is not knowing."""
@@ -1551,11 +1554,11 @@ def render_result_sentence(
     lang: str,
     mode: Mode,
     restaurant: Restaurant,
-    structured: Dict[str, Any],
+    structured: dict[str, Any],
     food_prompt: str,
-    party_size: Optional[int],
-    reservation_date: Optional[str],
-    reservation_time: Optional[str],
+    party_size: int | None,
+    reservation_date: str | None,
+    reservation_time: str | None,
 ) -> str:
     """The sentence a person could read out loud, in their language.
 
@@ -1597,7 +1600,7 @@ def render_result_sentence(
     )
 
 
-def render_tag_summary(lang: str, evaluation: Optional[OrderChainEvaluation]) -> str:
+def render_tag_summary(lang: str, evaluation: OrderChainEvaluation | None) -> str:
     if not evaluation or not evaluation.accepted:
         return ""
     rows = ""
@@ -1631,21 +1634,21 @@ def render_result_card(
     lang: str,
     mode: Mode,
     restaurant: Restaurant,
-    structured: Dict[str, Any],
+    structured: dict[str, Any],
     post_summary: str,
     raw_transcript_text: str,
     message: str,
     order_id: str,
     calls_made: int,
-    concession_used: Optional[str] = None,
-    order_chain: Optional[OrderChain] = None,
-    chain_evaluation: Optional[OrderChainEvaluation] = None,
+    concession_used: str | None = None,
+    order_chain: OrderChain | None = None,
+    chain_evaluation: OrderChainEvaluation | None = None,
 ) -> str:
     """What came back, in the user's terms — and what it commits them to."""
     title = t(f"result.title.{mode.value}", lang)
     callback = structured.get("callback_number") or restaurant.phone
 
-    facts: List[tuple] = []
+    facts: list[tuple] = []
     if mode in (Mode.DELIVERY, Mode.PICKUP):
         facts.append((t("result.price", lang), f'{structured.get("total_price_eur", 0.0):.2f} €'))
         if mode is Mode.DELIVERY:
@@ -1746,8 +1749,8 @@ def render_failure(lang: str, calls_made: int) -> str:
 
 def render_history(
     lang: str,
-    rows: List[Dict[str, Any]],
-    orders: Optional[List[Dict[str, Any]]] = None,
+    rows: list[dict[str, Any]],
+    orders: list[dict[str, Any]] | None = None,
 ) -> str:
     if not rows:
         body = f'<p class="muted">{esc(t("history.empty", lang))}</p>'

@@ -13,7 +13,6 @@ Distance is not decoration here. It changes the decision:
 
 from datetime import date, datetime
 from math import asin, cos, radians, sin, sqrt
-from typing import Optional
 
 EARTH_RADIUS_KM = 6371.0
 
@@ -31,7 +30,7 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * EARTH_RADIUS_KM * asin(sqrt(min(1.0, a)))
 
 
-def weekday_key(date_str: Optional[str], fallback: str = "Fri") -> str:
+def weekday_key(date_str: str | None, fallback: str = "Fri") -> str:
     """Map an ISO date (YYYY-MM-DD) to the three-letter key used by OpeningHours.
 
     A reservation for next Tuesday must be checked against Tuesday's opening
