@@ -1126,6 +1126,13 @@ async def cascade_stream(request: Request, order_id: str = Query(...)):
                 "call_result": call_result,
                 "calls_made": calls_made,
             }
+            # E11 (Endabnahme-Befund 2026-08-22): save the proof the moment
+            # the order is accepted, not only if the user later clicks
+            # "Ergebnis speichern" on a page they might already have closed
+            # by then. persist_cascade_result() is idempotent per order_id,
+            # so that button staying reachable afterwards does not duplicate
+            # this row.
+            persist_cascade_result(order_id, user_request, restaurant, call_result)
 
             yield sse({
                 "type": "outcome",
@@ -1194,30 +1201,26 @@ async def cancel_cascade(request: Request, order_id: str = Form(...)):
 # Saving
 # --------------------------------------------------------------------------
 
-@app.post("/api/save-result", response_class=HTMLResponse)
-async def api_save_result(
-    request: Request,
-    order_id: str = Form(...),
-    restaurant_id: str = Form(""),
-):
-    """Keep the result of a finished cascade.
+def persist_cascade_result(
+    order_id: str,
+    user_request: UserRequest,
+    restaurant: Restaurant,
+    call_result: CallResult,
+    restaurant_id: str = "",
+) -> None:
+    """Write a finished, accepted cascade's result into saved_results.
 
-    Everything is read back from the run itself. The earlier version took the
-    numbers from hidden form fields and wrote mode='delivery' regardless of
-    what had actually happened, so a booked table was filed as a food order.
+    E11 (Endabnahme-Befund 2026-08-22): a successful order used to reach
+    /history only through this SAME work being done a second time by hand,
+    on click, in api_save_result() below -- close the page first and the
+    comfortable proof was gone, even though the raw call_attempts row was
+    never lost. Shared here so the SSE success branch in cascade_stream()
+    (event_generator(), the "accepted" outcome) can call it the moment a
+    cascade succeeds, without a second, drifting copy of this construction.
+    Safe to call again from the button afterwards -- save_cascade_result()
+    is idempotent per order_id.
     """
-    lang = lang_of(request)
-    order = active_order(order_id) or {}
-    finished = order.get("result")
-
-    if not finished:
-        return HTMLResponse(f'<span class="mono">{t("history.empty", lang)}</span>')
-
-    restaurant: Restaurant = finished["restaurant"]
-    call_result = finished["call_result"]
-    user_request: UserRequest = order["request"]
     structured = call_result.structured_result
-
     save_cascade_result(
         result_id=f"res_{uuid.uuid4().hex[:8]}",
         order_id=order_id,
@@ -1232,6 +1235,38 @@ async def api_save_result(
         raw_transcript_text=call_result.raw_transcript_text,
         structured_result=structured,
     )
+
+
+@app.post("/api/save-result", response_class=HTMLResponse)
+async def api_save_result(
+    request: Request,
+    order_id: str = Form(...),
+    restaurant_id: str = Form(""),
+):
+    """Keep the result of a finished cascade.
+
+    Everything is read back from the run itself. The earlier version took the
+    numbers from hidden form fields and wrote mode='delivery' regardless of
+    what had actually happened, so a booked table was filed as a food order.
+
+    Kept on purpose even though a successful order now saves itself
+    automatically (E11) -- persist_cascade_result() is idempotent, so a
+    click here either confirms an already-saved order or catches one from
+    before this fix, still active in an older session.
+    """
+    lang = lang_of(request)
+    order = active_order(order_id) or {}
+    finished = order.get("result")
+
+    if not finished:
+        return HTMLResponse(f'<span class="mono">{t("history.empty", lang)}</span>')
+
+    restaurant: Restaurant = finished["restaurant"]
+    call_result = finished["call_result"]
+    user_request: UserRequest = order["request"]
+    structured = call_result.structured_result
+
+    persist_cascade_result(order_id, user_request, restaurant, call_result, restaurant_id)
     return HTMLResponse(
         f'<span class="mono">{t("result.saved", lang)}</span>'
         + huckepack_web.receipt_script_tag(

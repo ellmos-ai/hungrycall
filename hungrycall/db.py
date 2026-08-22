@@ -393,13 +393,50 @@ def save_cascade_result(
     raw_transcript_text: str | None,
     structured_result: dict[str, Any]
 ) -> dict[str, Any]:
-    """Save final successful cascade result to SQLite."""
+    """Save final successful cascade result to SQLite.
+
+    Idempotent on order_id (E11, Endabnahme-Befund 2026-08-22): a cascade
+    now saves itself automatically the moment it is accepted, and the
+    "Ergebnis speichern" button on the result card stays reachable too --
+    without this, a user who clicks it anyway (or a reconnect that replays
+    the outcome event) would file a second, duplicate row for an order that
+    only succeeded once. id is not the primary key here, so a plain second
+    INSERT would not even collide on its own -- order_id has to be checked
+    explicitly. Same idiom as record_call_attempt's (order_id, run_id)
+    idempotency above, for the same reason (E6).
+    """
     init_db()
     conn = get_db_connection()
     cursor = conn.cursor()
 
     created_at = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     result_json = json.dumps(structured_result)
+
+    cursor.execute("SELECT id, created_at FROM saved_results WHERE order_id = ?", (order_id,))
+    existing = cursor.fetchone()
+    if existing is not None:
+        cursor.execute("""
+            UPDATE saved_results
+            SET mode = ?, restaurant_id = ?, restaurant_name = ?, masked_phone = ?,
+                callback_number = ?, total_price_eur = ?, eta_minutes = ?,
+                post_summary = ?, raw_transcript_text = ?, result_json = ?
+            WHERE id = ?
+        """, (
+            mode, restaurant_id, restaurant_name, masked_phone,
+            callback_number, total_price_eur, eta_minutes,
+            post_summary, raw_transcript_text, result_json,
+            existing["id"],
+        ))
+        cursor.execute("UPDATE orders SET status = 'COMPLETED' WHERE id = ?", (order_id,))
+        conn.commit()
+        conn.close()
+        return {
+            "id": existing["id"],
+            "order_id": order_id,
+            "restaurant_name": restaurant_name,
+            "callback_number": callback_number,
+            "created_at": existing["created_at"],
+        }
 
     cursor.execute("""
         INSERT INTO saved_results (

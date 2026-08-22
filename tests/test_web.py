@@ -942,6 +942,38 @@ def test_saving_without_a_finished_run_does_not_invent_one(client):
     assert client.get("/api/saved-results").json() == []
 
 
+def test_a_successful_cascade_saves_itself_without_a_click(client):
+    """E11 (Endabnahme-Befund 2026-08-22): closing the page before clicking
+    "Ergebnis speichern" used to lose the comfortable proof entirely (the
+    raw data stayed only in call_attempts). An accepted order now reaches
+    /history the moment the cascade accepts it -- no /api/save-result POST
+    in this test at all."""
+    events, order_id = run_cascade(client, cascade_form())
+    assert any(e["type"] == "accepted" for e in events)
+
+    rows = client.get("/api/saved-results").json()
+    assert len(rows) == 1
+    assert rows[0]["order_id"] == order_id
+    assert rows[0]["restaurant_name"] == "Asia Wok Express"
+
+    page = client.get("/history").text
+    assert "Asia Wok Express" in page
+
+
+def test_clicking_save_after_the_automatic_save_does_not_duplicate_the_row(client):
+    """The button stays reachable (E11 explicitly allows it to remain), but
+    it must not file a second row for an order that only succeeded once."""
+    _, order_id = run_cascade(client, cascade_form())
+    assert len(client.get("/api/saved-results").json()) == 1
+
+    saved = client.post("/api/save-result", data={"order_id": order_id})
+    assert saved.status_code == 200
+
+    rows = client.get("/api/saved-results").json()
+    assert len(rows) == 1
+    assert rows[0]["order_id"] == order_id
+
+
 # --------------------------------------------------------------------------
 # Escaping
 # --------------------------------------------------------------------------
