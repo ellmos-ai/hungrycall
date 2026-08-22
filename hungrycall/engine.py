@@ -401,6 +401,41 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
     return intro
 
 
+#: Call statuses where no usable conversation happened at all -- the line
+#: never really connected, or nothing was said that the app could evaluate.
+_NOT_REACHED_STATUSES = frozenset({
+    CallStatus.FAILED,
+    CallStatus.NO_ANSWER,
+    CallStatus.CANCELED,
+    CallStatus.VOICEMAIL,
+    CallStatus.BUSY,
+    CallStatus.EXPIRED,
+})
+
+#: A rejection_reason prefix that always means "the call completed
+#: technically, but there is no usable conversation to judge" -- never a
+#: restaurant actually declining something.
+_NO_CONVERSATION_REASON_PREFIX = "Structured result is missing required fields"
+
+
+def classify_rejection(result: CallResult, rejection_reason: str | None) -> str:
+    """Classify as "not_reached" vs. "declined" -- display-only, never fed back into evaluate_result.
+
+    Field-trial finding 2026-08-22 (E21): a call where the line never really
+    connected (busy, no answer, or a completed call with no usable
+    structured evidence -- e.g. the app raising "Structured result is
+    missing required fields") was labelled the same as a call where the
+    restaurant explicitly declined a criterion. The right next step differs
+    (retry later vs. the request genuinely does not fit), and the cockpit
+    could not tell the two apart.
+    """
+    if result.status in _NOT_REACHED_STATUSES:
+        return "not_reached"
+    if rejection_reason and rejection_reason.startswith(_NO_CONVERSATION_REASON_PREFIX):
+        return "not_reached"
+    return "declined"
+
+
 class CascadeEngine:
     """Runs the sequential calling cascade across ranked candidates."""
 

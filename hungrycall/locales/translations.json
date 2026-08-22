@@ -659,6 +659,14 @@
     "de": "Abgelehnt",
     "en": "Declined"
   },
+  "cascade.not_reached": {
+    "de": "Nicht erreicht",
+    "en": "Not reached"
+  },
+  "cascade.reason.no_conversation": {
+    "de": "Es kam kein auswertbares Gespräch zustande — der Anruf lieferte keine brauchbaren Daten.",
+    "en": "No usable conversation happened — the call did not produce data the app could evaluate."
+  },
   "cascade.done": {
     "de": "Fertig.",
     "en": "Done."

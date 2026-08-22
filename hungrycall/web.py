@@ -52,7 +52,7 @@ from hungrycall.db import (
     save_order_template,
     save_tags,
 )
-from hungrycall.engine import CascadeEngine, build_call_goal
+from hungrycall.engine import CascadeEngine, build_call_goal, classify_rejection
 from hungrycall.fixtures import SCENARIO_FIXTURES
 from hungrycall.geo import today_weekday_key, weekday_key
 from hungrycall.i18n import LANG_COOKIE, resolve_lang, t
@@ -61,7 +61,7 @@ from hungrycall.location import (
     geocode_location,
     search_overpass_restaurants,
 )
-from hungrycall.models import Branch, Mode, Restaurant, Seating, UserRequest
+from hungrycall.models import Branch, CallResult, Mode, Restaurant, Seating, UserRequest
 from hungrycall.order_chains import (
     default_order_chain,
     evaluate_order_chain,
@@ -794,6 +794,30 @@ def sse(payload: dict[str, Any]) -> str:
     return "data: " + json.dumps(payload, ensure_ascii=False) + "\n\n"
 
 
+def cascade_stream_label_and_reason(
+    call_result: CallResult, rejection_reason: str | None, lang: str
+) -> tuple[str, str]:
+    """The (label, reason) shown on the live cockpit for one dialled attempt.
+
+    Field-trial finding 2026-08-22 (E21): a call that never produced a
+    usable conversation (busy, no answer, or a technically completed call
+    with no evaluable structured result) was labelled "Abgelehnt"/"Declined"
+    -- the same as a restaurant that explicitly declined a criterion -- and
+    the raw internal reason ("Structured result is missing required fields:
+    pickup_available, order_chain_results") leaked straight into the
+    cockpit. This is display-only: the underlying (passed, rejection_reason)
+    decision from evaluate_result() is unchanged, and the raw reason is
+    still what gets persisted to call_attempts for the record.
+    """
+    category = classify_rejection(call_result, rejection_reason)
+    if category == "not_reached":
+        reason = rejection_reason or ""
+        if reason.startswith("Structured result is missing required fields"):
+            reason = t("cascade.reason.no_conversation", lang)
+        return t("cascade.not_reached", lang), reason
+    return t("cascade.rejected", lang), rejection_reason or ""
+
+
 @app.get("/api/cascade-stream")
 async def cascade_stream(request: Request, order_id: str = Query(...)):
     """Run the cascade and narrate it.
@@ -905,11 +929,14 @@ async def cascade_stream(request: Request, order_id: str = Query(...)):
             )
 
             if not passed:
+                label, display_reason = cascade_stream_label_and_reason(
+                    call_result, rejection_reason, lang
+                )
                 yield sse({
                     "type": "rejected",
                     "id": restaurant.id,
-                    "label": t("cascade.rejected", lang),
-                    "reason": rejection_reason or "",
+                    "label": label,
+                    "reason": display_reason,
                 })
                 await asyncio.sleep(0.4)
                 continue
