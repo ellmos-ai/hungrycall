@@ -667,6 +667,42 @@
     "de": "Es kam kein auswertbares Gespräch zustande — der Anruf lieferte keine brauchbaren Daten.",
     "en": "No usable conversation happened — the call did not produce data the app could evaluate."
   },
+  "cascade.reason.no_delivery": {
+    "de": "Restaurant liefert nicht an die angegebene Adresse",
+    "en": "Restaurant does not deliver to specified address"
+  },
+  "cascade.reason.no_pickup": {
+    "de": "Abholung wird von diesem Restaurant nicht angeboten",
+    "en": "Pickup not available at restaurant"
+  },
+  "cascade.reason.no_table": {
+    "de": "Kein Tisch für den gewünschten Termin verfügbar",
+    "en": "No table available for requested date and time"
+  },
+  "cascade.reason.reservation_unconfirmed": {
+    "de": "Reservierung wurde nicht bestätigt",
+    "en": "Reservation was not confirmed"
+  },
+  "cascade.reason.seating_unconfirmed": {
+    "de": "Der gewünschte Sitzplatzwunsch wurde nicht bestätigt",
+    "en": "The custom seating preference was not confirmed"
+  },
+  "cascade.reason.price_unclear": {
+    "de": "Unklare Preisangabe (vage oder ohne genauen Betrag)",
+    "en": "Unclear price statement (vague or missing exact quote)"
+  },
+  "cascade.reason.price_missing": {
+    "de": "Unklare Preisangabe: Gesamtpreis fehlt",
+    "en": "Unclear price statement: total_price_eur missing"
+  },
+  "cascade.reason.order_not_placed": {
+    "de": "Bestellung wurde nicht aufgegeben",
+    "en": "Order was not placed"
+  },
+  "cascade.reason.chain_unresolved": {
+    "de": "Bestellwunschkette konnte nicht aufgelöst werden",
+    "en": "Order wish chain did not resolve"
+  },
   "cascade.done": {
     "de": "Fertig.",
     "en": "Done."

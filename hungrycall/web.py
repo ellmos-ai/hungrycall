@@ -808,6 +808,38 @@ def sse(payload: dict[str, Any]) -> str:
     return "data: " + json.dumps(payload, ensure_ascii=False) + "\n\n"
 
 
+# engine.evaluate_result() (and its private check_* helpers) build these
+# exact strings for storage, the CLI and the API -- all of which stay
+# English on purpose; existing tests and the call_attempts column assert
+# that English text. The cockpit is the one place a person without English
+# reads the judgment live (field-trial finding 2026-08-22, E19: the German
+# cockpit showed the raw English "Order was not placed" for a rejected Asia
+# Imbiss call), so this maps the code's own hardcoded fallback reasons to a
+# translation key for display only. Anything not in this table -- in
+# particular struct.get("rejection_reason") when the call itself supplied
+# one, or one of engine.py's rarer f-string guard messages (a booking-fee or
+# authority-step mismatch, an unauthorised concession, a call that failed
+# outright) -- is shown exactly as received: that text was authored by the
+# call, or is a defensive edge case not worth guessing a translation for.
+_STATIC_ENGINE_REASON_KEYS: dict[str, str] = {
+    "Restaurant does not deliver to specified address": "cascade.reason.no_delivery",
+    "Pickup not available at restaurant": "cascade.reason.no_pickup",
+    "No table available for requested date and time": "cascade.reason.no_table",
+    "Reservation was not confirmed": "cascade.reason.reservation_unconfirmed",
+    "The custom seating preference was not confirmed": "cascade.reason.seating_unconfirmed",
+    "Unclear price statement (vague or missing exact quote)": "cascade.reason.price_unclear",
+    "Unclear price statement: total_price_eur missing": "cascade.reason.price_missing",
+    "Order was not placed": "cascade.reason.order_not_placed",
+    "Order wish chain did not resolve": "cascade.reason.chain_unresolved",
+}
+
+
+def localize_engine_reason(reason: str, lang: str) -> str:
+    """Translate one of engine.py's own hardcoded rejection reasons."""
+    key = _STATIC_ENGINE_REASON_KEYS.get(reason)
+    return t(key, lang) if key else reason
+
+
 def cascade_stream_label_and_reason(
     call_result: CallResult, rejection_reason: str | None, lang: str
 ) -> tuple[str, str]:
@@ -829,7 +861,7 @@ def cascade_stream_label_and_reason(
         if reason.startswith("Structured result is missing required fields"):
             reason = t("cascade.reason.no_conversation", lang)
         return t("cascade.not_reached", lang), reason
-    return t("cascade.rejected", lang), rejection_reason or ""
+    return t("cascade.rejected", lang), localize_engine_reason(rejection_reason or "", lang)
 
 
 @app.get("/api/cascade-stream")
