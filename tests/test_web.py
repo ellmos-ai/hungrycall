@@ -419,6 +419,21 @@ def test_food_order_starts_with_an_editable_position_and_separate_templates(clie
         assert f'name="{field}"' in page
 
 
+def test_order_chain_seed_script_creates_hc_before_assigning_to_it(client):
+    # app.js is deferred, so every inline script runs before it. The seed
+    # script that carries orderChainInitial must therefore create window.HC
+    # itself: without the guard the assignment throws a ReferenceError, the
+    # seed never lands and the whole chain editor sits inert -- found live
+    # in the 2026-08-22 final-acceptance GUI run.
+    page = client.get("/order?lang=en").text
+    seed = page.index("HC.orderChainInitial")
+    guard = page.rindex("window.HC = window.HC || {};", 0, seed)
+    # The guard must sit inside the same script block as the assignment,
+    # not in some earlier or later block.
+    script_open = page.rindex("<script>", 0, seed)
+    assert script_open < guard < seed
+
+
 def test_landing_places_the_fridge_left_of_the_claim_on_desktop_and_stacks_on_mobile(client):
     page = client.get("/?lang=en").text
     assert ".fridge-reveal {\n  /* The product comes first on desktop: fridge left, the invitation right. */\n  order: -1;" in page

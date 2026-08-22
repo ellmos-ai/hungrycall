@@ -1112,6 +1112,10 @@ def render_food_fields(
   </label>
 </div>
 <script>
+/* app.js is deferred and runs after every inline script; this block executes
+   while parsing, so HC must be created here or the assignment throws and the
+   whole chain editor stays inert (final-acceptance field finding 2026-08-22). */
+window.HC = window.HC || {{}};
 HC.orderChainInitial = {script_json(chain.to_dict())};
 HC.orderTemplates = {script_json(order_templates)};
 </script>
