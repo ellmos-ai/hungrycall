@@ -62,7 +62,15 @@ def _concession_clause(concessions: list[Concession]) -> str:
 
 
 def _requester_callback_clause(request: UserRequest) -> str:
-    """Return the mandatory human-contact handoff for every CALL-E task."""
+    """Return the mandatory human-contact handoff for every CALL-E task.
+
+    Field-trial finding 2026-08-22 (E8): a call ended with the restaurant
+    possibly believing an order had been placed, but no callback number had
+    been given -- any misunderstanding on their side would then have been
+    unclarifiable. User decision 2026-08-22: give the number in EVERY call,
+    not only a successful one, so the restaurant can always follow up. This
+    replaces the previous "only if and only if something was placed" rule.
+    """
     if not request.requester_callback_number:
         raise ValueError("A requester callback number is required before a call can be planned.")
     callback_number = normalize_e164(request.requester_callback_number)
@@ -70,13 +78,11 @@ def _requester_callback_clause(request: UserRequest) -> str:
         raise ValueError("The requester callback number must be valid E.164.")
     requester_name = request.requester_name()
     return (
-        f" If and only if an order or reservation was actually placed, give the restaurant "
-        f"this human callback number at the end of the call: "
-        f"{callback_number}. Explicitly say that staff may contact {requester_name} at "
-        f"that number with questions and to obtain human confirmation of the order or "
-        f"reservation. When nothing was ordered or reserved, do not mention any callback "
-        f"number. If staff ask for those contact details earlier, provide the same "
-        f"number then, and still repeat it once at the end."
+        f" Give the restaurant this human callback number before you end the call, in EVERY "
+        f"call regardless of outcome: {callback_number}. Explicitly say that staff may contact "
+        f"{requester_name} at that number with questions and, if an order or reservation was "
+        f"placed, to obtain human confirmation of it. If staff ask for those contact details "
+        f"earlier, provide the same number then, and still repeat it once at the end."
     )
 
 

@@ -115,6 +115,25 @@ def test_every_goal_ends_with_the_human_confirmation_handoff(lang, monkeypatch):
         assert goal.endswith("repeat it once at the end.")
 
 
+@pytest.mark.parametrize("mode", [Mode.DELIVERY, Mode.PICKUP, Mode.RESERVATION])
+def test_callback_number_is_mandatory_in_every_call_not_only_on_success(mode):
+    """Endabnahme field-trial finding 2026-08-22 (E8): a call left the
+    restaurant with the impression an order might exist, but no callback
+    number had been given -- any misunderstanding was then unclarifiable.
+    User decision: the number is now given in every call, regardless of
+    outcome, replacing the previous 'only if and only if placed' rule."""
+    request = reservation_request(mode=mode)
+    request.max_budget_eur = 30
+    request.delivery_address = "Example Street 1"
+    request.pickup_time = "19:30"
+    goal = build_call_goal(SAMPLE_RESTAURANTS[0], request)
+
+    assert "in EVERY call regardless of outcome" in goal
+    assert "If and only if an order or reservation was actually placed" not in goal
+    assert "do not mention any callback number" not in goal
+    assert CALLBACK in goal
+
+
 def test_reservation_goal_grants_time_and_fee_only_in_stages():
     request = reservation_request(
         seating=Seating.CUSTOM,
