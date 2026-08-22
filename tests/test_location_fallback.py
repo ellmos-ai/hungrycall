@@ -27,6 +27,21 @@ def fixed_clock(monkeypatch):
     monkeypatch.setattr(web, "current_day", lambda: "Fri")
 
 
+@pytest.fixture(autouse=True)
+def clear_location_cache():
+    """Empty the module-level geocode/search cache before and after each test.
+
+    The cache is deliberately global (it survives across requests, that is
+    the point of E14), which means it also survives across test functions in
+    the same process. Without this, a test earlier in the file that
+    successfully caches (52.52, 13.405, 3.0) would make a later test's mocked
+    Overpass response never get called.
+    """
+    location.clear_search_cache()
+    yield
+    location.clear_search_cache()
+
+
 class StubResponse:
     def __init__(self, payload, status_code=200):
         self.payload = payload
@@ -147,6 +162,105 @@ def test_overpass_normalizes_formatted_german_phone_for_calling(monkeypatch):
     restaurants = search_overpass_restaurants(52.52, 13.405)
 
     assert restaurants[0].phone == "+442079460090"
+
+
+def test_repeated_identical_search_reuses_the_cache_instead_of_asking_osm_again(monkeypatch):
+    """E14: /api/search and /api/start-cascade run the identical geocode +
+    Overpass query back to back for one order — the Start step re-queried OSM
+    a second time immediately after the search step already had the answer.
+    The second call must reuse the first one instead of asking OSM again (and
+    risking its own, separate failure).
+    """
+    geocode_calls = []
+    overpass_calls = []
+
+    def fake_get(url, **kwargs):
+        geocode_calls.append(kwargs)
+        return StubResponse([{"lat": "52.52", "lon": "13.405"}])
+
+    def fake_post(url, **kwargs):
+        overpass_calls.append(kwargs)
+        return StubResponse(
+            {
+                "elements": [
+                    {
+                        "id": 1,
+                        "lat": 52.52,
+                        "lon": 13.405,
+                        "tags": {"name": "Cached Bistro", "phone": "+442079460090"},
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr(location.httpx, "get", fake_get)
+    monkeypatch.setattr(location.httpx, "post", fake_post)
+
+    lat1, lon1 = location.geocode_location("10115", "Berlin", "Deutschland")
+    pool1 = search_overpass_restaurants(lat1, lon1, radius_km=3.0)
+    lat2, lon2 = location.geocode_location("10115", "Berlin", "Deutschland")
+    pool2 = search_overpass_restaurants(lat2, lon2, radius_km=3.0)
+
+    assert len(geocode_calls) == 1
+    assert len(overpass_calls) == 1
+    assert (lat1, lon1) == (lat2, lon2)
+    assert [r.name for r in pool1] == [r.name for r in pool2] == ["Cached Bistro"]
+    # A cache hit hands out a copy, not the same object -- one caller's
+    # mutation (annotate_distances writes distance_km in place) must not
+    # leak into what the next caller sees.
+    pool1[0].distance_km = 999.0
+    assert pool2[0].distance_km != 999.0
+
+
+def test_a_transient_overpass_failure_recovers_on_the_retry(monkeypatch):
+    """E14: a single timeout that OSM itself would recover from within a
+    second must not surface to the user as a failed search."""
+    monkeypatch.setattr(location.time, "sleep", lambda seconds: None)
+    attempts = {"n": 0}
+
+    def flaky_post(url, **kwargs):
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            raise httpx.ReadTimeout("timed out")
+        return StubResponse(
+            {
+                "elements": [
+                    {
+                        "id": 1,
+                        "lat": 52.52,
+                        "lon": 13.405,
+                        "tags": {"name": "Retry Bistro", "phone": "+442079460090"},
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr(location.httpx, "post", flaky_post)
+
+    restaurants = search_overpass_restaurants(52.52, 13.405, radius_km=3.0)
+
+    assert attempts["n"] == 2
+    assert restaurants[0].name == "Retry Bistro"
+
+
+def test_a_persistent_service_busy_status_still_fails_after_the_retry(monkeypatch):
+    """E14: retrying is bounded — a query that fails twice in a row is a
+    real outage, not a hiccup, and must still surface as service_unavailable
+    instead of hanging or silently giving up quietly."""
+    monkeypatch.setattr(location.time, "sleep", lambda seconds: None)
+    calls = {"n": 0}
+
+    def always_busy(url, **kwargs):
+        calls["n"] += 1
+        return StubResponse({}, status_code=503)
+
+    monkeypatch.setattr(location.httpx, "post", always_busy)
+
+    with pytest.raises(SearchServiceUnavailable) as error:
+        search_overpass_restaurants(52.52, 13.405, radius_km=3.0)
+
+    assert calls["n"] == 2
+    assert error.value.code == "service_unavailable"
 
 
 def test_empty_geocoding_result_means_address_not_found(monkeypatch):

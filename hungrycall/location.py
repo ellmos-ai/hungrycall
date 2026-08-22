@@ -2,6 +2,8 @@
 
 import copy
 import logging
+import threading
+import time
 
 import httpx
 
@@ -15,6 +17,80 @@ logger = logging.getLogger(__name__)
 # application.  Overpass rejects the generic httpx default user agent with
 # HTTP 406, so keep one honest identifier on every request.
 OSM_USER_AGENT = "HungryCall/0.1.0 (+https://github.com/ellmos-ai/hungrycall)"
+
+# Both services occasionally answer a timeout, a dropped connection, or a
+# rate-limit/server-busy status on an otherwise fine query -- and recover
+# within a second or two. One retry catches that without turning a real
+# outage into a long wait: a query that fails twice in a row fails for real,
+# and a malformed query or a genuinely unresolvable address is never retried
+# (it would just repeat the same wrong answer).
+_RETRY_ATTEMPTS = 2
+_RETRY_BACKOFF_SECONDS = 0.3
+_RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+
+
+def _request_with_retry(request_fn, url, **kwargs):
+    """Call ``request_fn(url, **kwargs)``, retrying once on a failure mode
+    the service itself recovers from."""
+    for attempt in range(1, _RETRY_ATTEMPTS + 1):
+        try:
+            response = request_fn(url, **kwargs)
+        except (httpx.TimeoutException, httpx.RequestError):
+            if attempt == _RETRY_ATTEMPTS:
+                raise
+            time.sleep(_RETRY_BACKOFF_SECONDS)
+            continue
+        if response.status_code in _RETRYABLE_STATUS_CODES and attempt < _RETRY_ATTEMPTS:
+            time.sleep(_RETRY_BACKOFF_SECONDS)
+            continue
+        return response
+    raise AssertionError("unreachable: the loop above always returns or raises")
+
+
+# A short-lived cache of the last geocoding and restaurant search per query.
+# The web UI runs the identical search twice for one order in the normal
+# case -- once to show candidates (/api/search), again immediately before
+# actually dialing (/api/start-cascade), which re-queries OSM with the same
+# postcode/city/radius carried forward in the form. Reusing that answer for
+# a couple of minutes removes one of the two chances for a transient OSM
+# hiccup to surface to the user, and halves the load this free public
+# service sees per order. This is not the session state the /api/search
+# route deliberately avoids (see its comment on form_state): the cache key
+# is the search parameters, not who is asking.
+_SEARCH_CACHE_TTL_SECONDS = 120.0
+_SEARCH_CACHE_MAX_ENTRIES = 32
+
+_cache_lock = threading.Lock()
+_geocode_cache: dict[tuple[str, str, str], tuple[float, tuple[float, float]]] = {}
+_overpass_cache: dict[tuple[float, float, float], tuple[float, list[Restaurant]]] = {}
+
+
+def clear_search_cache() -> None:
+    """Drop every cached geocode/search result. Mainly for test isolation."""
+    with _cache_lock:
+        _geocode_cache.clear()
+        _overpass_cache.clear()
+
+
+def _cache_get(cache: dict, key):
+    with _cache_lock:
+        entry = cache.get(key)
+        if entry is None:
+            return None
+        cached_at, value = entry
+        if time.monotonic() - cached_at > _SEARCH_CACHE_TTL_SECONDS:
+            del cache[key]
+            return None
+        return value
+
+
+def _cache_put(cache: dict, key, value) -> None:
+    with _cache_lock:
+        if len(cache) >= _SEARCH_CACHE_MAX_ENTRIES and key not in cache:
+            oldest_key = min(cache, key=lambda k: cache[k][0], default=None)
+            if oldest_key is not None:
+                del cache[oldest_key]
+        cache[key] = (time.monotonic(), value)
 
 
 class RestaurantSearchError(RuntimeError):
@@ -145,12 +221,17 @@ def geocode_location(
                 return coords
         return OFFLINE_LOCATIONS["default"]
 
+    cache_key = (postcode.strip(), city_clean, country_clean)
+    cached = _cache_get(_geocode_cache, cache_key)
+    if cached is not None:
+        return cached
+
     query = f"{postcode} {city} {country}".strip()
     try:
         url = "https://nominatim.openstreetmap.org/search"
         headers = {"User-Agent": OSM_USER_AGENT, "Accept": "application/json"}
         params = {"q": query, "format": "json", "limit": 1}
-        resp = httpx.get(url, headers=headers, params=params, timeout=3.0)
+        resp = _request_with_retry(httpx.get, url, headers=headers, params=params, timeout=3.0)
     except (httpx.TimeoutException, httpx.RequestError) as exc:
         logger.warning("Nominatim request failed: %s", exc)
         raise SearchServiceUnavailable("Nominatim request failed") from exc
@@ -169,10 +250,13 @@ def geocode_location(
         raise AddressNotFound(f"Nominatim could not resolve {query!r}")
 
     try:
-        return float(data[0]["lat"]), float(data[0]["lon"])
+        coords = (float(data[0]["lat"]), float(data[0]["lon"]))
     except (KeyError, TypeError, ValueError, IndexError) as exc:
         logger.warning("Nominatim response did not contain usable coordinates: %s", exc)
         raise SearchServiceUnavailable("Nominatim returned unusable coordinates") from exc
+
+    _cache_put(_geocode_cache, cache_key, coords)
+    return coords
 
 
 def search_overpass_restaurants(
@@ -195,6 +279,11 @@ def search_overpass_restaurants(
     if test_mode:
         return annotate_distances(get_offline_restaurants(city), lat, lon)
 
+    cache_key = (round(lat, 6), round(lon, 6), radius_km)
+    cached = _cache_get(_overpass_cache, cache_key)
+    if cached is not None:
+        return copy.deepcopy(cached)
+
     # Live Overpass API Query
     radius_m = int(radius_km * 1000)
     overpass_url = "https://overpass-api.de/api/interpreter"
@@ -208,7 +297,8 @@ def search_overpass_restaurants(
     out center 15;
     """
     try:
-        resp = httpx.post(
+        resp = _request_with_retry(
+            httpx.post,
             overpass_url,
             headers={"User-Agent": OSM_USER_AGENT, "Accept": "application/json"},
             data={"data": query},
@@ -283,7 +373,9 @@ def search_overpass_restaurants(
         raise NoRestaurantsFound(
             f"Overpass returned no callable restaurants within {radius_km:g} km"
         )
-    return annotate_distances(restaurants, lat, lon)
+    annotated = annotate_distances(restaurants, lat, lon)
+    _cache_put(_overpass_cache, cache_key, annotated)
+    return copy.deepcopy(annotated)
 
 
 def get_offline_restaurants(city: str = "") -> list[Restaurant]:
