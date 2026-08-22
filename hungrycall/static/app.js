@@ -289,7 +289,9 @@
 
       var cells = make("div", "order-cells");
       position.zellen.forEach(function (cell, cellIndex) {
-        if (cellIndex) cells.appendChild(make("span", "order-arrow", "→"));
+        // Cells stack top to bottom now (see .order-cells in templates.py),
+        // so the connector between wish and replacement points down.
+        if (cellIndex) cells.appendChild(make("span", "order-arrow", "↓"));
         cells.appendChild(renderCell(positionIndex, cellIndex, cell));
       });
       var addCell = make("button", "mini", "＋ " + HC.text.addReplacement);

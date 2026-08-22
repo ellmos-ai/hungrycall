@@ -581,15 +581,27 @@ th { font-size: 0.7rem; letter-spacing: 0.12em; color: var(--dim); }
 td.num { font-family: var(--font-mono); }
 
 /* ---------- order wish chains ---------- */
-.order-chain { display: grid; gap: 0.9rem; margin-top: 0.85rem; }
+/* .order-chain used to rely on the grid's implicit single auto-sized
+   column, unlike every other multi-column grid in this file. An auto
+   track has no floor, so a wide descendant (the old horizontal cell row
+   below) could inflate it past the .split track it lives in and bleed
+   into the map column instead of scrolling -- CSS Grid does not reflow a
+   sibling track to make room for an overflowing one. minmax(0, 1fr)
+   gives the column a floor of 0, matching .split/.grid2/.grid3, so it
+   always clips to its own share of the row. */
+.order-chain { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.9rem; margin-top: 0.85rem; }
 .order-position { border: 1px solid var(--line); border-radius: var(--radius); padding: 0.85rem; background: var(--panel-2); }
 .order-position-head, .order-position-foot, .template-bar { display: flex; align-items: end; gap: 0.7rem; flex-wrap: wrap; }
 .order-position-head { justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
-.order-cells { display: flex; gap: 0.55rem; align-items: stretch; overflow-x: auto; padding-bottom: 0.3rem; }
-.order-cell { min-width: 230px; border: 1px solid var(--line); border-radius: var(--radius); padding: 0.65rem; background: var(--panel); position: relative; }
+/* Wish and replacement cells stack top to bottom now (column, not row):
+   side by side they outgrew the position container at their combined
+   min-width instead of the single widest card, which is what pushed the
+   editor wider than its .split track (see .order-chain above). */
+.order-cells { display: flex; flex-direction: column; gap: 0.55rem; min-width: 0; }
+.order-cell { border: 1px solid var(--line); border-radius: var(--radius); padding: 0.65rem; background: var(--panel); position: relative; }
 .order-cell-grid { display: grid; grid-template-columns: 65px minmax(110px,1fr); gap: 0.45rem; }
 .order-cell-tools { display:flex; justify-content:space-between; align-items:center; gap:0.4rem; margin-top:0.55rem; }
-.order-arrow { color: var(--dim); display:flex; align-items:center; font-family:var(--font-mono); }
+.order-arrow { color: var(--dim); display:flex; align-items:center; justify-content:center; font-family:var(--font-mono); }
 .criteria-count { font-size:0.72rem; color:var(--dim); }
 .order-position-foot { margin-top:0.7rem; }
 .order-position-foot .field { min-width: 190px; flex: 1; }

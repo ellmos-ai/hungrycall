@@ -848,8 +848,8 @@
     "en": "Order wish chains"
   },
   "order.help": {
-    "de": "Jeder Posten läuft von links nach rechts: Wunsch, Ersatzwünsche und am Ende die Regel, falls nichts trägt.",
-    "en": "Each position runs from left to right: wish, replacements, then the rule if none carries."
+    "de": "Jeder Posten läuft von oben nach unten: Wunsch, Ersatzwünsche und am Ende die Regel, falls nichts trägt.",
+    "en": "Each position runs from top to bottom: wish, replacements, then the rule if none carries."
   },
   "order.position": {
     "de": "Posten",

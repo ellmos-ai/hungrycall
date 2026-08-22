@@ -434,6 +434,38 @@ def test_order_chain_seed_script_creates_hc_before_assigning_to_it(client):
     assert script_open < guard < seed
 
 
+def test_order_chain_cells_stack_instead_of_running_past_the_position(client):
+    # A row of order-cells (min-width 230px each) outran the position card
+    # sideways because .order-chain relied on the grid's implicit auto
+    # column instead of the minmax(0, 1fr) floor every other multi-column
+    # grid in this file uses -- that let the whole editor grow past its
+    # .split track and overlap the map column when a position picked up a
+    # replacement cell. Found live in the 2026-08-22 final-acceptance GUI
+    # run. Cells now stack top to bottom, so the connector between wish
+    # and replacement points down.
+    page = client.get("/order?lang=en").text
+    assert ".order-chain { display: grid; grid-template-columns: minmax(0, 1fr);" in page
+    assert ".order-cells { display: flex; flex-direction: column;" in page
+    assert "min-width: 230px" not in page
+
+
+def test_order_chain_help_text_matches_the_stacked_layout(client):
+    page_en = client.get("/order?lang=en").text
+    page_de = client.get("/order?lang=de").text
+    assert "runs from top to bottom" in page_en
+    assert "läuft von oben nach unten" in page_de
+    assert "runs from left to right" not in page_en
+    assert "links nach rechts" not in page_de
+
+
+def test_order_chain_arrow_glyph_points_down(client):
+    app_js = (Path(__file__).resolve().parent.parent / "hungrycall" / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+    assert 'make("span", "order-arrow", "↓")' in app_js
+    assert 'make("span", "order-arrow", "→")' not in app_js
+
+
 def test_landing_places_the_fridge_left_of_the_claim_on_desktop_and_stacks_on_mobile(client):
     page = client.get("/?lang=en").text
     assert ".fridge-reveal {\n  /* The product comes first on desktop: fridge left, the invitation right. */\n  order: -1;" in page
