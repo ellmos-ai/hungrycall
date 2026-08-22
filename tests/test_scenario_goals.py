@@ -589,6 +589,27 @@ def test_total_confirmation_clause_is_fully_localised(monkeypatch):
     assert "could you repeat the total?" in en_goal
 
 
+def test_the_quantity_announcement_example_is_fully_localised(monkeypatch):
+    """DE/EN parity audit, 2026-08-22: this worked example (delivery and
+    pickup chain branches) was hardcoded English in both languages, unlike
+    every other worked example in engine.py/order_chains.py -- a pre-existing
+    gap, not something introduced by the E30/E31/E35/E29 fixes, but the exact
+    class of finding the parity audit was tasked with surfacing and fixing."""
+    monkeypatch.setenv(CALL_LOCALE_ENV, "de")
+    de_delivery_goal = build_call_goal(RESTAURANT, _delivery_chain_max_price())
+    de_pickup_goal = build_call_goal(RESTAURANT, _pickup_chain())
+    for goal in (de_delivery_goal, de_pickup_goal):
+        assert "Das sind 2 x Pizza Margherita und 1 x Cola." in goal
+        assert "That is 2 x Pizza Margherita and 1 x Cola." not in goal
+
+    monkeypatch.setenv(CALL_LOCALE_ENV, "en")
+    en_delivery_goal = build_call_goal(RESTAURANT, _delivery_chain_max_price())
+    en_pickup_goal = build_call_goal(RESTAURANT, _pickup_chain())
+    for goal in (en_delivery_goal, en_pickup_goal):
+        assert "That is 2 x Pizza Margherita and 1 x Cola." in goal
+        assert "Das sind 2 x Pizza Margherita und 1 x Cola." not in goal
+
+
 # --------------------------------------------------------------------------
 # Endabnahme field-trial finding, 2026-08-22 (E30): a wish cell PASSED its
 # max-price criterion, yet the agent still asked about and ordered the next

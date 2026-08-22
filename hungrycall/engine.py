@@ -244,6 +244,22 @@ def _order_total_confirmation_clause(locale: str) -> str:
     )
 
 
+def _quantity_announcement_example(locale: str) -> str:
+    """The VERBATIM-quoted worked example for reading the settled order back.
+
+    Parity finding 2026-08-22 (DE/EN audit): this example sentence was
+    hardcoded English in both the delivery and pickup chain branches, unlike
+    every other worked example in this file (``_order_chain_style_example``,
+    ``_order_total_confirmation_clause``), which are already locale-branched.
+    The made-up items ("Pizza Margherita", "Cola") are a stand-in for the
+    real order -- same pattern as ``_order_chain_style_example`` -- so this
+    is spoken and must already be in the call's own language.
+    """
+    if locale == "en":
+        return 'That is 2 x Pizza Margherita and 1 x Cola.'
+    return 'Das sind 2 x Pizza Margherita und 1 x Cola.'
+
+
 def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
     """Build the CALL-E goal text: identity disclosure, task, limits, fallbacks.
 
@@ -342,9 +358,9 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
                 f"Then work through the order wish chain below item by item — do not ask for "
                 f"any total price before the items are settled. "
                 f"Only after the items are settled, first say the full order aloud in one "
-                f"sentence with every item's quantity — for example: \"That is 2 x Pizza "
-                f"Margherita and 1 x Cola.\" A restaurant cannot compute a total without "
-                f"hearing the quantities first. "
+                f"sentence with every item's quantity — for example: "
+                f"\"{_quantity_announcement_example(language.locale)}\" A restaurant cannot "
+                f"compute a total without hearing the quantities first. "
                 f"Then ask for the EXACT total price this way: "
                 f"{_order_total_confirmation_clause(language.locale)} "
                 f"Also ask for the estimated delivery time in minutes. "
@@ -389,9 +405,9 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
                 f"Then work through the order wish chain below item by item — do not ask for "
                 f"any total price before the items are settled. "
                 f"Only after the items are settled, first say the full order aloud in one "
-                f"sentence with every item's quantity — for example: \"That is 2 x Pizza "
-                f"Margherita and 1 x Cola.\" A restaurant cannot compute a total without "
-                f"hearing the quantities first. "
+                f"sentence with every item's quantity — for example: "
+                f"\"{_quantity_announcement_example(language.locale)}\" A restaurant cannot "
+                f"compute a total without hearing the quantities first. "
                 f"There is no delivery fee, we collect ourselves. "
                 f"Then ask for the EXACT total price this way: "
                 f"{_order_total_confirmation_clause(language.locale)} "
