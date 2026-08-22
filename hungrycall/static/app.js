@@ -224,6 +224,17 @@
     return kind + ": " + criterion.wert + " — " + reactionText(criterion.reaktion_nein);
   }
 
+  // E9 (UX-Befund Endabnahme 2026-08-22): a cell's criteria used to be
+  // invisible outside the edit dialog -- only a bare count ("1") showed on
+  // the cell itself, so a price limit the user had actually set went
+  // unnoticed until the call already acted on it. This is the short form
+  // shown directly on the cell; criterionText() above (kind + reaction)
+  // remains the long form inside the dialog, where there is room for it.
+  function criterionChipText(criterion) {
+    if (criterion.art === "hoechstpreis") return "≤ " + criterion.wert + " €";
+    return String(criterion.wert);
+  }
+
   function renderCell(positionIndex, cellIndex, cell) {
     var card = make("div", "order-cell");
     var label = cellIndex === 0 ? HC.text.wish : HC.text.replacement + " " + cellIndex;
@@ -252,6 +263,21 @@
     // for JSON-shape stability -- see models.py OrderCell.kind.
     card.appendChild(grid);
 
+    // E9: the criteria themselves, visible on the cell -- not just their
+    // count. Clicking a chip opens the same edit dialog as the gear button,
+    // so "visible" does not cost "editable" anywhere.
+    var activeCriteria = cell.kriterien || [];
+    if (activeCriteria.length) {
+      var chipRow = make("div", "order-cell-criteria");
+      activeCriteria.forEach(function (criterion) {
+        var chip = make("span", "criterion-chip", criterionChipText(criterion));
+        chip.title = criterionText(criterion);
+        chip.addEventListener("click", function () { HC.openCriteria(positionIndex, cellIndex); });
+        chipRow.appendChild(chip);
+      });
+      card.appendChild(chipRow);
+    }
+
     var tools = make("div", "order-cell-tools");
     var gear = make("button", "mini", "⚙ " + HC.text.criteria);
     gear.type = "button";
@@ -260,7 +286,7 @@
       event.preventDefault(); HC.openCriteria(positionIndex, cellIndex);
     });
     tools.appendChild(gear);
-    tools.appendChild(make("span", "criteria-count", String((cell.kriterien || []).length)));
+    tools.appendChild(make("span", "criteria-count", String(activeCriteria.length)));
     if (HC.orderChain.posten[positionIndex].zellen.length > 1) {
       var remove = make("button", "mini", "× " + HC.text.remove);
       remove.type = "button";

@@ -612,6 +612,13 @@ td.num { font-family: var(--font-mono); }
 .order-cell-tools { display:flex; justify-content:space-between; align-items:center; gap:0.4rem; margin-top:0.55rem; }
 .order-arrow { color: var(--dim); display:flex; align-items:center; justify-content:center; font-family:var(--font-mono); }
 .criteria-count { font-size:0.72rem; color:var(--dim); }
+/* E9 (UX-Befund Endabnahme 2026-08-22): criteria used to be invisible on
+   the cell itself, only a bare count next to the edit button -- a price
+   limit the user had set went unnoticed until a call already acted on it.
+   Same visual family as .tier (the concession ladder's own chip). */
+.order-cell-criteria { display:flex; flex-wrap:wrap; gap:0.35rem; margin-top:0.5rem; }
+.criterion-chip { font-family: var(--font-mono); font-size: 0.75rem; color: var(--brass); border: 1px solid var(--brass-lo); border-radius: 3px; padding: 0.1rem 0.4rem; cursor: pointer; }
+.criterion-chip:hover { border-color: var(--violet); color: var(--violet); }
 .order-position-foot { margin-top:0.7rem; }
 .order-position-foot .field { min-width: 190px; flex: 1; }
 .order-actions { margin-top:0.65rem; }
