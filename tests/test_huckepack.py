@@ -249,6 +249,9 @@ def test_the_visitors_key_reaches_no_store_and_no_log(monkeypatch, caplog):
                 "last_name": "Test",
                 "requester_callback_number": "+4910004069000",
                 "food_prompt": "Pizza",
+                # E29 (2026-08-22): the real form always sends this
+                # (HTML `required`); see cascade_form() above.
+                "max_budget_eur": "25",
                 "city": "Dorfstadt",
                 "postcode": "12345",
                 "radius_km": "3",
@@ -395,6 +398,10 @@ def cascade_form(**overrides):
         "last_name": "Test",
         "requester_callback_number": "+4910004069000",
         "food_prompt": "Pizza",
+        # E29 (2026-08-22): the real form always sends this (HTML `required`);
+        # its absence used to slip past build_user_request unnoticed and only
+        # crash later, deep inside goal-building. Now caught up front.
+        "max_budget_eur": "25",
         "city": "Dorfstadt",
         "postcode": "12345",
         "radius_km": "3",

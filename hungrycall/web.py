@@ -372,11 +372,25 @@ def build_user_request(
             f"{mode.value} has no way to pass it on to the restaurant"
         )
 
+    # E29 (2026-08-22): missing entirely from this function -- the browser
+    # form marks max_budget_eur as required, so this only surfaced through a
+    # direct API POST that skips that client-side check. Without it,
+    # max_budget_eur silently stayed None all the way to engine.build_call_goal,
+    # which formats it as "{request.max_budget_eur:.2f}" and crashed with an
+    # unhandled TypeError -- a 500, not the clean 400 every other missing
+    # required field here already gets. Validated the same way as
+    # first_name/last_name/requester_callback_number above: raise ValueError,
+    # which every caller (this function's callers, /api/preview-goal, the
+    # order-start route) already turns into a proper 400 response.
+    max_budget_eur = as_float("max_budget_eur") if mode is not Mode.RESERVATION else None
+    if mode is not Mode.RESERVATION and max_budget_eur is None:
+        raise ValueError("max_budget_eur is required for delivery and pickup")
+
     return UserRequest(
         mode=mode,
         customer_name=customer_name,
         food_prompt=food_prompt,
-        max_budget_eur=as_float("max_budget_eur") if mode is not Mode.RESERVATION else None,
+        max_budget_eur=max_budget_eur,
         delivery_address=fields.get("delivery_address"),
         reservation_date=reservation_date,
         reservation_time=fields.get("reservation_time"),
