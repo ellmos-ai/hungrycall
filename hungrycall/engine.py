@@ -308,16 +308,16 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
         "with its quantity, plus the total price, the name and the address or time; name "
         "ONLY items you are actually ordering here, never one you merely asked about, "
         "considered, or discarded along the way; "
-        # Field-trial finding 2026-08-22 (RT-1b): the agent folded the
-        # confirmation question into its price/time question ("please
-        # confirm the order and tell me the total price"), and then a bare
-        # price answer from the restaurant was treated as the yes -- so the
-        # order was never actually confirmed as a separate, explicit act.
-        "(2) ask the other side to confirm it, as its own separate question, asked only "
-        "after the total price and the delivery time or pickup readiness are already known "
-        "-- do not fold this confirmation into the price or time question, and do not treat "
-        "the restaurant simply stating a price or a time as a yes -- and WAIT for their "
-        "answer — "
+        # Field-trial finding 2026-08-22 (RT-1b), corrected by user
+        # clarification the same day: the confirmation mechanism itself
+        # (wait for an explicit yes, "bindingly" only after it) was already
+        # correct -- E31/E36d hold. The fix here is only that this
+        # confirmation is its own clear question, asked once price and time
+        # are already known -- not a claim that a price or time answer
+        # somehow "doesn't count".
+        "(2) ask the other side to confirm it, as a clear question of its own, once the "
+        "total price and the delivery time or pickup readiness are already known, and "
+        "WAIT for their answer — "
         f"for example: \"{confirm_question}\" If the other side repeats the order back, check "
         "their read-back against what was actually agreed and correct or complete "
         f"anything missing — for example, restaurant: \"{readback_question}\" — you: "
@@ -381,9 +381,22 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
                 f"chain entirely. "
                 f"Then work through the order wish chain below item by item — do not ask for "
                 f"any total price before the items are settled. "
-                f"Only after the items are settled, first say the full order aloud in one "
-                f"sentence with every item's quantity — for example: "
-                f"\"{_quantity_announcement_example(language.locale)}\" A restaurant cannot "
+                # Field-trial finding 2026-08-22 (RT-1b), corrected by user
+                # clarification the same day: the real defect was not the
+                # confirmation mechanism (that already worked) but that the
+                # agent asked for a total price before it had ever spoken
+                # the order out loud -- a restaurant cannot form a total
+                # from unit prices alone, and had to demand the order
+                # itself before it could answer. This instruction already
+                # stood textually before the total-price question, but the
+                # live call skipped straight past it -- so it is now
+                # CRITICAL, an explicit ordering rule, not one instruction
+                # among several.
+                f"Only after the items are settled: CRITICAL: first say the full order aloud "
+                f"in one sentence, naming every item you are actually ordering with its "
+                f"quantity, and nothing you merely explored or discarded — for example: "
+                f"\"{_quantity_announcement_example(language.locale)}\" Never ask for or state "
+                f"a total price before you have said this out loud; a restaurant cannot "
                 f"compute a total without hearing the quantities first. "
                 f"Then ask for the EXACT total price this way: "
                 f"{_order_total_confirmation_clause(language.locale)} "
@@ -428,9 +441,22 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
                 f"without ordering anything — skip the item chain entirely. "
                 f"Then work through the order wish chain below item by item — do not ask for "
                 f"any total price before the items are settled. "
-                f"Only after the items are settled, first say the full order aloud in one "
-                f"sentence with every item's quantity — for example: "
-                f"\"{_quantity_announcement_example(language.locale)}\" A restaurant cannot "
+                # Field-trial finding 2026-08-22 (RT-1b), corrected by user
+                # clarification the same day: the real defect was not the
+                # confirmation mechanism (that already worked) but that the
+                # agent asked for a total price before it had ever spoken
+                # the order out loud -- a restaurant cannot form a total
+                # from unit prices alone, and had to demand the order
+                # itself before it could answer. This instruction already
+                # stood textually before the total-price question, but the
+                # live call skipped straight past it -- so it is now
+                # CRITICAL, an explicit ordering rule, not one instruction
+                # among several.
+                f"Only after the items are settled: CRITICAL: first say the full order aloud "
+                f"in one sentence, naming every item you are actually ordering with its "
+                f"quantity, and nothing you merely explored or discarded — for example: "
+                f"\"{_quantity_announcement_example(language.locale)}\" Never ask for or state "
+                f"a total price before you have said this out loud; a restaurant cannot "
                 f"compute a total without hearing the quantities first. "
                 f"There is no delivery fee, we collect ourselves. "
                 f"Then ask for the EXACT total price this way: "

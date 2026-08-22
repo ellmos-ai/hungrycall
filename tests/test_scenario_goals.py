@@ -494,15 +494,26 @@ def test_flip_reservation_step_numbering_shifts_with_granted_tolerances(monkeypa
 # --------------------------------------------------------------------------
 
 def test_delivery_and_pickup_chain_goals_require_the_order_summary_before_price(monkeypatch):
-    """E5, 3x reproduced live: the agent asked only availability and unit
-    price, then a bare total, without ever announcing the quantities -- a
-    restaurant cannot compute a total it was never told the quantities for."""
+    """E5, reproduced live 3x in the first measurement, then AGAIN live in
+    RT-1b (2026-08-22, ord_synthetic) despite this instruction already
+    standing textually before the total-price question -- the agent asked
+    only for unit prices, then demanded a bare total, without ever having
+    spoken the order out loud, and the human had to demand it ("what would
+    you like to order, then?"). A restaurant cannot compute a total it was
+    never told the quantities for. Hardened to CRITICAL with an explicit
+    ordering ban after the plain instruction proved insufficient live."""
     monkeypatch.setenv(CALL_LOCALE_ENV, "en")
     delivery_goal = build_call_goal(RESTAURANT, _delivery_chain_max_price())
     pickup_goal = build_call_goal(RESTAURANT, _pickup_chain())
     for goal in (delivery_goal, pickup_goal):
-        assert "first say the full order aloud" in goal
-        assert goal.index("first say the full order aloud") < goal.index("EXACT total price")
+        assert "CRITICAL: first say the full order aloud" in goal
+        assert (
+            "Never ask for or state a total price before you have said this out loud"
+            in goal
+        )
+        assert goal.index("CRITICAL: first say the full order aloud") < goal.index(
+            "EXACT total price"
+        )
 
 
 def test_order_chain_criterion_consequences_are_enforced_live(monkeypatch):
@@ -653,10 +664,14 @@ def test_a_replacement_cell_is_guarded_against_being_asked_additively(monkeypatc
 # ever hearing an explicit yes -- the restaurant was left believing the
 # order had gone through, even though the app's own audit discarded it for
 # the missing confirmation. See engine.py's ``confirmation`` block.
-# Hardened further after RT-1b (2026-08-22): the agent folded the
-# confirmation question into its price/time question and treated a bare
-# price answer as the yes -- so the confirmation must now be its own
-# separate question, asked only once price and time are known.
+# RT-1b (2026-08-22) first looked like a regression of this same class, but
+# the user's own clarification the same day corrected that reading: the
+# confirmation mechanism (wait for explicit yes, "bindingly" only after it)
+# was already working correctly. The real defect was elsewhere (see
+# test_delivery_and_pickup_chain_goals_require_the_order_summary_before_
+# price and its CRITICAL hardening). The confirmation question is now just
+# its own clear question -- no clause here claims a price/time answer
+# "doesn't count".
 # --------------------------------------------------------------------------
 
 def test_the_binding_word_only_follows_the_other_sides_yes(monkeypatch):
@@ -670,11 +685,7 @@ def test_the_binding_word_only_follows_the_other_sides_yes(monkeypatch):
         )
         assert ask_index < bindingly_index
         assert "Never say the word 'bindingly'" in goal
-        # RT-1b: the confirmation question must be its own turn, asked
-        # after price/time are known, and a bare price/time answer must
-        # never be treated as the yes.
-        assert "do not fold this confirmation into the price or time question" in goal
-        assert "do not treat the restaurant simply stating a price or a time as a yes" in goal
+        assert "as a clear question of its own, once the total price" in goal
         # RT-1b style note: no presumptuous phrasing implying the other
         # side might not have understood.
         assert "I hope you understood that" in goal  # quoted inside the ban itself
