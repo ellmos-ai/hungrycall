@@ -13,7 +13,7 @@
 [![Umbrella: open-bricks](https://img.shields.io/badge/umbrella-open--bricks-indigo.svg)](https://github.com/open-bricks)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-301%20passed-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-368%20passed-brightgreen.svg)](tests/)
 [![llms.txt](https://img.shields.io/badge/llms.txt-standardisiert-green.svg)](llms.txt)
 
 > [!TIP]
