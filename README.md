@@ -64,6 +64,31 @@ Unlike simple dialing scripts, HungryCall evaluates four distinct condition tier
 
 ---
 
+## 🧩 The Cascade Blueprint
+
+The section above names the pattern; this one spells it out as five steps that any call-based inquiry-and-booking pipeline can reuse, independent of what is being ordered, reserved, or arranged:
+
+1. **Build a ranked candidate list.** Turn the user's intent into search criteria (cuisine, radius, opening hours, a rating threshold — whatever the domain needs), find candidates, and rank them. Nothing is dialled yet.
+2. **Call one candidate at a time, with a fixed shape:** hard gates first (non-negotiable prerequisites that end the call immediately if unmet), then negotiable conditions, then a set of criteria the agent checks turn by turn. Each criterion carries an explicit reaction — what happens on a yes, what happens on a no. A configured replacement *substitutes* a failed position; it never runs alongside a satisfied one, and only fires once the original genuinely failed.
+3. **On failure, move on — with a reason.** A call that hits a hard gate or exhausts its concessions ends politely, and the cascade advances to the next candidate with the failure reason attached to the record, not silently.
+4. **Stop the instant one candidate succeeds.** No further candidate is dialled once an order, reservation, or appointment is confirmed — calling the remaining candidates after that would waste money and risk a duplicate commitment for no reason.
+5. **Every attempt is audited and kept as evidence**, successful or not: the structured result, the full transcript, and — where the domain supports it — a result card the user can save. An oral agreement over the phone has no paper trail of its own; this record is what stands in for one.
+
+### A hard lesson from the live measurements: the audit protects the data, not the real world
+
+Steps 3 and 5 describe what the cascade's own bookkeeping does: it validates a structured result and decides, from that result alone, whether a call counted as a success. Measuring against the live service made clear that this is not the same as protecting what actually happened on the other end of the line:
+
+- A call can end ambiguously — the callee's words leave real doubt about whether something was agreed — and the cascade's audit correctly flags the result as unusable data, but the underlying decision (stop here, ask the user, or dial the next candidate anyway) still has to be made explicitly. Advancing automatically past an ambiguous outcome risks the exact duplicate commitment that step 4 exists to prevent.
+- An agent can read a firm order or booking back to the callee, hang up without ever hearing an explicit yes, and have the cascade's audit correctly reject the missing confirmation as bad data — while the person on the other end of the phone still believes the call ended in an agreement, because nobody told them otherwise before the line closed.
+
+The general rule this leaves for anyone building on this pattern: **a retraction or a cancellation belongs in the conversation itself, spoken before the call ends — not only in the audit that runs afterwards.** A structured-result check can refuse to *record* a bad outcome; only the agent's own words during the call can undo it in the other person's mind. The same goes for any consequence the caller needs to hear about in the moment — an audit step alone is never a substitute for saying it out loud.
+
+### Reuse beyond this repository
+
+Nothing about the five steps above is specific to food, restaurants, or even to CALL-E. The gate/condition/criterion shape, the ranked-candidate search, and the stop-on-success rule apply equally to a dentist-appointment search, a repair-shop capacity check, or a spare-parts stock inquiry (see [`MUSTER.md`](MUSTER.md) for the pattern's origin story and worked non-food examples). The engine implementation in this repository is deliberately kept close to the food-ordering domain for this submission; a purpose-neutral extraction of the cascade engine itself — usable for any candidate-and-criteria phone search, independent of any single use case — is a planned next step, kept out of this repository for now.
+
+---
+
 ## ❓ Why Not Just Use the CALL-E App?
 
 The official CALL-E chat / app is designed to solve **a single phone call to a single pre-known target for a single goal**.

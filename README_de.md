@@ -80,6 +80,76 @@ er es doch, wird das Ergebnis verworfen — er hat Vollmacht ausgegeben, die er 
 
 ---
 
+## 🧩 Das Kaskaden-Blueprint
+
+Der Abschnitt oben benennt das Muster; dieser buchstabiert es als fünf Schritte aus, die
+jede telefonische Abklär-und-Termin-Pipeline übernehmen kann — unabhängig davon, was
+bestellt, reserviert oder vereinbart wird:
+
+1. **Kandidatenliste aufbauen und ranken.** Die Absicht des Nutzers wird zu
+   Suchkriterien (Küche, Umkreis, Öffnungszeiten, Bewertungsschwelle — was die Domäne
+   eben braucht), Kandidaten werden gefunden und geordnet. Noch wird niemand angerufen.
+2. **Je Kandidat ein Anruf mit fester Form:** zuerst harte Gates (nicht verhandelbare
+   Voraussetzungen, die das Gespräch sofort beenden, wenn sie nicht erfüllt sind), dann
+   verhandelbare Bedingungen, dann eine Reihe von Kriterien, die der Agent Zug um Zug
+   prüft. Jedes Kriterium trägt eine ausdrückliche Reaktion — was bei Ja geschieht, was
+   bei Nein. Ein konfigurierter Ersatz **ersetzt** eine gescheiterte Position; er läuft
+   nie zusätzlich zu einer bereits erfüllten mit und greift erst, wenn das Original
+   tatsächlich gescheitert ist.
+3. **Bei Scheitern weiterziehen — mit Begründung.** Ein Anruf, der an einem harten Gate
+   scheitert oder dessen Zugeständnisse ausgeschöpft sind, endet höflich; die Kaskade
+   zieht zum nächsten Kandidaten weiter und trägt den Scheitergrund im Beleg mit ein,
+   nicht stillschweigend.
+4. **Beim ersten Erfolg sofort stoppen.** Sobald eine Bestellung, Reservierung oder ein
+   Termin verbindlich zustande gekommen ist, wird kein weiterer Kandidat mehr angerufen —
+   die restlichen Anrufe würden nur Geld kosten und ohne Grund eine Doppelverpflichtung
+   riskieren.
+5. **Jeder Versuch wird protokolliert und als Beleg aufbewahrt**, ob erfolgreich oder
+   nicht: das strukturierte Ergebnis, das vollständige Transkript und — wo die Domäne es
+   hergibt — eine Ergebnis-Karte, die der Nutzer sichern kann. Eine mündliche Vereinbarung
+   am Telefon hat von sich aus keine Papierspur; dieser Beleg tritt an deren Stelle.
+
+### Eine harte Lehre aus den Live-Messungen: Das Audit schützt die Daten, nicht die Realwelt
+
+Schritt 3 und 5 beschreiben, was die **eigene Buchführung der Kaskade** leistet: Sie prüft
+ein strukturiertes Ergebnis und entscheidet allein daraus, ob ein Anruf als Erfolg zählt.
+Die Messung am echten Dienst hat gezeigt, dass das nicht dasselbe ist wie der Schutz dessen,
+was am anderen Ende der Leitung tatsächlich geschehen ist:
+
+- Ein Gespräch kann uneindeutig enden — die Worte des Angerufenen lassen echten Zweifel,
+  ob etwas vereinbart wurde — und das Audit der Kaskade markiert das Ergebnis zu Recht als
+  unbrauchbare Daten. Die eigentliche Entscheidung (hier anhalten, den Nutzer fragen, oder
+  trotzdem den nächsten Kandidaten anrufen) muss trotzdem ausdrücklich getroffen werden.
+  Automatisch über ein uneindeutiges Ergebnis hinwegzuziehen riskiert genau die
+  Doppelverpflichtung, die Schritt 4 verhindern soll.
+- Ein Agent kann eine verbindliche Bestellung oder Buchung dem Angerufenen laut vorlesen,
+  aber auflegen, ohne je ein ausdrückliches Ja gehört zu haben — und das Audit der Kaskade
+  weist die fehlende Bestätigung zu Recht als fehlerhafte Daten zurück. Die Person am
+  anderen Ende der Leitung glaubt trotzdem, das Gespräch sei mit einer Zusage zu Ende
+  gegangen, weil ihr niemand vor dem Auflegen etwas anderes gesagt hat.
+
+Die allgemeine Regel, die daraus für jede Weiterverwendung dieses Musters folgt: **Ein
+Widerruf oder eine Stornierung gehören ins Gespräch selbst, ausgesprochen bevor aufgelegt
+wird — nicht nur ins Audit, das erst danach läuft.** Eine Prüfung des strukturierten
+Ergebnisses kann sich weigern, ein schlechtes Ergebnis zu **speichern**; nur die eigenen
+Worte des Agenten während des Anrufs können es im Kopf des Gegenübers rückgängig machen.
+Dasselbe gilt für jede Konsequenz, die der Angerufene im Moment erfahren muss — ein
+Audit-Schritt allein ersetzt niemals das laute Aussprechen.
+
+### Weiterverwendung über dieses Repository hinaus
+
+An den fünf Schritten oben ist nichts essens-, restaurant- oder auch nur CALL-E-spezifisch.
+Die Form aus Gate/Bedingung/Kriterium, die gerankte Kandidatensuche und die
+Stopp-bei-Erfolg-Regel passen ebenso auf eine Zahnarztterminsuche, eine
+Werkstattkapazitätsprüfung oder eine Ersatzteil-Lageranfrage (Entstehungsgeschichte und
+durchgespielte Nicht-Essens-Beispiele siehe [`MUSTER.md`](MUSTER.md)). Die Engine-Umsetzung
+in diesem Repository bleibt für diesen Beitrag bewusst nah an der Essensbestellung; eine
+zweckneutrale Auskopplung der Kaskaden-Engine selbst — nutzbar für jede telefonische Suche
+über Kandidaten und Kriterien, unabhängig von einem einzelnen Anwendungsfall — ist als
+nächster Schritt geplant, liegt aber vorerst außerhalb dieses Repositories.
+
+---
+
 ## ❓ Warum nicht einfach die CALL-E-App?
 
 Benutz sie. Für **einen** Anruf ist der CALL-E-Chat schneller als alles, was man hier bauen
