@@ -189,40 +189,54 @@ def _closing_routine_examples(locale: str) -> tuple[str, str, str]:
 def _order_total_confirmation_clause(locale: str) -> str:
     """How to settle the total for a chain-based order, once quantities are known.
 
-    Field-trial finding 2026-08-22 (E4, E10): asked bluntly for "the total",
-    the restaurant supplied a bare number the agent had to trust outright --
-    once correctly ("11 euros 90" -> 11.90) and once misheard ("23,80"
-    transcribed as "2380", read as 2380 EUR and hard-aborted although the
-    real total was 23.80, far under budget). Calculating the total yourself
-    from prices and quantities already confirmed turns a number you must
-    trust into one you can check, and a wildly implausible reading becomes a
-    reason to ask again rather than a reason to guess or abort. Fully
-    localised like ``_order_chain_style_example`` (order_chains.py), because
-    the worked example is inseparable from the surrounding reasoning.
+    Reverted by user decision 2026-08-22 (E30). The field trial on 2026-08-11
+    (E4, E10) had the agent trust a bare restaurant-stated total outright, so
+    the 2026-08-22 fix before this one (commit c2afdb4) told the agent to
+    calculate the total itself from the unit prices and quantities already
+    confirmed, so a wildly implausible reading became a reason to ask again.
+    Measured live the same day: the agent's own arithmetic was WRONG (an
+    order it announced as "47.00 euros" was actually 37, or 27 without a
+    duplicated replacement item that should never have been ordered at all)
+    -- an unforced budget abort on an order that was really well within
+    limits. User decision: leave arithmetic to the human running the call,
+    not the voice agent. The unit price is still asked wherever a criterion
+    genuinely needs it (``order_chains.py``'s ``hoechstpreis`` criterion asks
+    for it directly, independent of this clause); this clause only covers the
+    order-level total, which the agent now asks the RESTAURANT for instead of
+    computing. The one thing kept from the reverted fix: a plausibility
+    follow-up when the stated total looks wildly off, so a misheard number is
+    still caught -- but as a request to repeat, never as the agent's own
+    announced number. Fully localised like ``_order_chain_style_example``
+    (order_chains.py), because the worked example is inseparable from the
+    surrounding reasoning.
     """
     if locale == "en":
         return (
-            "Calculate it yourself from the unit prices and quantities you already confirmed, "
-            "then read your own total back for confirmation and ask only for what you could not "
-            "know yourself, such as a delivery fee or a minimum-order surcharge -- for example: "
-            "\"So that is 2 times 11 euros 90, which comes to 23 euros 80. Is a delivery fee "
-            "added on top of that?\" If the other side instead states a total that differs "
-            "wildly from your own calculation (more than double, or less than half), do not "
-            "simply accept it and do not abort either -- ask again to make sure you heard "
-            "correctly, for example: \"Did you mean 23 euros 80?\" A misheard number is far "
-            "more likely than a real price that far outside your own calculation."
+            "Ask the restaurant to state the exact total price; do not calculate or announce "
+            "a total yourself, and do not read your own total back to them. If a criterion "
+            "above already required a single item's unit price (for example a maximum-price "
+            "check), that was asked for there, separately -- do not turn it into a running "
+            "calculation here. If the total the restaurant states seems wildly implausible "
+            "given what you already know about the order (for example more than double, or "
+            "less than half of what a rough sense of the items would suggest), do not simply "
+            "accept it and do not abort either -- ask them to repeat or confirm the number, "
+            "for example: \"Just to make sure I heard that correctly -- could you repeat the "
+            "total?\" Never state a number you worked out yourself; only ask the restaurant to "
+            "confirm or repeat theirs."
         )
     return (
-        "Rechnen Sie ihn selbst aus den bereits bestätigten Einzelpreisen und Mengen aus, lesen "
-        "Sie Ihre eigene Summe zur Bestätigung vor und fragen Sie nur noch nach dem, was Sie "
-        "selbst nicht wissen können, etwa eine Liefergebühr oder einen Mindestbestellwert-"
-        "Aufschlag -- zum Beispiel: \"Das macht dann 2 mal 11 Euro 90, also 23 Euro 80. Kommt da "
-        "noch eine Liefergebühr obendrauf?\" Wenn die Gegenseite stattdessen einen Gesamtpreis "
-        "nennt, der stark von Ihrer eigenen Rechnung abweicht (mehr als das Doppelte oder "
-        "weniger als die Hälfte), akzeptieren Sie ihn nicht einfach und brechen Sie auch nicht "
-        "ab -- fragen Sie lieber noch einmal nach, um sicherzugehen, dass Sie richtig verstanden "
-        "haben, zum Beispiel: \"Meinen Sie 23 Euro 80?\" Eine verhörte Zahl ist viel "
-        "wahrscheinlicher als ein Preis, der so weit von Ihrer eigenen Rechnung abweicht."
+        "Fragen Sie das Restaurant nach dem genauen Gesamtpreis; rechnen Sie selbst keine "
+        "Summe aus und sagen Sie auch keine an, und lesen Sie ihm keine eigene Summe vor. "
+        "Wenn eines der Kriterien oben bereits den Einzelpreis eines Postens brauchte (etwa "
+        "eine Höchstpreisprüfung), wurde der dort separat erfragt -- machen Sie daraus hier "
+        "keine laufende Rechnung. Wirkt der vom Restaurant genannte Gesamtpreis angesichts "
+        "dessen, was Sie über die Bestellung bereits wissen, völlig unplausibel (zum Beispiel "
+        "mehr als das Doppelte oder weniger als die Hälfte dessen, was die Posten grob "
+        "erwarten lassen), akzeptieren Sie ihn nicht einfach und brechen Sie auch nicht ab -- "
+        "bitten Sie um Wiederholung oder Bestätigung, zum Beispiel: \"Nur um sicherzugehen, "
+        "dass ich das richtig verstanden habe -- können Sie den Betrag noch einmal nennen?\" "
+        "Nennen Sie niemals eine selbst berechnete Zahl; fragen Sie nur nach, ob die genannte "
+        "Zahl stimmt."
     )
 
 
@@ -304,7 +318,7 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
                 f"sentence with every item's quantity — for example: \"That is 2 x Pizza "
                 f"Margherita and 1 x Cola.\" A restaurant cannot compute a total without "
                 f"hearing the quantities first. "
-                f"Then work out the EXACT total price this way: "
+                f"Then ask for the EXACT total price this way: "
                 f"{_order_total_confirmation_clause(language.locale)} "
                 f"Also ask for the estimated delivery time in minutes. "
                 f"If the total price is within our maximum budget limit of {request.max_budget_eur:.2f} EUR, "
@@ -352,7 +366,7 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
                 f"Margherita and 1 x Cola.\" A restaurant cannot compute a total without "
                 f"hearing the quantities first. "
                 f"There is no delivery fee, we collect ourselves. "
-                f"Then work out the EXACT total price this way: "
+                f"Then ask for the EXACT total price this way: "
                 f"{_order_total_confirmation_clause(language.locale)} "
                 f"Also ask exactly when the order will be ready for collection. "
                 f"If the total price is within our limit of {request.max_budget_eur:.2f} EUR, "

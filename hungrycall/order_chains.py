@@ -195,8 +195,26 @@ def build_order_chain_instruction(chain: OrderChain, locale: str | None = None) 
         lines.append(f"Position {position_index}:")
         for cell_index, cell in enumerate(position.cells, start=1):
             question = _cell_availability_question(locale, cell.product)
+            guard = ""
+            if cell_index > 1:
+                # Field-trial finding 2026-08-22 (E30): a wish cell PASSED
+                # every one of its criteria, yet the agent still asked about
+                # this replacement cell too and ordered both -- the
+                # "REPLACES" wording lived only in the reaction that fires
+                # WHEN the earlier cell fails (see _reaction_instruction),
+                # never as a standing precondition printed on the
+                # replacement cell's own block. A flat "Cell 1: ... Cell 2:
+                # ..." list reads like two things to ask about, not one
+                # conditional on the other, unless the condition is
+                # repeated right here.
+                guard = (
+                    "Only reach this cell if EVERY earlier cell in this position was "
+                    "rejected or unavailable. If any earlier cell in this position was "
+                    "already accepted, do NOT ask about this cell, do not mention it, and "
+                    "move straight to the next position. "
+                )
             lines.append(
-                f"  Cell {cell_index}: ask exactly \"{question}\" — availability "
+                f"  Cell {cell_index}: {guard}ask exactly \"{question}\" — availability "
                 "only, do not mention any quantity yet. If not available, try the next cell. "
                 "If available, check the following criteria in order."
             )

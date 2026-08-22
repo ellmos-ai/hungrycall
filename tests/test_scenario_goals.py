@@ -533,23 +533,43 @@ def test_every_goal_requires_an_unambiguous_ending(monkeypatch):
 
 
 # --------------------------------------------------------------------------
-# Endabnahme field-trial findings, 2026-08-22 (E4, E10): the restaurant was
-# asked to dictate a bare total; once it was misheard ("23,80" transcribed as
-# "2380") the agent trusted the garbled number and hard-aborted a call that
-# was well within budget. See engine.py::_order_total_confirmation_clause.
+# Endabnahme field-trial findings, 2026-08-22 (E4, E10, then E30): the
+# restaurant was first asked to dictate a bare total, which was misheard
+# once ("23,80" transcribed as "2380") and hard-aborted a call that was well
+# within budget -- fixed by having the agent calculate the total itself.
+# Live the SAME day (E30), that self-calculation was itself wrong (announced
+# "47.00 euros" for an order that was really 37, or 27 without a
+# replacement item that should never have been ordered alongside its wish
+# cell at all) and caused an unforced abort on a valid, affordable order.
+# User decision 2026-08-22: leave the arithmetic to the human running the
+# call. See engine.py::_order_total_confirmation_clause.
 # --------------------------------------------------------------------------
 
-def test_delivery_and_pickup_chain_goals_self_calculate_the_total(monkeypatch):
+def test_delivery_and_pickup_chain_goals_ask_the_restaurant_for_the_total(monkeypatch):
     monkeypatch.setenv(CALL_LOCALE_ENV, "en")
     delivery_goal = build_call_goal(RESTAURANT, _delivery_chain_max_price())
     pickup_goal = build_call_goal(RESTAURANT, _pickup_chain())
     for goal in (delivery_goal, pickup_goal):
-        assert "Calculate it yourself from the unit prices and quantities" in goal
-        assert "differs wildly from your own calculation" in goal
+        assert "Ask the restaurant to state the exact total price" in goal
+        assert "do not calculate or announce a total yourself" in goal
+        assert "do not read your own total back to them" in goal
+        # The plausibility follow-up survives the revert -- as a request to
+        # repeat, never as the agent's own announced number.
+        assert "wildly implausible" in goal
         assert "do not simply accept it and do not abort either" in goal
-        assert "ask again to make sure you heard correctly" in goal
+        assert "Never state a number you worked out yourself" in goal
     # Pickup still states plainly that no delivery fee applies, unchanged.
     assert "There is no delivery fee, we collect ourselves" in pickup_goal
+
+
+def test_the_agent_never_calculates_its_own_total_again(monkeypatch):
+    """Regression guard for E30: the reverted self-calculation wording must
+    not silently creep back in."""
+    monkeypatch.setenv(CALL_LOCALE_ENV, "en")
+    goal = build_call_goal(RESTAURANT, _delivery_chain_max_price())
+    assert "Calculate it yourself" not in goal
+    assert "read your own total back for confirmation" not in goal
+    assert "differs wildly from your own calculation" not in goal
 
 
 def test_total_confirmation_clause_is_fully_localised(monkeypatch):
@@ -558,15 +578,39 @@ def test_total_confirmation_clause_is_fully_localised(monkeypatch):
     call carrying the English worked example or vice versa."""
     monkeypatch.setenv(CALL_LOCALE_ENV, "de")
     de_goal = build_call_goal(RESTAURANT, _delivery_chain_max_price())
-    assert "Rechnen Sie ihn selbst aus" in de_goal
-    assert "Calculate it yourself" not in de_goal
-    assert "Meinen Sie 23 Euro 80?" in de_goal
+    assert "Fragen Sie das Restaurant nach dem genauen Gesamtpreis" in de_goal
+    assert "Ask the restaurant to state the exact total price" not in de_goal
+    assert "können Sie den Betrag noch einmal nennen?" in de_goal
 
     monkeypatch.setenv(CALL_LOCALE_ENV, "en")
     en_goal = build_call_goal(RESTAURANT, _delivery_chain_max_price())
-    assert "Calculate it yourself" in en_goal
-    assert "Rechnen Sie ihn selbst aus" not in en_goal
-    assert 'Did you mean 23 euros 80?' in en_goal
+    assert "Ask the restaurant to state the exact total price" in en_goal
+    assert "Fragen Sie das Restaurant nach dem genauen Gesamtpreis" not in en_goal
+    assert "could you repeat the total?" in en_goal
+
+
+# --------------------------------------------------------------------------
+# Endabnahme field-trial finding, 2026-08-22 (E30): a wish cell PASSED its
+# max-price criterion, yet the agent still asked about and ordered the next
+# replacement cell too (2 Schnitzel + 2 Pizza instead of just 2 Schnitzel).
+# See order_chains.py::build_order_chain_instruction.
+# --------------------------------------------------------------------------
+
+def test_a_replacement_cell_is_guarded_against_being_asked_additively(monkeypatch):
+    monkeypatch.setenv(CALL_LOCALE_ENV, "en")
+    chain = _chain(_position(
+        _cell("Schnitzel", criteria=[_criterion("hoechstpreis", 15.0)]),
+        _cell("Pizza"),
+    ))
+    goal = build_call_goal(RESTAURANT, _delivery(order_chain=chain, food_prompt=chain.summary()))
+    assert (
+        "Only reach this cell if EVERY earlier cell in this position was rejected "
+        "or unavailable." in goal
+    )
+    assert "do NOT ask about this cell, do not mention it" in goal
+    # The first cell of a position never carries the guard -- there is
+    # nothing "earlier" for it to wait on.
+    assert goal.count("Only reach this cell if EVERY earlier cell") == 1
 
 
 # --------------------------------------------------------------------------
