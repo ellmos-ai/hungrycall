@@ -707,6 +707,10 @@
     "de": "Fertig.",
     "en": "Done."
   },
+  "cascade.already_running": {
+    "de": "Läuft schon — dieser Durchlauf wurde bereits gestartet.",
+    "en": "Already running — this run was already started."
+  },
   "cascade.exhausted": {
     "de": "Alle Kandidaten durch. Keiner hat die Bedingungen erfüllt — es wurde nichts bestellt und nichts zugesagt.",
     "en": "Every candidate has been tried. None met the conditions — nothing was ordered and nothing was promised."

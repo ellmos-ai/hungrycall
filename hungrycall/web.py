@@ -58,6 +58,7 @@ from hungrycall.geo import today_weekday_key, weekday_key
 from hungrycall.i18n import LANG_COOKIE, resolve_lang, t
 from hungrycall.location import (
     RestaurantSearchError,
+    SearchServiceUnavailable,
     geocode_location,
     search_overpass_restaurants,
 )
@@ -113,6 +114,39 @@ if os.path.exists(STATIC_DIR):
 # Per-order runtime state, only for the lifetime of one cascade.
 ACTIVE_ORDERS: dict[str, dict[str, Any]] = {}
 CANCELED_ORDERS: set = set()
+
+# E23 (field-trial finding 2026-08-22): a fast double-click on "Start calls"
+# fired three POSTs to /api/start-cascade; each one minted its own order_id
+# and independently narrated HC.startStream(order_id) into the page, so the
+# browser could open more than one /api/cascade-stream connection for the
+# same order in a row -- and that route dials candidates the moment it is
+# opened, so a second, invisible cascade could call real restaurants a
+# second time with no monitor showing it. This maps one session to the one
+# order it is allowed to have running; start_cascade() hands back that SAME
+# order instead of minting a new one, and cascade_stream() refuses to dial a
+# given order_id twice regardless (see order["stream_started"]) -- belt and
+# braces, since either guard alone leaves a gap the other closes. The
+# client-side button lock (hx-disabled-elt on the Start button) is the first
+# line of defence and should mean neither guard is ever actually exercised.
+_SESSION_ACTIVE_ORDER: dict[str, str] = {}
+
+
+def _session_lock_key() -> str:
+    """One key per browser session; every local-mode request shares one --
+    this app already assumes a single user there (see active_order())."""
+    return huckepack_storage.current_session() or "__local__"
+
+
+def _session_open_cascade(session_key: str) -> str | None:
+    """The order_id of a cascade this session already has running, if any."""
+    order_id = _SESSION_ACTIVE_ORDER.get(session_key)
+    if order_id is None:
+        return None
+    order = ACTIVE_ORDERS.get(order_id)
+    if order is None or order.get("finished") or order_id in CANCELED_ORDERS:
+        _SESSION_ACTIVE_ORDER.pop(session_key, None)
+        return None
+    return order_id
 
 DEFAULT_SCENARIOS = {
     Mode.DELIVERY: "jury_30s_demo",
@@ -626,6 +660,24 @@ async def api_preview_goal(request: Request):
 async def start_cascade(request: Request):
     form = await request.form()
     lang = lang_of(request)
+
+    # E23: a duplicate POST for a session that already has a cascade running
+    # gets that SAME cascade's monitor back, not a second, independent one.
+    session_key = _session_lock_key()
+    duplicate_order_id = _session_open_cascade(session_key)
+    if duplicate_order_id is not None:
+        existing = ACTIVE_ORDERS[duplicate_order_id]
+        existing_request: UserRequest = existing["request"]
+        return HTMLResponse(render_cascade_monitor(
+            lang=lang,
+            order_id=duplicate_order_id,
+            mode=existing_request.mode,
+            max_budget_eur=existing_request.max_budget_eur,
+            criteria_line=criteria_line(existing_request, lang),
+            concession_keys=[c.key for c in existing_request.concessions],
+            live_mode=bool(existing.get("live_mode")),
+        ))
+
     fields = {k: form.get(k) for k in form}
     fields["concessions"] = form.getlist("concessions")
 
@@ -652,7 +704,18 @@ async def start_cascade(request: Request):
         )
         pool = rebuild_pool(city, lat, lon, radius_km, test_mode=test_mode)
     except RestaurantSearchError as exc:
-        return HTMLResponse(render_search_error(lang, exc.code, radius_km))
+        # E23: an OSM outage answered 200 like a normal search, so a client
+        # (or a script) had no way to tell "your search worked and found
+        # this error panel" from "the request itself failed" -- the same
+        # ambiguity that let the Start button's race condition go unnoticed.
+        # AddressNotFound / NoRestaurantsFound are not OSM failing, they are
+        # a completed search with an empty or invalid result, so those stay
+        # 200; only SearchServiceUnavailable -- Nominatim or Overpass itself
+        # being unreachable or broken -- gets its own status.
+        status_code = 503 if isinstance(exc, SearchServiceUnavailable) else 200
+        return HTMLResponse(
+            render_search_error(lang, exc.code, radius_km), status_code=status_code
+        )
 
     try:
         user_request = build_user_request(
@@ -750,7 +813,12 @@ async def start_cascade(request: Request):
         # identifier, not a permission: this dictionary lives in one process
         # that, hosted, several visitors share. See active_order().
         "session": huckepack_storage.current_session(),
+        # E23: same session, normalized -- see _session_lock_key(). Lets
+        # cascade_stream() release _SESSION_ACTIVE_ORDER[session_key] again
+        # once this cascade finishes, without recomputing the session here.
+        "session_key": session_key,
     }
+    _SESSION_ACTIVE_ORDER[session_key] = order_id
 
     return HTMLResponse(render_cascade_monitor(
         lang=lang,
@@ -880,11 +948,33 @@ async def cascade_stream(request: Request, order_id: str = Query(...)):
             yield sse({"type": "done"})
         return StreamingResponse(gone(), media_type="text/event-stream")
 
+    if order.get("stream_started"):
+        # E23: this order_id is already dialling (or already finished) on
+        # another connection. A second EventSource to the same order_id --
+        # opened, for instance, by a second HC.startStream() call after a
+        # duplicate /api/start-cascade POST slipped past every earlier guard
+        # -- must not dial the candidate list a second time. See
+        # start_cascade() and _SESSION_ACTIVE_ORDER.
+        async def already_running():
+            yield sse({"type": "status", "text": t("cascade.already_running", lang)})
+            yield sse({"type": "done"})
+        return StreamingResponse(already_running(), media_type="text/event-stream")
+    order["stream_started"] = True
+
     user_request: UserRequest = order["request"]
     candidates: list[Restaurant] = order["candidates"]
     client = order["call_client"]
     live_mode = bool(order.get("live_mode"))
     engine = CascadeEngine(candidate_pool=candidates, call_client=client, preserve_order=True)
+
+    def release_session_lock() -> None:
+        """Let this session start a new cascade again -- called exactly once,
+        however this stream ends (finished, canceled, or the connection just
+        dropped), by the wrapper below."""
+        order["finished"] = True
+        session_key = order.get("session_key")
+        if session_key is not None and _SESSION_ACTIVE_ORDER.get(session_key) == order_id:
+            _SESSION_ACTIVE_ORDER.pop(session_key, None)
 
     async def event_generator():
         yield sse({"type": "status", "text": t("cascade.init", lang)})
@@ -1037,7 +1127,20 @@ async def cascade_stream(request: Request, order_id: str = Query(...)):
         })
         yield sse({"type": "done"})
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    async def run_and_release_lock():
+        """Same events as event_generator(), plus the one guarantee it can't
+        give itself: release_session_lock() runs exactly once no matter which
+        of event_generator()'s several return points was taken, or whether
+        the connection was simply dropped mid-cascade (aclose() raises
+        GeneratorExit at the current yield, which this try/finally still
+        catches -- the same way it would in a plain generator)."""
+        try:
+            async for chunk in event_generator():
+                yield chunk
+        finally:
+            release_session_lock()
+
+    return StreamingResponse(run_and_release_lock(), media_type="text/event-stream")
 
 
 @app.post("/api/cancel-cascade", response_class=HTMLResponse)

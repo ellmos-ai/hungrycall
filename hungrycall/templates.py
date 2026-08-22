@@ -1483,7 +1483,7 @@ def render_candidate_step(
   </div>
 
   <div class="btn-row" style="margin-top:1.1rem;">
-    <button type="submit" class="btn">{esc(t(start_key, lang))}</button>
+    <button type="submit" class="btn" hx-disabled-elt="this">{esc(t(start_key, lang))}</button>
   </div>
 </form>
 
