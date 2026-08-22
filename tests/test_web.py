@@ -934,3 +934,61 @@ def test_every_dialled_attempt_is_persisted_with_its_transcript(client):
     assert all(a["rejection_reason"] for a in rejected)
     fetched = client.get(f"/api/order-attempts?order_id={order_id}").json()
     assert [a["id"] for a in fetched] == [a["id"] for a in attempts]
+
+
+def test_re_persisting_the_same_run_id_does_not_duplicate_the_attempt():
+    """Endabnahme field-trial finding 2026-08-22 (E6): two identical
+    call_attempts rows were observed for the same live call (same run_id).
+    record_call_attempt must be idempotent on (order_id, run_id) so a
+    re-entrant persist (stream reconnect, retry) updates the existing
+    receipt instead of duplicating it."""
+    from hungrycall.db import list_call_attempts, record_call_attempt
+
+    first = record_call_attempt(
+        order_id="ord_dup_test",
+        restaurant_id="rest_1",
+        restaurant_name="Gasthof Schwarzwaldhaus",
+        run_id="run_same_call",
+        status="COMPLETED",
+        passed=False,
+        rejection_reason="first pass rejection",
+        post_summary="first summary",
+        transcript="first transcript",
+        live=True,
+    )
+    second = record_call_attempt(
+        order_id="ord_dup_test",
+        restaurant_id="rest_1",
+        restaurant_name="Gasthof Schwarzwaldhaus",
+        run_id="run_same_call",
+        status="COMPLETED",
+        passed=True,
+        rejection_reason=None,
+        post_summary="second summary",
+        transcript="second transcript",
+        live=True,
+    )
+
+    attempts = list_call_attempts("ord_dup_test")
+    assert len(attempts) == 1
+    assert first["id"] == second["id"]
+    # The re-persisted (later) values win -- a reconnect sees the freshest
+    # evidence, not the first partial snapshot.
+    assert attempts[0]["passed"] == 1
+    assert attempts[0]["post_summary"] == "second summary"
+
+    # A different run_id for the same order is a genuinely different call
+    # and must get its own row.
+    record_call_attempt(
+        order_id="ord_dup_test",
+        restaurant_id="rest_2",
+        restaurant_name="Kurhaus Bernau",
+        run_id="run_different_call",
+        status="COMPLETED",
+        passed=True,
+        rejection_reason=None,
+        post_summary="third summary",
+        transcript="third transcript",
+        live=True,
+    )
+    assert len(list_call_attempts("ord_dup_test")) == 2

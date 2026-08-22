@@ -187,12 +187,48 @@ def record_call_attempt(
     transcript: str | None,
     live: bool,
 ) -> dict[str, Any]:
-    """Persist one dialled attempt with its masked transcript."""
+    """Persist one dialled attempt with its masked transcript.
+
+    Idempotent on (order_id, run_id) when a run_id is present -- both call
+    clients always set one (call_client.py), so this covers every real call.
+    Field-trial finding 2026-08-22 (E6): two identical rows were observed for
+    the same live call (same run_id); the reconciliation route into the
+    cascade stream that caused that is not itself pinned down, but the
+    persistence layer is the one place a duplicate can be stopped for good
+    regardless of how it got here. Re-persisting a run_id already on file
+    updates that row instead of inserting a second, duplicate receipt for a
+    call that only happened once in the real world.
+    """
     init_db()
     conn = get_db_connection()
     cursor = conn.cursor()
-    attempt_id = f"att_{uuid.uuid4().hex[:10]}"
     created_at = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+
+    if run_id:
+        cursor.execute(
+            "SELECT id, created_at FROM call_attempts WHERE order_id = ? AND run_id = ?",
+            (order_id, run_id),
+        )
+        existing = cursor.fetchone()
+        if existing is not None:
+            cursor.execute("""
+                UPDATE call_attempts
+                SET restaurant_id = ?, restaurant_name = ?, status = ?, passed = ?,
+                    rejection_reason = ?, post_summary = ?, transcript = ?, live = ?
+                WHERE id = ?
+            """, (
+                restaurant_id, restaurant_name, status, 1 if passed else 0,
+                rejection_reason, post_summary, transcript, 1 if live else 0,
+                existing["id"],
+            ))
+            conn.commit()
+            conn.close()
+            return {
+                "id": existing["id"], "order_id": order_id,
+                "created_at": existing["created_at"],
+            }
+
+    attempt_id = f"att_{uuid.uuid4().hex[:10]}"
     cursor.execute("""
         INSERT INTO call_attempts (
             id, order_id, restaurant_id, restaurant_name, run_id, status,
