@@ -411,12 +411,26 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
                 f"'{request.special_instructions.strip()}'."
             )
         authority = _reservation_authority_clause(request)
+        # Field-trial finding 2026-08-22 (E35): the agent asked the
+        # practically identical availability question twice in a row
+        # (Burger House transcript, 00:10 and 00:31) -- the restaurant
+        # answered differently each time ("that works" first, "that doesn't
+        # work after all" the second), which the repetition itself likely
+        # caused. ResearchCall's gate sequence has the same rule for its own
+        # questions; this is the reservation goal's equivalent.
+        duplicate_guard = (
+            " Ask each question in this call at most once. Once you have an answer to a "
+            "question — availability, seating, a tolerance-window offer, a booking fee — do "
+            "not ask it again later in the same call, even to double-check; treat the first "
+            "clear answer as final unless the OTHER side brings up something new."
+        )
         return (
             f"{intro} We would like to reserve a table on {request.reservation_date} "
             f"at {request.reservation_time} for {request.party_size} people.{seating_clause} "
             f"Please verify that a table is free at that time for that number of people, "
             f"then confirm the reservation under the name {requester_name}.{special_clause} "
             f"Also obtain a direct callback number in case we need to cancel."
+            f"{duplicate_guard}"
             f"{authority}"
             f"{fallback}"
             f"{confirmation}"

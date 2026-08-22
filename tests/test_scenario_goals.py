@@ -614,6 +614,20 @@ def test_a_replacement_cell_is_guarded_against_being_asked_additively(monkeypatc
 
 
 # --------------------------------------------------------------------------
+# Endabnahme field-trial finding, 2026-08-22 (E35): the agent asked the
+# practically identical availability question twice in a row in the same
+# call (Burger House transcript, 00:10 and 00:31), getting a different
+# answer each time. See engine.py's reservation branch.
+# --------------------------------------------------------------------------
+
+def test_reservation_goal_forbids_asking_a_question_twice(monkeypatch):
+    monkeypatch.setenv(CALL_LOCALE_ENV, "en")
+    goal = build_call_goal(RESTAURANT, _reservation_no_tolerances())
+    assert "Ask each question in this call at most once" in goal
+    assert "treat the first clear answer as final" in goal
+
+
+# --------------------------------------------------------------------------
 # Per-mode x per-language opening sentence: isolated so a change to any
 # mode's own opening cannot hide inside a larger scenario's golden diff.
 # --------------------------------------------------------------------------
