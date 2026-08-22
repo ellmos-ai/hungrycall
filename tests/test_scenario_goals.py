@@ -484,6 +484,55 @@ def test_flip_reservation_step_numbering_shifts_with_granted_tolerances(monkeypa
 
 
 # --------------------------------------------------------------------------
+# Endabnahme field-trial findings, 2026-08-22 (E3, E5, E18): the reported
+# outcome differed from what actually happened on the phone -- a hard
+# criterion failure was recorded correctly but not enforced live, quantities
+# were never announced before a total was requested, and a call ended with
+# neither a placed order nor a clear decline. These are goal-text fixes; see
+# order_chains.py::_reaction_instruction and build_order_chain_instruction,
+# and engine.py::build_call_goal's confirmation clause.
+# --------------------------------------------------------------------------
+
+def test_delivery_and_pickup_chain_goals_require_the_order_summary_before_price(monkeypatch):
+    """E5, 3x reproduced live: the agent asked only availability and unit
+    price, then a bare total, without ever announcing the quantities -- a
+    restaurant cannot compute a total it was never told the quantities for."""
+    monkeypatch.setenv(CALL_LOCALE_ENV, "en")
+    delivery_goal = build_call_goal(RESTAURANT, _delivery_chain_max_price())
+    pickup_goal = build_call_goal(RESTAURANT, _pickup_chain())
+    for goal in (delivery_goal, pickup_goal):
+        assert "first say the full order aloud" in goal
+        assert goal.index("first say the full order aloud") < goal.index("EXACT total price")
+
+
+def test_order_chain_criterion_consequences_are_enforced_live(monkeypatch):
+    """E3: a hard rejection was correctly scored as a failure after the call,
+    but the agent kept talking, asked about further items and placed a
+    binding order anyway (wish AND replacement together)."""
+    monkeypatch.setenv(CALL_LOCALE_ENV, "en")
+    chain = _chain(_position(
+        _cell("Pizza", criteria=[_criterion("hoechstpreis", 12.5, on_no="ablehnen")]),
+        end_rule="bestellung_abbrechen",
+    ))
+    goal = build_call_goal(RESTAURANT, _delivery(order_chain=chain, food_prompt=chain.summary()))
+    assert "apply every criterion's consequence OUT LOUD" in goal
+    assert "do not take this cell, do not try any further cell for this position" in goal
+    assert "do NOT place any order -- not even items from earlier positions" in goal
+    assert "you do NOT also keep the original wish" in goal
+
+
+def test_every_goal_requires_an_unambiguous_ending(monkeypatch):
+    """E18: a call ended with a plain goodbye, neither placing the order nor
+    declining it -- the restaurant could not tell whether anything had been
+    agreed, which the app's internal audit alone cannot fix."""
+    monkeypatch.setenv(CALL_LOCALE_ENV, "en")
+    for factory in (_delivery_simple, _pickup_simple, _reservation_no_tolerances):
+        goal = build_call_goal(RESTAURANT, factory())
+        assert "exactly one of two things must be true" in goal
+        assert "Never end a call with neither" in goal
+
+
+# --------------------------------------------------------------------------
 # Per-mode x per-language opening sentence: isolated so a change to any
 # mode's own opening cannot hide inside a larger scenario's golden diff.
 # --------------------------------------------------------------------------

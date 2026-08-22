@@ -213,7 +213,19 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
         "this goes beyond your mandate and that you must therefore cancel the order "
         "or reservation, and end the call with nothing placed. Never leave the other "
         "side believing something stands that your limits forced you to reject. "
-        "Do not end such a call without a matching confirmation."
+        "Do not end such a call without a matching confirmation. "
+        # Field-trial finding 2026-08-22 (E18): a call had every condition met
+        # to place the order, yet ended with just "thank you, goodbye" --
+        # neither placed nor declined. The internal audit correctly scored it
+        # as failed, but the restaurant was left not knowing whether an order
+        # existed, which is worse than a clear no.
+        "Before you hang up, exactly one of two things must be true and must have been said "
+        "OUT LOUD: either you placed the order or reservation bindingly through the closing "
+        "routine above, or you clearly declined and gave a short reason. Never end a call with "
+        "neither -- a vague goodbye, trailing off, or just thanking them leaves the other side "
+        "not knowing whether anything was agreed, which is worse than a clear decline. If you "
+        "are unsure whether to place it, that itself means: decline out loud, say briefly why, "
+        "and end the call."
     )
 
     if request.mode == Mode.DELIVERY:
@@ -231,7 +243,11 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
                 f"chain entirely. "
                 f"Then work through the order wish chain below item by item — do not ask for "
                 f"any total price before the items are settled. "
-                f"Only after the items are settled, ask for the EXACT total price in EUR "
+                f"Only after the items are settled, first say the full order aloud in one "
+                f"sentence with every item's quantity — for example: \"That is 2 x Pizza "
+                f"Margherita and 1 x Cola.\" A restaurant cannot compute a total without "
+                f"hearing the quantities first. "
+                f"Then ask for the EXACT total price in EUR "
                 f"including delivery fee and minimum order, and the estimated delivery time "
                 f"in minutes. "
                 f"If the total price is within our maximum budget limit of {request.max_budget_eur:.2f} EUR, "
@@ -274,7 +290,11 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
                 f"without ordering anything — skip the item chain entirely. "
                 f"Then work through the order wish chain below item by item — do not ask for "
                 f"any total price before the items are settled. "
-                f"Only after the items are settled, ask for the EXACT total price in EUR. "
+                f"Only after the items are settled, first say the full order aloud in one "
+                f"sentence with every item's quantity — for example: \"That is 2 x Pizza "
+                f"Margherita and 1 x Cola.\" A restaurant cannot compute a total without "
+                f"hearing the quantities first. "
+                f"Then ask for the EXACT total price in EUR. "
                 f"There is no delivery fee, we collect ourselves. Also ask exactly when the "
                 f"order will be ready for collection. "
                 f"If the total price is within our limit of {request.max_budget_eur:.2f} EUR, "

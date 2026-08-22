@@ -80,8 +80,22 @@ def _reaction_instruction(reaction: CriterionReaction) -> str:
     if reaction is CriterionReaction.ACCEPT:
         return "accept the criterion and continue with this cell"
     if reaction is CriterionReaction.NEXT_REPLACEMENT:
-        return "discard this cell and try the next replacement cell"
-    return "reject this position immediately and apply the position end rule"
+        return (
+            "discard this cell and try the next replacement cell -- the replacement REPLACES "
+            "it, you may still take only one of the two"
+        )
+    # Field-trial finding 2026-08-22 (E3): both a wish cell and its
+    # replacement failed this same criterion live, and the agent still
+    # ordered both of them and placed the order anyway -- the structured
+    # report afterwards correctly showed the failure, but by then the
+    # restaurant had already heard a binding order. The consequence has to
+    # change what is SAID next, in the same turn, not just what gets typed
+    # into the evidence at the end of the call.
+    return (
+        "reject this position immediately: stop, do not take this cell, do not try any "
+        "further cell for this position, and apply the position end rule below out loud "
+        "in this same turn -- do not continue the call as if nothing happened"
+    )
 
 
 def _criterion_instruction(criterion: OrderCriterion, index: int) -> str:
@@ -155,7 +169,19 @@ def build_order_chain_instruction(chain: OrderChain, locale: str | None = None) 
     locale = locale or call_language().locale
     lines = [
         "Work through the order wish chain in position order. Do not reorder positions or replacements.",
-        "For each position, try its cells in order. Never order more than one cell from one position.",
+        "For each position, try its cells in order. Never order more than one cell from one "
+        "position -- a replacement cell REPLACES the one tried before it, so if you take a "
+        "replacement you do NOT also keep the original wish, and you never say both are being "
+        "ordered.",
+        # Field-trial finding 2026-08-22 (E3, E18): a criterion's consequence
+        # was correctly evaluated after the call but not enforced during it --
+        # the agent kept negotiating, asked about later items, and placed a
+        # binding order the app's own audit then rejected. The audit rescues
+        # the data; it does not un-place a real order. Every reaction below
+        # must therefore change what is said next, immediately.
+        "CRITICAL: apply every criterion's consequence OUT LOUD, in the moment it happens on the "
+        "phone -- never keep going, ask about further items, or place an order from a position "
+        "after one of its cells has hit a hard rejection.",
     ]
     for position_index, position in enumerate(chain.positions, start=1):
         # Coverage-map finding #20 (CONVERSATION-TREE.md §4 row 20): tags
@@ -201,9 +227,11 @@ def build_order_chain_instruction(chain: OrderChain, locale: str | None = None) 
             )
         else:
             lines.append(
-                "  If no cell carries, the whole order is off: say clearly that you will "
-                "not order anything, thank them and end the conversation politely. Do NOT "
-                "move on to any later position and do NOT ask for any total price."
+                "  If no cell carries, the whole order is off: immediately and audibly tell the "
+                "restaurant, in this same turn, that you will not order anything today, thank "
+                "them and end the conversation politely. Do NOT move on to any later position, "
+                "do NOT ask for any total price, and do NOT place any order -- not even items "
+                "from earlier positions that did carry in this same call."
             )
     lines.extend([
         "Announce every decision aloud as you go: which item you are taking, which you are "
