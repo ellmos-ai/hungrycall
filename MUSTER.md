@@ -90,8 +90,11 @@ gegen draußen.
 sich die Umsetzung von der bloßen Idee unterscheidet:
 
 - Der Nutzer erteilt sie ausdrücklich. Für die Essens-Zweige (Lieferung/Abholung)
-  sind das die `FOOD_CONCESSIONS`-Stufen (`wait_longer_ok`, `higher_price_ok`,
-  `substitute_ok`); der Tisch-Zweig regelt dasselbe Prinzip seit der
+  sind das die `FOOD_CONCESSIONS`-Stufen (`wait_longer_ok`, `higher_price_ok` —
+  beide mit einem eigenen Eingabefeld statt fester Werte seit dem
+  Endabnahme-Befund E2 2026-08-22; die dritte, `substitute_ok`, wurde als
+  Duplikat der genaueren posten-eigenen Ersatzlogik entfernt, siehe E1);
+  der Tisch-Zweig regelt dasselbe Prinzip seit der
   Auslagerung der Zeit-/Gebührenfelder über die numerischen Felder
   `earlier_hours`/`later_hours`/`max_booking_fee_eur` statt über einzelne
   Zugeständnis-Schlüssel — Legacy-Zugeständnisse sind ihm ausdrücklich

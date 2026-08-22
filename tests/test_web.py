@@ -615,20 +615,21 @@ def test_goal_preview_ignores_removed_legacy_concessions(client):
 def test_food_concession_checkboxes_reach_the_goal_in_tier_order(client):
     """Coverage-map finding #12: the concession ladder must be reachable.
 
-    Submitted out of tier order (substitute_ok is tier 3, wait_longer_ok is
+    Submitted out of tier order (higher_price_ok is tier 2, wait_longer_ok is
     tier 1) — the goal must still list Step 1 before Step 2, proving the
-    server does the ordering rather than trusting form order.
+    server does the ordering rather than trusting form order. (The former
+    third tier, substitute_ok, was removed as a duplicate of the per-position
+    substitution mechanism -- see E1, Endabnahme-Befund 2026-08-22, and
+    test_food_concession_substitute_option_is_gone below.)
     """
     delivery = client.post("/api/preview-goal", data=search_form(
         candidate_order="rest_burger_house",
-        concessions=["substitute_ok", "wait_longer_ok"],
+        concessions=["higher_price_ok", "wait_longer_ok"],
     )).json()["goal"]
 
     assert "Step 1: only if the previous attempt failed, waiting up to 15 minutes longer" in delivery
-    assert "Step 2: only if the previous attempt failed, accepting a similar substitute" in delivery
+    assert "Step 2: only if the previous attempt failed, paying up to 3 EUR more than the maximum budget" in delivery
     assert delivery.index("Step 1:") < delivery.index("Step 2:")
-    # The third, unauthorised concession must not appear at all.
-    assert "3 EUR more than the maximum budget" not in delivery
 
     pickup = client.post("/api/preview-goal", data=search_form(
         mode="pickup", pickup_time="19:30",
@@ -636,6 +637,73 @@ def test_food_concession_checkboxes_reach_the_goal_in_tier_order(client):
         concessions=["higher_price_ok"],
     )).json()["goal"]
     assert "paying up to 3 EUR more than the maximum budget stated above is acceptable" in pickup
+    # The other concession, never checked here, must not leak in either.
+    assert "waiting up to" not in pickup
+
+
+def test_food_concession_substitute_option_is_gone(client):
+    """E1 (Endabnahme-Befund 2026-08-22): the "accept a similar substitute"
+    checkbox duplicated a mechanism this app already has, and had built more
+    precisely -- a per-position substitution rule (OrderCell / OrderCriterion
+    / CriterionReaction.NEXT_REPLACEMENT). Removed, not integrated: an
+    unknown key submitted anyway (a stale bookmark, a manually crafted form)
+    is silently dropped rather than accepted, the same way any other unknown
+    concession key already was."""
+    page = client.get("/order?lang=en").text
+    assert 'id="concession-substitute_ok"' not in page
+    assert "similar substitute" not in page
+
+    goal = client.post("/api/preview-goal", data=search_form(
+        candidate_order="rest_burger_house",
+        concessions=["substitute_ok"],
+    )).json()["goal"]
+    assert "similar substitute" not in goal
+    assert "Step 1" not in goal
+
+
+def test_food_concession_wait_and_price_amounts_are_configurable(client):
+    """E2 (Endabnahme-Befund 2026-08-22): "15 minutes" and "3 EUR" used to be
+    fixed constants next to the checkboxes; a caller who actually needs 30
+    minutes or 5 EUR had no way to say so. The tier-based sequential-offer
+    principle (Step 1 before Step 2) is unaffected by the value itself."""
+    goal = client.post("/api/preview-goal", data=search_form(
+        candidate_order="rest_burger_house",
+        concessions=["wait_longer_ok", "higher_price_ok"],
+        concession_wait_minutes="30",
+        concession_price_delta_eur="5.5",
+    )).json()["goal"]
+
+    assert "waiting up to 30 minutes longer" in goal
+    assert "paying up to 5.5 EUR more than the maximum budget" in goal
+    assert "15 minutes" not in goal
+    assert "3 EUR more" not in goal
+    assert goal.index("Step 1:") < goal.index("Step 2:")
+
+    # Not submitted at all -- the old fixed defaults still apply.
+    default_goal = client.post("/api/preview-goal", data=search_form(
+        candidate_order="rest_burger_house",
+        concessions=["wait_longer_ok"],
+    )).json()["goal"]
+    assert "waiting up to 15 minutes longer" in default_goal
+
+
+def test_food_concession_amounts_are_bounded(client):
+    """The same validation discipline as every other numeric authorisation
+    on this form (e.g. max_booking_fee_eur) -- out of range is a 400, not a
+    silently clamped or accepted value."""
+    response = client.post("/api/preview-goal", data=search_form(
+        candidate_order="rest_burger_house",
+        concessions=["wait_longer_ok"],
+        concession_wait_minutes="-5",
+    ))
+    assert response.status_code == 400
+
+    response = client.post("/api/preview-goal", data=search_form(
+        candidate_order="rest_burger_house",
+        concessions=["higher_price_ok"],
+        concession_price_delta_eur="not-a-number",
+    ))
+    assert response.status_code == 400
 
 
 def test_goal_preview_refuses_prohibited_content(client):

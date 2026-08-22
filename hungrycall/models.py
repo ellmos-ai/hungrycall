@@ -101,6 +101,15 @@ class Concession:
     tier: int = 1   # 1 is played first, 2 only after 1 failed
 
 
+# E2 (Endabnahme-Befund 2026-08-22): the wait-longer and higher-price food
+# concessions used to bake a fixed "15 minutes" / "3 EUR" straight into their
+# label text below (templates.FOOD_CONCESSIONS). These are the defaults a
+# form that does not say otherwise falls back to; a submitted form can ask
+# for a different number instead (templates.resolved_food_concessions()).
+DEFAULT_CONCESSION_WAIT_MINUTES = 15
+DEFAULT_CONCESSION_PRICE_DELTA_EUR = 3.0
+
+
 @dataclass
 class OrderCriterion:
     """One condition attached to one possible product cell.
@@ -314,6 +323,16 @@ class UserRequest:
     earlier_minutes: int = 0
     later_minutes: int = 0
     max_booking_fee_eur: float = 0.0
+    # E2 (Endabnahme-Befund 2026-08-22): the actual numbers behind the two
+    # configurable food concessions above, carried separately from
+    # concessions[].label (that label is the fixed English sentence already
+    # handed to the voice agent) so the cascade monitor's own UI band can
+    # describe the SAME authorisation instead of the old hardcoded "15
+    # minutes" / "3 EUR" regardless of what was actually granted. Appended
+    # here rather than next to ``concessions`` above so no existing
+    # positional UserRequest(...) construction shifts.
+    concession_wait_minutes: float = DEFAULT_CONCESSION_WAIT_MINUTES
+    concession_price_delta_eur: float = DEFAULT_CONCESSION_PRICE_DELTA_EUR
 
     def granted_concession_keys(self) -> list[str]:
         return [c.key for c in self.concessions]

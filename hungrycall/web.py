@@ -62,7 +62,16 @@ from hungrycall.location import (
     geocode_location,
     search_overpass_restaurants,
 )
-from hungrycall.models import Branch, CallResult, Mode, Restaurant, Seating, UserRequest
+from hungrycall.models import (
+    DEFAULT_CONCESSION_PRICE_DELTA_EUR,
+    DEFAULT_CONCESSION_WAIT_MINUTES,
+    Branch,
+    CallResult,
+    Mode,
+    Restaurant,
+    Seating,
+    UserRequest,
+)
 from hungrycall.order_chains import (
     default_order_chain,
     evaluate_order_chain,
@@ -83,7 +92,6 @@ from hungrycall.safety import (
 )
 from hungrycall.server_mode import current_mode
 from hungrycall.templates import (
-    FOOD_CONCESSIONS,
     render_branch_page,
     render_candidate_step,
     render_cascade_monitor,
@@ -94,6 +102,7 @@ from hungrycall.templates import (
     render_result_card,
     render_result_sentence,
     render_search_error,
+    resolved_food_concessions,
 )
 
 logger = logging.getLogger(__name__)
@@ -297,10 +306,6 @@ def build_user_request(
     mode = Mode(fields.get("mode") or "delivery")
 
     concession_keys = fields.get("concessions") or []
-    concessions = (
-        [] if mode is Mode.RESERVATION
-        else [c for c in FOOD_CONCESSIONS if c.key in concession_keys]
-    )
 
     reservation_date = fields.get("reservation_date")
     current_day_value = day_override or current_day()
@@ -333,6 +338,32 @@ def build_user_request(
         if value < 0 or value > maximum:
             raise ValueError(f"{key} must be between 0 and {maximum}")
         return value
+
+    def bounded_float(key: str, default: float, maximum: float) -> float:
+        raw = fields.get(key)
+        if raw in (None, "", "None"):
+            return default
+        try:
+            value = float(raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{key} must be numeric") from exc
+        if not math.isfinite(value) or value < 0 or value > maximum:
+            raise ValueError(f"{key} must be between 0 and {maximum}")
+        return value
+
+    # E2 (Endabnahme-Befund 2026-08-22): "15 minutes" / "3 EUR" used to be
+    # fixed constants. Bounded rather than trusted outright, the same way
+    # max_booking_fee_eur below is -- an authorisation the agent will act on
+    # gets the same numeric validation as any other one.
+    concession_wait_minutes = bounded_float("concession_wait_minutes", DEFAULT_CONCESSION_WAIT_MINUTES, 180)
+    concession_price_delta_eur = bounded_float("concession_price_delta_eur", DEFAULT_CONCESSION_PRICE_DELTA_EUR, 100)
+    concessions = (
+        [] if mode is Mode.RESERVATION
+        else [
+            c for c in resolved_food_concessions(concession_wait_minutes, concession_price_delta_eur)
+            if c.key in concession_keys
+        ]
+    )
 
     legacy_name = str(fields.get("customer_name") or "").strip()
     first_name = str(fields.get("first_name") or "").strip()
@@ -446,6 +477,8 @@ def build_user_request(
         earlier_minutes=earlier_minutes if mode is Mode.RESERVATION else 0,
         later_minutes=later_minutes if mode is Mode.RESERVATION else 0,
         max_booking_fee_eur=max_booking_fee_eur if mode is Mode.RESERVATION else 0.0,
+        concession_wait_minutes=concession_wait_minutes,
+        concession_price_delta_eur=concession_price_delta_eur,
     )
 
 
@@ -676,6 +709,8 @@ async def start_cascade(request: Request):
             criteria_line=criteria_line(existing_request, lang),
             concession_keys=[c.key for c in existing_request.concessions],
             live_mode=bool(existing.get("live_mode")),
+            concession_wait_minutes=existing_request.concession_wait_minutes,
+            concession_price_delta_eur=existing_request.concession_price_delta_eur,
         ))
 
     fields = {k: form.get(k) for k in form}
@@ -828,6 +863,8 @@ async def start_cascade(request: Request):
         criteria_line=criteria_line(user_request, lang),
         concession_keys=[c.key for c in user_request.concessions],
         live_mode=live_mode,
+        concession_wait_minutes=user_request.concession_wait_minutes,
+        concession_price_delta_eur=user_request.concession_price_delta_eur,
     ))
 
 

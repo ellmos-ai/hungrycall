@@ -17,10 +17,19 @@ more.
 
 import html
 import json
+from dataclasses import replace
 from typing import Any
 
 from hungrycall.i18n import SUPPORTED, has_key, t
-from hungrycall.models import Branch, Concession, Mode, OrderChain, Restaurant
+from hungrycall.models import (
+    DEFAULT_CONCESSION_PRICE_DELTA_EUR,
+    DEFAULT_CONCESSION_WAIT_MINUTES,
+    Branch,
+    Concession,
+    Mode,
+    OrderChain,
+    Restaurant,
+)
 from hungrycall.order_chains import (
     OrderChainEvaluation,
     default_order_chain,
@@ -968,6 +977,13 @@ def render_food_fields(
     )
     max_budget = defaults.get("max_budget_eur") or 35.0
     pickup_time = defaults.get("pickup_time") or "19:30"
+    # E2 (Endabnahme-Befund 2026-08-22): "15 minutes" / "3 EUR" used to be
+    # fixed text next to the checkbox. The checkbox label and the number
+    # field below it are built from this SAME value, so they cannot disagree
+    # with each other or with what actually gets authorised
+    # (resolved_food_concessions() in web.py reads the same two form fields).
+    concession_wait_minutes = defaults.get("concession_wait_minutes") or DEFAULT_CONCESSION_WAIT_MINUTES
+    concession_price_delta_eur = defaults.get("concession_price_delta_eur") or DEFAULT_CONCESSION_PRICE_DELTA_EUR
 
     return f"""
 <hr class="hr" style="margin:1.2rem 0;">
@@ -1110,18 +1126,22 @@ def render_food_fields(
 <h3 class="eyebrow">{esc(t("food.concessions.title", lang))}</h3>
 <p class="help" style="margin:0.5rem 0 0.8rem;max-width:72ch;">{esc(t("food.concessions.help", lang))}</p>
 <div class="grid3">
-  <label class="check" for="concession-wait_longer_ok">
-    <input type="checkbox" id="concession-wait_longer_ok" name="concessions" value="wait_longer_ok">
-    <span>{esc(t("food.concession.wait_longer_ok", lang))}</span>
-  </label>
-  <label class="check" for="concession-higher_price_ok">
-    <input type="checkbox" id="concession-higher_price_ok" name="concessions" value="higher_price_ok">
-    <span>{esc(t("food.concession.higher_price_ok", lang))}</span>
-  </label>
-  <label class="check" for="concession-substitute_ok">
-    <input type="checkbox" id="concession-substitute_ok" name="concessions" value="substitute_ok">
-    <span>{esc(t("food.concession.substitute_ok", lang))}</span>
-  </label>
+  <div class="field">
+    <label class="check" for="concession-wait_longer_ok">
+      <input type="checkbox" id="concession-wait_longer_ok" name="concessions" value="wait_longer_ok">
+      <span>{esc(t("food.concession.wait_longer_ok", lang, minutes=_format_concession_number(concession_wait_minutes)))}</span>
+    </label>
+    <label for="concession_wait_minutes" class="help" style="margin-top:0.35rem;">{esc(t("food.concession.wait_minutes.label", lang))}</label>
+    <input type="number" id="concession_wait_minutes" name="concession_wait_minutes" value="{esc(_format_concession_number(concession_wait_minutes))}" min="0" max="180" step="1">
+  </div>
+  <div class="field">
+    <label class="check" for="concession-higher_price_ok">
+      <input type="checkbox" id="concession-higher_price_ok" name="concessions" value="higher_price_ok">
+      <span>{esc(t("food.concession.higher_price_ok", lang, amount=_format_concession_number(concession_price_delta_eur)))}</span>
+    </label>
+    <label for="concession_price_delta_eur" class="help" style="margin-top:0.35rem;">{esc(t("food.concession.price_delta.label", lang))}</label>
+    <input type="number" id="concession_price_delta_eur" name="concession_price_delta_eur" value="{esc(_format_concession_number(concession_price_delta_eur))}" min="0" max="100" step="0.5">
+  </div>
 </div>
 <script>
 /* app.js is deferred and runs after every inline script; this block executes
@@ -1141,26 +1161,57 @@ HC.orderTemplates = {script_json(order_templates)};
 # ``engine.build_call_goal``) because the newer earlier/later/fee fields on
 # the table form supersede it there. Wiring THOSE labels to a pizza-delivery
 # checkbox would have put "an indoor table is acceptable" in a food-order
-# goal. These three are food/delivery/pickup-appropriate instead, along the
-# same independent axes (time, price, item) the rest of a food goal already
+# goal. These two are food/delivery/pickup-appropriate instead, along the
+# same independent axes (time, price) the rest of a food goal already
 # discusses, so they compose with it rather than introducing a new topic.
+#
+# E1 (Endabnahme-Befund 2026-08-22): a third entry, "accepting a similar
+# substitute chosen by the restaurant instead of the exact item requested",
+# used to live here as a single global on/off switch next to these two. It
+# duplicated a mechanism this app already has and had built more precisely:
+# a per-position substitution rule (OrderCell / OrderCriterion /
+# CriterionReaction.NEXT_REPLACEMENT, see order_chains.py), which lets a
+# guest say exactly which item may be substituted and by what rule, instead
+# of "any item, any substitute, yes or no" for the whole order. Removed
+# rather than integrated — the per-position mechanism was already the right
+# place for this, not a new destination for it to be built.
+#
+# {minutes} and {amount} are filled in at render/request time
+# (resolved_food_concessions() below) from the form's own
+# concession_wait_minutes / concession_price_delta_eur fields — see E2
+# (Endabnahme-Befund 2026-08-22): these two numbers used to be fixed here.
 FOOD_CONCESSIONS: list[Concession] = [
     Concession(
         key="wait_longer_ok",
-        label="waiting up to 15 minutes longer than the time first given for delivery or collection is acceptable",
+        label="waiting up to {minutes} minutes longer than the time first given for delivery or collection is acceptable",
         tier=1,
     ),
     Concession(
         key="higher_price_ok",
-        label="paying up to 3 EUR more than the maximum budget stated above is acceptable, if that is the only way to place the order",
+        label="paying up to {amount} EUR more than the maximum budget stated above is acceptable, if that is the only way to place the order",
         tier=2,
     ),
-    Concession(
-        key="substitute_ok",
-        label="accepting a similar substitute chosen by the restaurant instead of the exact item requested, if the exact item is not available",
-        tier=3,
-    ),
 ]
+
+
+def _format_concession_number(value: float) -> str:
+    """3.0 -> "3", 15 -> "15", 3.5 -> "3.5" -- a whole number embedded in an
+    otherwise-numeric sentence should not carry a needless ".0"."""
+    return f"{float(value):g}"
+
+
+def resolved_food_concessions(
+    wait_minutes: float = DEFAULT_CONCESSION_WAIT_MINUTES,
+    price_delta_eur: float = DEFAULT_CONCESSION_PRICE_DELTA_EUR,
+) -> list[Concession]:
+    """FOOD_CONCESSIONS with the caller-configured numbers filled into the
+    label text the voice agent receives (E2, Endabnahme-Befund 2026-08-22)."""
+    minutes_text = _format_concession_number(wait_minutes)
+    amount_text = _format_concession_number(price_delta_eur)
+    return [
+        replace(c, label=c.label.format(minutes=minutes_text, amount=amount_text))
+        for c in FOOD_CONCESSIONS
+    ]
 
 
 def render_table_fields(lang: str) -> str:
@@ -1507,6 +1558,8 @@ def render_cascade_monitor(
     criteria_line: str,
     concession_keys: list[str],
     live_mode: bool = False,
+    concession_wait_minutes: float = DEFAULT_CONCESSION_WAIT_MINUTES,
+    concession_price_delta_eur: float = DEFAULT_CONCESSION_PRICE_DELTA_EUR,
 ) -> str:
     """The waiting screen. Waiting is not idleness, it is not knowing."""
     if mode is Mode.RESERVATION:
@@ -1521,9 +1574,19 @@ def render_cascade_monitor(
     # concession_keys only ever carries FOOD_CONCESSIONS keys here (RESERVATION
     # never runs this band, see concession_band below) — "food.concession."
     # is the matching i18n namespace, not "table.concession." (that one is
-    # the reservation form's own earlier/later/fee fields).
+    # the reservation form's own earlier/later/fee fields). concession_wait_
+    # minutes/concession_price_delta_eur are the numbers actually GRANTED for
+    # this cascade (E2, Endabnahme-Befund 2026-08-22) — passed to every key's
+    # t() call, harmless for keys whose text has no matching {placeholder}.
     concession_text = (
-        ", ".join(t("food.concession." + k, lang) for k in concession_keys)
+        ", ".join(
+            t(
+                "food.concession." + k, lang,
+                minutes=_format_concession_number(concession_wait_minutes),
+                amount=_format_concession_number(concession_price_delta_eur),
+            )
+            for k in concession_keys
+        )
         if concession_keys else t("cascade.band.concessions.none", lang)
     )
     concession_band = "" if mode is Mode.RESERVATION else f"""

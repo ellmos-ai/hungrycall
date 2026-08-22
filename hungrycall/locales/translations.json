@@ -592,16 +592,20 @@
     "en": "These are offered only after the plain order does not go through as stated — in this order, never all at once."
   },
   "food.concession.wait_longer_ok": {
-    "de": "Notfalls bis zu 15 Minuten länger warten",
-    "en": "Up to 15 minutes longer would do"
+    "de": "Notfalls bis zu {minutes} Minuten länger warten",
+    "en": "Up to {minutes} minutes longer would do"
+  },
+  "food.concession.wait_minutes.label": {
+    "de": "Wie viele Minuten länger?",
+    "en": "How many minutes longer?"
   },
   "food.concession.higher_price_ok": {
-    "de": "Notfalls bis zu 3 € mehr zahlen",
-    "en": "Up to €3 more would do"
+    "de": "Notfalls bis zu {amount} € mehr zahlen",
+    "en": "Up to €{amount} more would do"
   },
-  "food.concession.substitute_ok": {
-    "de": "Notfalls einen ähnlichen Ersatzartikel akzeptieren",
-    "en": "A similar substitute would do"
+  "food.concession.price_delta.label": {
+    "de": "Wie viel Euro mehr?",
+    "en": "How many euros more?"
   },
   "goal.title": {
     "de": "Der Auftragstext",
