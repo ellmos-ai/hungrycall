@@ -614,6 +614,38 @@ def test_a_replacement_cell_is_guarded_against_being_asked_additively(monkeypatc
 
 
 # --------------------------------------------------------------------------
+# Endabnahme field-trial findings, 2026-08-22 (E31, E36d): the agent read an
+# order back, said "I hereby confirm this bindingly", and hung up without
+# ever hearing an explicit yes -- the restaurant was left believing the
+# order had gone through, even though the app's own audit discarded it for
+# the missing confirmation. See engine.py's ``confirmation`` block.
+# --------------------------------------------------------------------------
+
+def test_the_binding_word_only_follows_the_other_sides_yes(monkeypatch):
+    monkeypatch.setenv(CALL_LOCALE_ENV, "en")
+    for factory in (_delivery_simple, _pickup_simple, _reservation_no_tolerances):
+        goal = build_call_goal(RESTAURANT, factory())
+        ask_index = goal.index("ask the other side to confirm it")
+        bindingly_index = goal.index(
+            "ONLY once the other side has given an explicit yes to that confirmation, "
+            "say clearly that the order or reservation is hereby placed bindingly"
+        )
+        assert ask_index < bindingly_index
+        assert "Never say the word 'bindingly'" in goal
+
+
+def test_a_missing_confirmation_must_be_cancelled_out_loud(monkeypatch):
+    monkeypatch.setenv(CALL_LOCALE_ENV, "en")
+    en_goal = build_call_goal(RESTAURANT, _delivery_simple())
+    assert "the order or reservation is NOT placed" in en_goal
+    assert "Then I'll cancel that, please don't prepare anything." in en_goal
+
+    monkeypatch.setenv(CALL_LOCALE_ENV, "de")
+    de_goal = build_call_goal(RESTAURANT, _delivery_simple())
+    assert "Dann storniere ich das, bitte nichts zubereiten." in de_goal
+
+
+# --------------------------------------------------------------------------
 # Endabnahme field-trial finding, 2026-08-22 (E35): the agent asked the
 # practically identical availability question twice in a row in the same
 # call (Burger House transcript, 00:10 and 00:31), getting a different

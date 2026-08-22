@@ -166,10 +166,12 @@ def _call_intro(locale: str, requester_name: str) -> str:
     )
 
 
-def _closing_routine_examples(locale: str) -> tuple[str, str, str]:
-    """The three VERBATIM-quoted example fragments in the closing routine.
+def _closing_routine_examples(locale: str) -> tuple[str, str, str, str]:
+    """The four VERBATIM-quoted example fragments in the closing routine.
 
-    Returns (confirmation_question, readback_question, readback_answer).
+    Returns (confirmation_question, readback_question, readback_answer,
+    cancel_statement). The fourth is new (E31, 2026-08-22): what to say out
+    loud when no explicit yes was heard before the call would otherwise end.
     """
     if locale == "en":
         return (
@@ -177,12 +179,14 @@ def _closing_routine_examples(locale: str) -> tuple[str, str, str]:
             "delivered, and to whom?",
             "So you're ordering 2 Pasta Napoli?",
             "Yes, and one tiramisu.",
+            "Then I'll cancel that, please don't prepare anything.",
         )
     return (
         "Bestätigen Sie mir bitte kurz die Bestellung: Was wird "
         "geliefert, und an wen?",
         "Sie bestellen also 2 Pasta Napoli?",
         "Ja, und ein Tiramisu.",
+        "Dann storniere ich das, bitte nichts zubereiten.",
     )
 
 
@@ -266,24 +270,46 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
     # Field-trial feedback 2026-08-11: the caller confirmed the order only
     # because the human asked for a summary. The agent must obtain that
     # confirmation itself, with a read-back, before hanging up.
-    confirm_question, readback_question, readback_answer = _closing_routine_examples(
-        language.locale
+    confirm_question, readback_question, readback_answer, cancel_statement = (
+        _closing_routine_examples(language.locale)
     )
     confirmation = (
         " Every call that places an order or reservation ends with a closing routine: "
         "(1) summarize the complete order aloud — every item with quantity, the total "
-        "price, the name and the address or time; (2) place it bindingly — say clearly "
-        "that the order is hereby placed; (3) obtain the other side's confirmation — "
+        "price, the name and the address or time; (2) ask the other side to confirm it, "
+        "and WAIT for their answer — "
         f"for example: \"{confirm_question}\" If the other side repeats the order back, check "
         "their read-back against what was actually agreed and correct or complete "
         f"anything missing — for example, restaurant: \"{readback_question}\" — you: "
         f"\"{readback_answer}\" "
+        # Field-trial finding 2026-08-22 (E36d): the agent's own worked
+        # example said "I hereby confirm this bindingly" BEFORE the
+        # restaurant had replied at all -- the very sentence meant to close
+        # the negotiation was said while the negotiation could still have
+        # changed. The word only belongs after the other side actually said
+        # yes.
+        "(3) ONLY once the other side has given an explicit yes to that confirmation, say "
+        "clearly that the order or reservation is hereby placed bindingly. Never say the word "
+        "'bindingly' or anything equivalent to it before you have actually heard that yes. "
         "If a NEW condition appears after your summary — a fee, a changed price, a "
         "changed time — re-check it against your limits before accepting anything. "
         "If it exceeds what you are authorised to accept, RETRACT aloud: say that "
         "this goes beyond your mandate and that you must therefore cancel the order "
         "or reservation, and end the call with nothing placed. Never leave the other "
         "side believing something stands that your limits forced you to reject. "
+        # Field-trial finding 2026-08-22 (E31): in one call the agent read
+        # the order back and asked for confirmation, then hung up without
+        # ever hearing an explicit yes. The app's own audit correctly
+        # discarded the result for the missing confirmation -- but the
+        # restaurant, having heard the order stated and the call end
+        # normally, was left believing it had gone through. An internal
+        # rejection nobody spoke out loud is not a rejection from the other
+        # side's point of view.
+        "If you do NOT hear an explicit yes to your confirmation question — silence, a "
+        "non-answer, or the conversation moving on without one — the order or reservation is "
+        "NOT placed, no matter what you already said in step (1). Before hanging up in that "
+        f"case, say so out loud, for example: \"{cancel_statement}\" Never let a call end as if "
+        "it had succeeded when no explicit yes was actually given. "
         "Do not end such a call without a matching confirmation. "
         # Field-trial finding 2026-08-22 (E18): a call had every condition met
         # to place the order, yet ended with just "thank you, goodbye" --
@@ -292,11 +318,12 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
         # existed, which is worse than a clear no.
         "Before you hang up, exactly one of two things must be true and must have been said "
         "OUT LOUD: either you placed the order or reservation bindingly through the closing "
-        "routine above, or you clearly declined and gave a short reason. Never end a call with "
-        "neither -- a vague goodbye, trailing off, or just thanking them leaves the other side "
-        "not knowing whether anything was agreed, which is worse than a clear decline. If you "
-        "are unsure whether to place it, that itself means: decline out loud, say briefly why, "
-        "and end the call."
+        "routine above — which requires the other side's explicit yes — or you clearly "
+        "declined or cancelled it and gave a short reason. Never end a call with neither -- a "
+        "vague goodbye, trailing off, or just thanking them leaves the other side not knowing "
+        "whether anything was agreed, which is worse than a clear decline. If you are unsure "
+        "whether to place it, that itself means: decline out loud, say briefly why, and end "
+        "the call."
     )
 
     if request.mode == Mode.DELIVERY:
