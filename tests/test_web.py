@@ -974,6 +974,49 @@ def test_clicking_save_after_the_automatic_save_does_not_duplicate_the_row(clien
     assert rows[0]["order_id"] == order_id
 
 
+def test_history_page_has_the_three_user_designed_sections(client):
+    """E12 (Nutzer-Design Endabnahme 2026-08-22, exact section names from
+    the register): the user searched this page live for a call's proof and
+    could not find it -- three always-visible sections instead of a page
+    whose shape depends on what happens to be in it."""
+    _, success_id = run_cascade(client, cascade_form())
+
+    failed_events, failed_id = run_cascade(client, cascade_form(
+        candidate_order="rest_burger_house",
+        selected_restaurants=["rest_burger_house"],
+        max_budget_eur="1.00",
+    ))
+    assert failed_events[-1]["type"] == "done"
+    assert not any(e["type"] == "accepted" for e in failed_events)
+
+    page = client.get("/history?lang=de").text
+    assert "Alte Bestellung wiederverwenden" in page
+    assert "Erfolgreiche Bestellbelege" in page
+    assert "Abgelehnte/fehlgeschlagene Bestellungen" in page
+
+    # The order that never got a kept result: its restaurant, its rejection
+    # reason and its full transcript are all on the page.
+    assert "Burger House Dorfstadt" in page
+    assert "exceeds maximum budget limit" in page
+    assert "Gesprächsprotokoll" in page
+
+    # The order that DID succeed is in the successful section, not repeated
+    # as if it had failed -- Asia Wok Express is the accepted restaurant,
+    # never dialled in the failed run above.
+    assert "Asia Wok Express" in page
+    saved_start = page.find("Erfolgreiche Bestellbelege")
+    failed_start = page.find("Abgelehnte/fehlgeschlagene Bestellungen")
+    assert page.find("Asia Wok Express", saved_start, failed_start) != -1
+    assert page.find("Asia Wok Express", failed_start) == -1
+
+    assert success_id != failed_id
+
+
+def test_history_failed_section_is_empty_without_any_dropped_order(client):
+    page = client.get("/history?lang=de").text
+    assert "Keine abgelehnten oder fehlgeschlagenen Bestellungen." in page
+
+
 # --------------------------------------------------------------------------
 # Escaping
 # --------------------------------------------------------------------------

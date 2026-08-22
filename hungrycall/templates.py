@@ -1858,7 +1858,17 @@ def render_history(
     lang: str,
     rows: list[dict[str, Any]],
     orders: list[dict[str, Any]] | None = None,
+    failed_orders: list[dict[str, Any]] | None = None,
 ) -> str:
+    """The three-part /history page (E12, Nutzer-Design Endabnahme
+    2026-08-22 -- the user searched this page live for a call's proof and
+    could not find it): (1) reuse an old order (existed already, orders
+    below), (2) successful order proofs (existed already, rows below --
+    E11 now files these here automatically, not only on a click), (3) NEW,
+    declined/failed orders with the full conversation of every candidate
+    dialled -- the data always lived in call_attempts, this is the view.
+    All three sections show, even empty, so the page's shape is predictable
+    rather than a section silently missing when there is nothing in it."""
     if not rows:
         body = f'<p class="muted">{esc(t("history.empty", lang))}</p>'
     else:
@@ -1885,6 +1895,9 @@ def render_history(
   <tbody>{cells}</tbody>
 </table>
 <p class="small muted" style="margin-top:0.8rem;">{esc(t("history.masked.note", lang))}</p>"""
+    saved_html = f"""
+<h3 style="margin-top:1.2rem;">{esc(t("history.saved.title", lang))}</h3>
+{body}"""
 
     order_rows = ""
     for order in orders or []:
@@ -1903,16 +1916,64 @@ def render_history(
             f'{esc(t("history.load.edit", lang))}</a></td>'
             "</tr>"
         )
-    orders_html = ""
-    if order_rows:
-        orders_html = f"""
-<h3 style="margin-top:1.2rem;">{esc(t("history.orders.title", lang))}</h3>
-<p class="help">{esc(t("history.orders.help", lang))}</p>
-<table>
+    orders_body = (
+        f"""<table>
   <thead><tr><th>{esc(t("result.when", lang))}</th><th>{esc(t("order.title", lang))}</th>
   <th>{esc(t("food.mode.title", lang))}</th><th></th></tr></thead>
   <tbody>{order_rows}</tbody>
 </table>"""
+        if order_rows else f'<p class="muted">{esc(t("history.empty", lang))}</p>'
+    )
+    orders_html = f"""
+<h3>{esc(t("history.orders.title", lang))}</h3>
+<p class="help">{esc(t("history.orders.help", lang))}</p>
+{orders_body}"""
+
+    failed_entries = ""
+    for entry in failed_orders or []:
+        order = entry["order"]
+        chain = order.get("order_chain") or {}
+        products = ", ".join(
+            f'{(position.get("zellen") or [{}])[0].get("menge", 1)}× '
+            f'{(position.get("zellen") or [{}])[0].get("produkt", "")}'
+            for position in chain.get("posten", [])
+        ) or order.get("food_prompt", "")
+        attempts_html = ""
+        for attempt in entry["attempts"]:
+            outcome = (
+                t("cascade.rejected", lang) if not attempt.get("passed")
+                else t("history.failed.attempt.accepted", lang)
+            )
+            reason = attempt.get("rejection_reason") or ""
+            reason_html = (
+                f'<p class="small muted">{esc(t("history.failed.attempt.reason", lang))}: {esc(reason)}</p>'
+                if reason else ""
+            )
+            attempts_html += f"""
+  <div class="order-cell" style="margin-top:0.55rem;">
+    <div class="order-cell-tools" style="margin-top:0;">
+      <strong>{esc(attempt.get("restaurant_name", ""))}</strong>
+      <span class="small mono">{esc(attempt.get("created_at", ""))} — {esc(outcome)}</span>
+    </div>
+    {reason_html}
+    <details>
+      <summary>{esc(t("result.transcript", lang))}</summary>
+      <pre>{esc(attempt.get("transcript") or attempt.get("post_summary") or "")}</pre>
+    </details>
+  </div>"""
+        failed_entries += f"""
+<div class="order-position">
+  <div class="order-position-head">
+    <h4>{esc(products)}</h4>
+    <span class="small mono">{esc(order.get("created_at", ""))} — {esc(order.get("mode", ""))}</span>
+  </div>
+  {attempts_html}
+</div>"""
+    failed_body = failed_entries or f'<p class="muted">{esc(t("history.failed.empty", lang))}</p>'
+    failed_html = f"""
+<h3>{esc(t("history.failed.title", lang))}</h3>
+<p class="help">{esc(t("history.failed.help", lang))}</p>
+{failed_body}"""
 
     return f"""
 <div class="panel">
@@ -1921,5 +1982,6 @@ def render_history(
     <a class="small" href="/?lang={lang}">← {esc(t("nav.back", lang))}</a>
   </div>
   {orders_html}
-  {body}
+  {saved_html}
+  {failed_html}
 </div>"""

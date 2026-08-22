@@ -1052,8 +1052,8 @@
     "en": "Order summary by tags"
   },
   "history.orders.title": {
-    "de": "Abgeschickte Bestellungen",
-    "en": "Submitted orders"
+    "de": "Alte Bestellung wiederverwenden",
+    "en": "Reuse an old order"
   },
   "history.orders.help": {
     "de": "Eine Bestellung laden, ändern und erneut durch den Trockenlauf schicken.",
@@ -1062,6 +1062,30 @@
   "history.load.edit": {
     "de": "Laden und ändern",
     "en": "Load and edit"
+  },
+  "history.saved.title": {
+    "de": "Erfolgreiche Bestellbelege",
+    "en": "Successful order proofs"
+  },
+  "history.failed.title": {
+    "de": "Abgelehnte/fehlgeschlagene Bestellungen",
+    "en": "Declined/failed orders"
+  },
+  "history.failed.help": {
+    "de": "Der vollständige Gesprächsverlauf jedes gewählten Restaurants — gerade die gescheiterten Anrufe sind im Streitfall das Beweismittel.",
+    "en": "The full conversation with every restaurant dialled — the failed calls are exactly the evidence a dispute needs."
+  },
+  "history.failed.empty": {
+    "de": "Keine abgelehnten oder fehlgeschlagenen Bestellungen.",
+    "en": "No declined or failed orders."
+  },
+  "history.failed.attempt.reason": {
+    "de": "Grund",
+    "en": "Reason"
+  },
+  "history.failed.attempt.accepted": {
+    "de": "Angenommen",
+    "en": "Accepted"
   },
   "order.error.invalid": {
     "de": "Die Bestellkette ist ungültig: {detail}",

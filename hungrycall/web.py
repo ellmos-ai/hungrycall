@@ -45,6 +45,7 @@ from hungrycall.db import (
     list_call_attempts,
     list_order_records,
     list_order_templates,
+    list_orders_without_a_kept_result,
     list_saved_results,
     list_tags,
     record_call_attempt,
@@ -277,8 +278,18 @@ async def toggle_restaurant_test_mode(request: Request):
 @app.get("/history", response_class=HTMLResponse)
 async def history_page(request: Request):
     lang = lang_of(request)
+    # E12 (Nutzer-Design Endabnahme 2026-08-22): the third section shows
+    # every attempt's own rejection reason -- localise it here the same way
+    # cascade_stream_label_and_reason() does for the live cockpit (E19), so
+    # this new view does not reintroduce the exact leak that fix closed.
+    failed_orders = list_orders_without_a_kept_result()
+    for entry in failed_orders:
+        for attempt in entry["attempts"]:
+            attempt["rejection_reason"] = localize_engine_reason(
+                attempt.get("rejection_reason") or "", lang
+            )
     return html_page(
-        render_history(lang, list_saved_results(), list_order_records()), lang,
+        render_history(lang, list_saved_results(), list_order_records(), failed_orders), lang,
         path="/history", title=t("history.title", lang)
     )
 

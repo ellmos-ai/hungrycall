@@ -299,6 +299,44 @@ def list_order_records() -> list[dict[str, Any]]:
     return [_row_order(row) for row in rows]
 
 
+def list_orders_without_a_kept_result() -> list[dict[str, Any]]:
+    """Orders that were actually dialled (at least one call_attempts row)
+    but never reached status='COMPLETED' -- i.e. every candidate was
+    rejected, or the run is still in progress. Each with its own attempts,
+    oldest first, so the full conversation of every dialled candidate is
+    available (E12, Nutzer-Design Endabnahme 2026-08-22: "Abgelehnte/
+    fehlgeschlagene Bestellungen" -- exactly the evidence a disputed call
+    like Anruf 1's needs, and it already lived in call_attempts; this is
+    only the read side of it).
+
+    status is never explicitly set to a "failed" value anywhere in this
+    codebase (only ever advanced to COMPLETED, in save_cascade_result) --
+    so "not completed but dialled" is the same test used here as anywhere
+    else that needs to tell a finished cascade from a rejected one.
+    """
+    init_db()
+    conn = get_db_connection()
+    order_rows = conn.execute("""
+        SELECT o.* FROM orders o
+        WHERE o.status != 'COMPLETED'
+          AND EXISTS (SELECT 1 FROM call_attempts c WHERE c.order_id = o.id)
+        ORDER BY o.created_at DESC
+    """).fetchall()
+    result = []
+    for order_row in order_rows:
+        order = _row_order(order_row)
+        attempt_rows = conn.execute(
+            "SELECT * FROM call_attempts WHERE order_id = ? ORDER BY created_at, id",
+            (order["id"],),
+        ).fetchall()
+        result.append({
+            "order": order,
+            "attempts": [dict(row) for row in attempt_rows],
+        })
+    conn.close()
+    return result
+
+
 def save_tags(tags: list[str]) -> None:
     init_db()
     conn = get_db_connection()
