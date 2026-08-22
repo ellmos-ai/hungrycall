@@ -103,6 +103,18 @@ def all_keys() -> list[str]:
     return sorted(_SYSTEMS[DEFAULT_LANG].translations.keys())
 
 
+def has_key(key: str) -> bool:
+    """Whether ``key`` is a real, defined translation key.
+
+    For a caller that builds a key by interpolating a value it does not
+    control (e.g. ``f"table.seating.{value}"`` where ``value`` came from
+    somewhere else entirely) -- so it can show that value as plain text
+    instead of the raw, unresolved key t() falls back to when the
+    interpolated key does not exist.
+    """
+    return key in _SYSTEMS[DEFAULT_LANG].translations
+
+
 def missing_translations() -> dict[str, list[str]]:
     """Keys with an empty or absent value, per language. Empty dict means done."""
     gaps: dict[str, list[str]] = {}

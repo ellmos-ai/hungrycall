@@ -19,7 +19,7 @@ import html
 import json
 from typing import Any
 
-from hungrycall.i18n import SUPPORTED, t
+from hungrycall.i18n import SUPPORTED, has_key, t
 from hungrycall.models import Branch, Concession, Mode, OrderChain, Restaurant
 from hungrycall.order_chains import (
     OrderChainEvaluation,
@@ -1566,6 +1566,27 @@ def render_cascade_monitor(
 # Result
 # --------------------------------------------------------------------------
 
+def localized_seating(seating: str | None, lang: str, key_prefix: str) -> str:
+    """The confirmed seating for display, translated where that is possible.
+
+    seating_confirmed is free text (schemas.py), not an enum: the call may
+    report one of the fixed values this app itself offers ("indoor",
+    "outdoor", ...) or, for a custom wish, echo back the guest's own words
+    ("draussen unter dem Kirschbaum"). Looking that value up as a
+    translation key unconditionally means a custom wish builds a key that
+    was never going to exist, and t()'s deliberate missing-key fallback (see
+    its docstring) returns the raw key text -- which is exactly what leaked
+    into the reservation card (E25, field-trial finding 2026-08-22:
+    "result.sentence.seating.draussen unter dem Kirschbaum" shown verbatim).
+    Only translate when the constructed key is a real one; otherwise show
+    what was actually confirmed.
+    """
+    if not seating:
+        return ""
+    key = f"{key_prefix}.{seating}"
+    return t(key, lang) if has_key(key) else seating
+
+
 def render_result_sentence(
     lang: str,
     mode: Mode,
@@ -1611,7 +1632,7 @@ def render_result_sentence(
         party=party_size or "?",
         date=reservation_date or "?",
         time=reservation_time or "?",
-        seating=t(f"result.sentence.seating.{seating}", lang) if seating else "",
+        seating=localized_seating(seating, lang, "result.sentence.seating"),
         callback=callback,
     )
 
@@ -1677,7 +1698,7 @@ def render_result_card(
         facts.append((t("result.party", lang), str(structured.get("party_size_confirmed", "") or "—")))
         seating = structured.get("seating_confirmed")
         if seating:
-            facts.append((t("result.seating", lang), t(f"table.seating.{seating}", lang)))
+            facts.append((t("result.seating", lang), localized_seating(seating, lang, "table.seating")))
         booking_fee = structured.get("booking_fee_eur")
         if booking_fee is not None:
             facts.append((t("result.booking_fee", lang), f'{float(booking_fee):.2f} €'))
