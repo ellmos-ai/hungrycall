@@ -436,8 +436,8 @@
     "en": "Maximum on collection (€)"
   },
   "food.budget.help": {
-    "de": "Darüber wird nicht bestellt. Eine ungefähre Auskunft — „so um die dreißig“ — gilt als Absage, nicht als Schätzung.",
-    "en": "Above this, nothing is ordered. A vague answer — “about thirty” — counts as a decline, not as an estimate."
+    "de": "Darüber wird nicht bestellt. Bleibt die Auskunft vage, fragt der Bot gezielt nach dem genauen Betrag, statt vorschnell abzusagen — ohne exakte Zahl bis maximal {amount} € kommt keine Bestellung zustande.",
+    "en": "Above this, nothing is ordered. If the answer stays vague, the bot asks for the exact amount instead of declining right away — without an exact figure up to {amount} EUR, no order is placed."
   },
   "food.pickup.time": {
     "de": "Abholzeit",

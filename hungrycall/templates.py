@@ -1120,7 +1120,7 @@ def render_food_fields(
     <input type="time" id="pickup_time" name="pickup_time" value="{esc(pickup_time)}">
   </div>
   <div class="field wide">
-    <span class="help">{esc(t("food.budget.help", lang))}</span>
+    <span class="help">{esc(t("food.budget.help", lang, amount=_format_concession_number(max_budget)))}</span>
   </div>
   <div class="field" id="maxdist-field" hidden>
     <label for="max_distance_km">{esc(t("food.maxdistance", lang))}</label>

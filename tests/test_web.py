@@ -687,6 +687,48 @@ def test_food_concession_wait_and_price_amounts_are_configurable(client):
     assert "waiting up to 15 minutes longer" in default_goal
 
 
+def test_food_concessions_apply_equally_in_pickup_mode(client):
+    """E13(b) (Nutzer-Befund Endabnahme 2026-08-22, Abhol-Formular): checked
+    against the primary source rather than reworded on assumption --
+    wait_longer_ok/higher_price_ok already read "for delivery or collection"
+    in the engine label (mode-neutral) and are not tied to delivery in the
+    checkbox text either; the one concession that genuinely was delivery-only
+    framing, "similar substitute", was the one removed as a duplicate (E1),
+    not reworded. Confirms the remaining two are not silently dropped for
+    pickup, and that the concession section itself renders identically
+    regardless of mode -- there being nothing pickup-specific left to hide."""
+    create_order_record(
+        order_id="mode-check-delivery", mode="delivery", customer_name="Test User",
+        food_prompt="Pizza", max_budget_eur=35, delivery_address="Example Street 1",
+    )
+    create_order_record(
+        order_id="mode-check-pickup", mode="pickup", customer_name="Test User",
+        food_prompt="Pizza", max_budget_eur=35, pickup_time="19:30",
+    )
+    delivery_page = client.get("/order?lang=de&history=mode-check-delivery").text
+    pickup_page = client.get("/order?lang=de&history=mode-check-pickup").text
+    assert 'id="mode-pickup" name="mode" value="pickup" checked' not in delivery_page
+    assert 'id="mode-pickup" name="mode" value="pickup" checked' in pickup_page
+
+    concessions_start_marker = "Wozu bist du notfalls bereit?"
+    delivery_section = delivery_page[delivery_page.index(concessions_start_marker):]
+    pickup_section = pickup_page[pickup_page.index(concessions_start_marker):]
+    # Actually mode-dependent (proves the two pages are not just accidentally
+    # identical documents): budget field targets a different mode above.
+    assert 'id="budget-label"' in delivery_page and 'id="budget-label"' in pickup_page
+    # The concessions block itself, though, is unconditional -- byte-for-byte
+    # the same regardless of which mode loaded the page.
+    assert delivery_section[:1400] == pickup_section[:1400]
+
+    goal = client.post("/api/preview-goal", data=search_form(
+        mode="pickup", pickup_time="19:30",
+        candidate_order="rest_burger_house",
+        concessions=["wait_longer_ok", "higher_price_ok"],
+    )).json()["goal"]
+    assert "waiting up to 15 minutes longer than the time first given for delivery or collection" in goal
+    assert "paying up to 3 EUR more than the maximum budget" in goal
+
+
 def test_food_concession_amounts_are_bounded(client):
     """The same validation discipline as every other numeric authorisation
     on this form (e.g. max_booking_fee_eur) -- out of range is a 400, not a
@@ -704,6 +746,29 @@ def test_food_concession_amounts_are_bounded(client):
         concession_price_delta_eur="not-a-number",
     ))
     assert response.status_code == 400
+
+
+def test_budget_help_text_describes_a_follow_up_not_a_flat_decline(client):
+    """E13(a) (Nutzer-Befund Endabnahme 2026-08-22, Abhol-Formular): the
+    hardcoded help text claimed a vague price answer "counts as a decline",
+    harsher than what the goal actually asks for -- the bot follows up and
+    insists on an exact figure (engine._order_total_confirmation_clause),
+    it does not decline on a first vague answer. The example amount is the
+    user's own configured budget now, not a fixed "thirty" unrelated to it."""
+    create_order_record(
+        order_id="budget-help-order", mode="delivery", customer_name="Test User",
+        food_prompt="Pizza", max_budget_eur=52.5, delivery_address="Example Street 1",
+    )
+    page = client.get("/order?lang=de&history=budget-help-order").text
+    assert "gilt als Absage" not in page
+    assert "dreißig" not in page
+    assert "fragt der Bot gezielt nach dem genauen Betrag" in page
+    assert "bis maximal 52.5 €" in page
+
+    page_en = client.get("/order?lang=en&history=budget-help-order").text
+    assert "counts as a decline" not in page_en
+    assert "asks for the exact amount instead of declining right away" in page_en
+    assert "up to 52.5 EUR" in page_en
 
 
 def test_goal_preview_refuses_prohibited_content(client):
