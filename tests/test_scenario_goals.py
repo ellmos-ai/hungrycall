@@ -618,6 +618,11 @@ def test_the_quantity_announcement_example_is_fully_localised(monkeypatch):
 # --------------------------------------------------------------------------
 
 def test_a_replacement_cell_is_guarded_against_being_asked_additively(monkeypatch):
+    """Reworded 2026-08-22 (RT-1b): the original guard wording reproduced
+    the SAME live failure it was meant to fix -- the agent still mentioned
+    the replacement and even asked its quantity after the wished cell had
+    already succeeded -- so the guard is now CRITICAL, and a standing
+    quantity-asking ban was added alongside it."""
     monkeypatch.setenv(CALL_LOCALE_ENV, "en")
     chain = _chain(_position(
         _cell("Schnitzel", criteria=[_criterion("hoechstpreis", 15.0)]),
@@ -625,13 +630,21 @@ def test_a_replacement_cell_is_guarded_against_being_asked_additively(monkeypatc
     ))
     goal = build_call_goal(RESTAURANT, _delivery(order_chain=chain, food_prompt=chain.summary()))
     assert (
-        "Only reach this cell if EVERY earlier cell in this position was rejected "
-        "or unavailable." in goal
+        "CRITICAL: NEVER mention a replacement product in any way -- name it, describe it, "
+        "or ask about it -- unless EVERY earlier cell in this position was rejected or "
+        "unavailable." in goal
     )
     assert "do NOT ask about this cell, do not mention it" in goal
     # The first cell of a position never carries the guard -- there is
     # nothing "earlier" for it to wait on.
-    assert goal.count("Only reach this cell if EVERY earlier cell") == 1
+    assert goal.count("CRITICAL: NEVER mention a replacement product") == 1
+    # RT-1b: the agent asked "how many would you like" for the replacement
+    # it should never have mentioned -- quantities are never the
+    # restaurant's to suggest, for any cell.
+    assert (
+        "CRITICAL: Never ask the restaurant how many of an item to order, for any cell "
+        "in this chain" in goal
+    )
 
 
 # --------------------------------------------------------------------------
@@ -640,6 +653,10 @@ def test_a_replacement_cell_is_guarded_against_being_asked_additively(monkeypatc
 # ever hearing an explicit yes -- the restaurant was left believing the
 # order had gone through, even though the app's own audit discarded it for
 # the missing confirmation. See engine.py's ``confirmation`` block.
+# Hardened further after RT-1b (2026-08-22): the agent folded the
+# confirmation question into its price/time question and treated a bare
+# price answer as the yes -- so the confirmation must now be its own
+# separate question, asked only once price and time are known.
 # --------------------------------------------------------------------------
 
 def test_the_binding_word_only_follows_the_other_sides_yes(monkeypatch):
@@ -653,6 +670,30 @@ def test_the_binding_word_only_follows_the_other_sides_yes(monkeypatch):
         )
         assert ask_index < bindingly_index
         assert "Never say the word 'bindingly'" in goal
+        # RT-1b: the confirmation question must be its own turn, asked
+        # after price/time are known, and a bare price/time answer must
+        # never be treated as the yes.
+        assert "do not fold this confirmation into the price or time question" in goal
+        assert "do not treat the restaurant simply stating a price or a time as a yes" in goal
+        # RT-1b style note: no presumptuous phrasing implying the other
+        # side might not have understood.
+        assert "I hope you understood that" in goal  # quoted inside the ban itself
+        assert "never imply the other side might not have understood you" in goal
+
+
+def test_the_order_summary_names_only_items_actually_ordered(monkeypatch):
+    """RT-1b: the spoken read-back named an item that had only been
+    explored and discarded, with no quantity and no price -- a discrepancy
+    between the spoken order and the recorded order is a real risk of an
+    unwanted item being delivered anyway."""
+    monkeypatch.setenv(CALL_LOCALE_ENV, "en")
+    for factory in (_delivery_simple, _pickup_simple, _reservation_no_tolerances):
+        goal = build_call_goal(RESTAURANT, factory())
+        assert "every item you are actually ordering, each with its quantity" in goal
+        assert (
+            "name ONLY items you are actually ordering here, never one you merely asked "
+            "about, considered, or discarded along the way" in goal
+        )
 
 
 def test_a_missing_confirmation_must_be_cancelled_out_loud(monkeypatch):
@@ -664,6 +705,22 @@ def test_a_missing_confirmation_must_be_cancelled_out_loud(monkeypatch):
     monkeypatch.setenv(CALL_LOCALE_ENV, "de")
     de_goal = build_call_goal(RESTAURANT, _delivery_simple())
     assert "Dann storniere ich das, bitte nichts zubereiten." in de_goal
+
+
+def test_the_confirmation_question_is_a_plain_localised_yes_no_question(monkeypatch):
+    """RT-1b: reworded from an open "please confirm the order and tell me
+    who it's for" style question (which a price/time answer could plausibly
+    be mistaken for) to a plain, closed yes/no question -- localised like
+    every other worked example in this file."""
+    monkeypatch.setenv(CALL_LOCALE_ENV, "en")
+    en_goal = build_call_goal(RESTAURANT, _delivery_simple())
+    assert "Everything is settled — can I place the order like this, bindingly?" in en_goal
+    assert "kann ich die Bestellung so fest aufgeben?" not in en_goal
+
+    monkeypatch.setenv(CALL_LOCALE_ENV, "de")
+    de_goal = build_call_goal(RESTAURANT, _delivery_simple())
+    assert "Damit ist alles geklärt — kann ich die Bestellung so fest aufgeben?" in de_goal
+    assert "can I place the order like this, bindingly?" not in de_goal
 
 
 # --------------------------------------------------------------------------

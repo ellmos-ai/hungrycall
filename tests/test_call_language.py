@@ -76,7 +76,7 @@ def test_german_goal_keeps_its_verbatim_parts_byte_identical_by_default(monkeypa
     assert "Hallo, hier spricht ein automatisierter Assistent" in goal
     assert "Conduct the entire conversation in German" in goal
     assert 'ask exactly "Haben Sie Burger?"' in goal
-    assert "Bestätigen Sie mir bitte kurz die Bestellung" in goal
+    assert "kann ich die Bestellung so fest aufgeben?" in goal
     assert "Sie bestellen also 2 Pasta Napoli?" in goal
     assert "Hello, this is an automated assistant" not in goal
 
@@ -88,7 +88,7 @@ def test_english_goal_carries_english_verbatim_parts_and_no_german_ones(monkeypa
     assert "Hello, this is an automated assistant" in goal
     assert "Conduct the entire conversation in English" in goal
     assert 'ask exactly "Do you have Burger?"' in goal
-    assert "Could you please briefly confirm the order" in goal
+    assert "can I place the order like this, bindingly?" in goal
     assert "So you're ordering 2 Pasta Napoli?" in goal
     # None of the German-only mandatory sentences may leak into an English call
     # (this is exactly the 2026-08-11 field-trial defect the seam fixes).

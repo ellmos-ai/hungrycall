@@ -172,18 +172,23 @@ def _closing_routine_examples(locale: str) -> tuple[str, str, str, str]:
     Returns (confirmation_question, readback_question, readback_answer,
     cancel_statement). The fourth is new (E31, 2026-08-22): what to say out
     loud when no explicit yes was heard before the call would otherwise end.
+
+    The first was reworded 2026-08-22 (RT-1b retest): the previous phrasing
+    ("Could you please briefly confirm the order: what is being delivered,
+    and to whom?") asked the other side to restate details, not to answer
+    yes or no -- which is exactly what let a bare price answer pass as
+    confirmation live. This is now a plain, closed yes/no question, asked
+    only once price and time are already known.
     """
     if locale == "en":
         return (
-            "Could you please briefly confirm the order: what is being "
-            "delivered, and to whom?",
+            "Everything is settled — can I place the order like this, bindingly?",
             "So you're ordering 2 Pasta Napoli?",
             "Yes, and one tiramisu.",
             "Then I'll cancel that, please don't prepare anything.",
         )
     return (
-        "Bestätigen Sie mir bitte kurz die Bestellung: Was wird "
-        "geliefert, und an wen?",
+        "Damit ist alles geklärt — kann ich die Bestellung so fest aufgeben?",
         "Sie bestellen also 2 Pasta Napoli?",
         "Ja, und ein Tiramisu.",
         "Dann storniere ich das, bitte nichts zubereiten.",
@@ -290,10 +295,29 @@ def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
         _closing_routine_examples(language.locale)
     )
     confirmation = (
-        " Every call that places an order or reservation ends with a closing routine: "
-        "(1) summarize the complete order aloud — every item with quantity, the total "
-        "price, the name and the address or time; (2) ask the other side to confirm it, "
-        "and WAIT for their answer — "
+        " Stay politely neutral throughout this call; never imply the other side might not "
+        "have understood you, for example never say anything like 'I hope you understood "
+        "that'. "
+        "Every call that places an order or reservation ends with a closing routine: "
+        # Field-trial finding 2026-08-22 (RT-1b): the read-back summary
+        # named an item that had only been explored and discarded, with
+        # neither quantity nor price -- a wish cell's quantity is fixed
+        # already, so nothing spoken in this summary should ever come from
+        # anywhere but what is actually being placed.
+        "(1) summarize the complete order aloud — every item you are actually ordering, each "
+        "with its quantity, plus the total price, the name and the address or time; name "
+        "ONLY items you are actually ordering here, never one you merely asked about, "
+        "considered, or discarded along the way; "
+        # Field-trial finding 2026-08-22 (RT-1b): the agent folded the
+        # confirmation question into its price/time question ("please
+        # confirm the order and tell me the total price"), and then a bare
+        # price answer from the restaurant was treated as the yes -- so the
+        # order was never actually confirmed as a separate, explicit act.
+        "(2) ask the other side to confirm it, as its own separate question, asked only "
+        "after the total price and the delivery time or pickup readiness are already known "
+        "-- do not fold this confirmation into the price or time question, and do not treat "
+        "the restaurant simply stating a price or a time as a yes -- and WAIT for their "
+        "answer — "
         f"for example: \"{confirm_question}\" If the other side repeats the order back, check "
         "their read-back against what was actually agreed and correct or complete "
         f"anything missing — for example, restaurant: \"{readback_question}\" — you: "

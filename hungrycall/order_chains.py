@@ -182,6 +182,15 @@ def build_order_chain_instruction(chain: OrderChain, locale: str | None = None) 
         "CRITICAL: apply every criterion's consequence OUT LOUD, in the moment it happens on the "
         "phone -- never keep going, ask about further items, or place an order from a position "
         "after one of its cells has hit a hard rejection.",
+        # Field-trial finding 2026-08-22 (RT-1b retest of the E30 fix): even
+        # with the per-cell replacement guard below in place, the agent
+        # still asked the restaurant "how many would you like" for an item
+        # it should never have mentioned at all. The quantity for every
+        # cell is fixed in this chain -- it is never the restaurant's to
+        # suggest, wished item or replacement alike.
+        "CRITICAL: Never ask the restaurant how many of an item to order, for any cell in this "
+        "chain -- every quantity is already fixed below; you STATE it when you take a cell, "
+        "you never ask the restaurant for it.",
     ]
     for position_index, position in enumerate(chain.positions, start=1):
         # Coverage-map finding #20 (CONVERSATION-TREE.md §4 row 20): tags
@@ -206,12 +215,18 @@ def build_order_chain_instruction(chain: OrderChain, locale: str | None = None) 
                 # replacement cell's own block. A flat "Cell 1: ... Cell 2:
                 # ..." list reads like two things to ask about, not one
                 # conditional on the other, unless the condition is
-                # repeated right here.
+                # repeated right here. RT-1b (2026-08-22) reproduced the
+                # SAME failure with the original wording still in place --
+                # the agent mentioned the replacement and even asked its
+                # quantity after the wished cell had already succeeded --
+                # so this is now CRITICAL, not phrased as one instruction
+                # among several.
                 guard = (
-                    "Only reach this cell if EVERY earlier cell in this position was "
-                    "rejected or unavailable. If any earlier cell in this position was "
-                    "already accepted, do NOT ask about this cell, do not mention it, and "
-                    "move straight to the next position. "
+                    "CRITICAL: NEVER mention a replacement product in any way -- name it, "
+                    "describe it, or ask about it -- unless EVERY earlier cell in this "
+                    "position was rejected or unavailable. If any earlier cell in this "
+                    "position was already accepted, do NOT ask about this cell, do not "
+                    "mention it, and move straight to the next position. "
                 )
             lines.append(
                 f"  Cell {cell_index}: {guard}ask exactly \"{question}\" — availability "
