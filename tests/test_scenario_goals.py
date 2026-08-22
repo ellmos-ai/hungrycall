@@ -533,6 +533,43 @@ def test_every_goal_requires_an_unambiguous_ending(monkeypatch):
 
 
 # --------------------------------------------------------------------------
+# Endabnahme field-trial findings, 2026-08-22 (E4, E10): the restaurant was
+# asked to dictate a bare total; once it was misheard ("23,80" transcribed as
+# "2380") the agent trusted the garbled number and hard-aborted a call that
+# was well within budget. See engine.py::_order_total_confirmation_clause.
+# --------------------------------------------------------------------------
+
+def test_delivery_and_pickup_chain_goals_self_calculate_the_total(monkeypatch):
+    monkeypatch.setenv(CALL_LOCALE_ENV, "en")
+    delivery_goal = build_call_goal(RESTAURANT, _delivery_chain_max_price())
+    pickup_goal = build_call_goal(RESTAURANT, _pickup_chain())
+    for goal in (delivery_goal, pickup_goal):
+        assert "Calculate it yourself from the unit prices and quantities" in goal
+        assert "differs wildly from your own calculation" in goal
+        assert "do not simply accept it and do not abort either" in goal
+        assert "ask again to make sure you heard correctly" in goal
+    # Pickup still states plainly that no delivery fee applies, unchanged.
+    assert "There is no delivery fee, we collect ourselves" in pickup_goal
+
+
+def test_total_confirmation_clause_is_fully_localised(monkeypatch):
+    """Like _order_chain_style_example, the worked example and its
+    surrounding reasoning are one unit and switch together -- never a German
+    call carrying the English worked example or vice versa."""
+    monkeypatch.setenv(CALL_LOCALE_ENV, "de")
+    de_goal = build_call_goal(RESTAURANT, _delivery_chain_max_price())
+    assert "Rechnen Sie ihn selbst aus" in de_goal
+    assert "Calculate it yourself" not in de_goal
+    assert "Meinen Sie 23 Euro 80?" in de_goal
+
+    monkeypatch.setenv(CALL_LOCALE_ENV, "en")
+    en_goal = build_call_goal(RESTAURANT, _delivery_chain_max_price())
+    assert "Calculate it yourself" in en_goal
+    assert "Rechnen Sie ihn selbst aus" not in en_goal
+    assert 'Did you mean 23 euros 80?' in en_goal
+
+
+# --------------------------------------------------------------------------
 # Per-mode x per-language opening sentence: isolated so a change to any
 # mode's own opening cannot hide inside a larger scenario's golden diff.
 # --------------------------------------------------------------------------
