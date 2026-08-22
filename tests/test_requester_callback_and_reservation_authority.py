@@ -157,6 +157,21 @@ def test_reservation_goal_grants_time_and_fee_only_in_stages():
     assert "birthday cake" in goal
 
 
+def test_reservation_goal_actively_offers_the_tolerance_window():
+    """Endabnahme field-trial finding 2026-08-22 (E24): the agent correctly
+    declined a time outside the authorised window, but never itself
+    proposed the window -- it only accepted an earlier/later time if the
+    restaurant happened to offer one first. The goal must now instruct the
+    agent to actively ask once, not just wait to be offered."""
+    request = reservation_request(earlier_hours=1, later_minutes=45)
+    goal = build_call_goal(SAMPLE_RESTAURANTS[0], request)
+
+    assert "do not just wait for them to offer an alternative" in goal
+    assert "actively ask ONCE whether a time up to 60 minutes earlier would work" in goal
+    assert "actively ask ONCE whether a time up to 45 minutes later would work" in goal
+    assert "do not just wait for it to be offered" in goal
+
+
 def test_reservation_result_must_stay_within_time_and_fee_authority():
     engine = CascadeEngine(SAMPLE_RESTAURANTS)
     request = reservation_request(

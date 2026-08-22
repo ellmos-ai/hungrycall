@@ -95,17 +95,28 @@ def _reservation_authority_clause(request: UserRequest) -> str:
     step_number = 2
     earlier = request.earlier_tolerance_minutes()
     later = request.later_tolerance_minutes()
+    # Field-trial finding 2026-08-22 (E24): the agent asked only the exact
+    # time, correctly declined an offer outside the tolerance window, but
+    # never itself proposed the authorised window -- it only ever accepted
+    # an earlier/later time if the OTHER side happened to offer one. The
+    # app's own audit flagged this as "ended the call without checking the
+    # authorised earlier-time option". These steps now say to ask, not just
+    # to wait.
     if earlier:
         steps.append(
-            f"Step {step_number}: only if the exact time is unavailable, you may accept a time "
-            f"up to {earlier} minutes earlier, but nothing earlier than that."
+            f"Step {step_number}: if the exact time is unavailable, do not just wait for them "
+            f"to offer an alternative -- actively ask ONCE whether a time up to {earlier} "
+            f"minutes earlier would work. Accept a confirmed time up to {earlier} minutes "
+            f"earlier, but nothing earlier than that."
         )
         authority_keys.append("earlier_time")
         step_number += 1
     if later:
         steps.append(
-            f"Step {step_number}: only if every earlier authorised option failed, you may accept "
-            f"a time up to {later} minutes later, but nothing later than that."
+            f"Step {step_number}: only if every earlier authorised option failed or does not "
+            f"apply, actively ask ONCE whether a time up to {later} minutes later would work -- "
+            f"again, do not just wait for it to be offered. Accept a confirmed time up to "
+            f"{later} minutes later, but nothing later than that."
         )
         authority_keys.append("later_time")
         step_number += 1
