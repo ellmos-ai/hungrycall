@@ -183,6 +183,27 @@ HungryCall incorporates empirical findings measured against the live CALL-E serv
 
 ---
 
+## How We Tested
+
+HungryCall was tested against the real CALL-E service in two live sessions, both routed exclusively through one explicitly consenting test phone line (`HUNGRYCALL_FIELD_TRIAL_PHONE`, `field_trial.py`) — every dialled number was rewritten to that line before a call ever went out, regardless of what number the candidate data carried. The author played every counterpart role (restaurant staff, reservation desk) in real time, unscripted beyond knowing which scenario was under test. No restaurant outside that one line was ever dialled.
+
+**2026-08-11 — first live calls.** The first-ever live `POST /v1/calls` traffic against the real API, run against deterministic fixture restaurant data (the day's public restaurant search was rate-limited). Four cascades left a retrievable transcript and stored receipt (`EVIDENCE.md` §16): a delivery chain that correctly substituted an unavailable item, a pickup call that correctly rejected a vague price until an exact one was given, a reservation whose booking fee the voice agent accepted out loud but the app's own structured audit rejected regardless, and one fully successful delivery cascade end to end. Two earlier cascades the same evening hit a defect before the receipt table existed and left no retrievable record of their own.
+
+**2026-08-22 — full walkthrough, then a same-day retest.** All three call modes were run live end to end in one session, each as its own cascade across multiple restaurants until one succeeded: three calls for the delivery chain (two rejected on price, the third completed the order), four calls for pickup (one over the single-item price limit, one with an ambiguous outcome, one not reached, the fourth completed the order), and two calls for the reservation (the first rejected on time, the second completed it). Fixes for what had gone wrong were written the same day and re-verified with fresh live calls before the session ended — a retest cascade re-ran the delivery-chain scenario (2 calls) and the reservation fee-pushback scenario (1 call); when that retest surfaced a new variant of a problem thought already fixed, a further fix landed and was itself re-checked with two more live calls, the same day.
+
+**What went wrong, and what became of it:**
+
+1. **A mandate breach at the phone level.** A criterion that had actually failed (both prices over the configured limit) still got spoken out loud as a binding order — the app's own audit correctly discarded the result afterwards, but the restaurant would have delivered the food regardless. The same class of problem had already surfaced once, in a reservation's booking fee, on the first test day, and was fixed there specifically — that fix did not generalize to order-chain criteria, which is where it resurfaced. Fixed properly this time: every criterion's consequence now has to be applied *out loud, in the moment*, in every call mode, not just recorded for later.
+2. **A self-correction that made things worse.** An earlier fix had the voice agent calculate the order total itself from the unit prices it had gathered; live, that arithmetic was itself wrong and triggered an unnecessary budget abort on an order that was well within limits. Reverted by design decision: the agent now asks the restaurant to state the total and only plausibility-checks a wildly implausible figure — the arithmetic is left to the human running the call, not the voice agent.
+3. **A missing confirmation window.** A call ended, or the agent said an order was placed "bindingly", without the other side ever having given an actual, explicit yes. Fixed: the closing routine now has to hear that yes before anything counts as placed, and has to say so out loud — a cancellation, not silence — if that yes never comes.
+4. **Order-before-price sequencing.** The agent asked a restaurant for a total price before it had ever spoken the order itself out loud — something a restaurant cannot compute from unit prices alone. Found three times in the first full walkthrough, weakened again by a later same-day fix written for an unrelated problem, and found live a second time in that same day's retest even though the instruction to speak the order first already stood in the right place in the text. Hardened into an explicit, critical ordering rule rather than one instruction among several.
+5. **A first-call-in-a-cascade FAILED pattern.** Three cascades in a row, across both test sessions, misclassified the whole call's first attempt as "not reached" — once discarding a complete, gracefully-declined conversation this way. Still open; the retrievable transcript evidence points at the platform's own structured-result reporting for that specific case, not at this repository's own logic.
+6. **A redaction gap.** Phone numbers are correctly masked in every stored transcript and log when spoken or recorded as digits — but a number read out as spelled-out number words slipped past the same filter once, live. Documented, not yet fixed.
+
+The working pattern across both days was the same: **find it live, fix it locally, re-run the exact scenario that broke, and only then call it done** — the same discipline `AUFGABEN.txt` and `FINDINGS.md` track for every entry in this repository's history, not a one-off for the submission deadline.
+
+---
+
 ## Data Flow & Privacy Disclosure
 
 > ⚠️ **DATA TRANSFER NOTICE**:

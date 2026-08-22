@@ -347,6 +347,89 @@ Aus dem betreuten Feldversuch am 2026-08-11 (Einzelheiten in `FINDINGS.md` §9):
 
 ---
 
+## Wie wir getestet haben
+
+HungryCall wurde in zwei Live-Sitzungen gegen den echten CALL-E-Dienst getestet, beide
+ausschließlich über eine einzige, ausdrücklich einwilligende Testrufnummer geführt
+(`HUNGRYCALL_FIELD_TRIAL_PHONE`, `field_trial.py`) — jede gewählte Nummer wurde vor dem
+Anruf auf diese Nummer umgeschrieben, unabhängig davon, welche Nummer die Kandidatendaten
+eigentlich trugen. Der Autor spielte jede Gegenrolle (Restaurantpersonal,
+Reservierungsannahme) live selbst, unvorbereitet bis auf das Wissen, welches Szenario
+gerade geprüft wurde. Keine Nummer außerhalb dieser einen Testleitung wurde je gewählt.
+
+**2026-08-11 — die ersten Live-Anrufe.** Der allererste echte `POST /v1/calls`-Verkehr
+gegen die reale API, gefahren gegen deterministische Fixture-Restaurantdaten (die öffentliche
+Restaurantsuche war an diesem Abend rate-limitiert). Vier Kaskaden hinterließen ein
+abrufbares Transkript und einen gespeicherten Beleg (`EVIDENCE.md` §16): eine Lieferkette,
+die ein nicht verfügbares Gericht korrekt ersetzte, ein Abholanruf, der einen ungefähren
+Preis so lange ablehnte, bis ein exakter genannt wurde, eine Reservierung, deren Gebühr der
+Sprachagent mündlich akzeptierte, die aber das eigene strukturierte Audit der App trotzdem
+zurückwies, sowie eine vollständig erfolgreiche Lieferkaskade Ende zu Ende. Zwei frühere
+Kaskaden desselben Abends liefen in einen Fehler, bevor die Beleg-Tabelle überhaupt
+existierte, und hinterließen dadurch keinen eigenen abrufbaren Nachweis.
+
+**2026-08-22 — vollständiger Durchlauf, dann ein Nachtest am selben Tag.** Alle drei
+Anruf-Modi wurden in einer Sitzung live Ende zu Ende durchgespielt, jeder als eigene
+Kaskade über mehrere Restaurants, bis eines erfolgreich war: drei Anrufe für die
+Lieferkette (zwei am Preis abgelehnt, der dritte schloss die Bestellung ab), vier Anrufe
+für die Abholung (einer über dem Einzelposten-Preislimit, einer mit unklarem Ausgang, einer
+nicht erreicht, der vierte schloss die Bestellung ab), und zwei Anrufe für die Reservierung
+(der erste an der Wunschzeit abgelehnt, der zweite schloss sie ab). Fixes für das, was
+schiefgelaufen war, wurden noch am selben Tag geschrieben und mit frischen Live-Anrufen
+nachgeprüft, bevor die Sitzung endete — eine Nachtest-Kaskade wiederholte das
+Lieferketten-Szenario (2 Anrufe) und das Reservierungs-Szenario mit nachgeschobener Gebühr
+(1 Anruf); als dieser Nachtest eine neue Variante eines bereits behoben geglaubten Problems
+zutage brachte, wurde noch am selben Tag ein weiterer Fix geschrieben und mit zwei weiteren
+Live-Anrufen selbst nachgeprüft.
+
+**Was schiefging, und was daraus wurde:**
+
+1. **Ein Mandatsbruch am Telefon.** Ein Kriterium, das tatsächlich gescheitert war (beide
+   Preise über dem konfigurierten Limit), wurde trotzdem als verbindliche Bestellung
+   ausgesprochen — das eigene Audit der App verwarf das Ergebnis danach zwar korrekt, aber
+   das Restaurant hätte trotzdem geliefert. Dieselbe Fehlerklasse war am ersten Testtag
+   bereits einmal aufgetreten, bei der Buchungsgebühr einer Reservierung, und dort gezielt
+   behoben worden — der Fix griff aber nicht bei Bestellketten-Kriterien, wo er erneut
+   auftrat. Diesmal richtig behoben: Jede Kriteriums-Konsequenz muss jetzt *hörbar, im
+   Moment des Geschehens*, in jedem Anruf-Modus angewendet werden — nicht nur nachträglich
+   protokolliert.
+2. **Eine Selbstkorrektur, die es schlimmer machte.** Ein früherer Fix ließ den Sprachagenten
+   den Gesamtpreis selbst aus den erfragten Einzelpreisen berechnen; live war genau diese
+   Rechnung fehlerhaft und löste einen unnötigen Budget-Abbruch bei einer Bestellung aus, die
+   klar im Limit lag. Bewusst zurückgebaut: Der Agent fragt das Restaurant jetzt nach dem
+   Gesamtpreis und prüft nur noch auf grobe Unplausibilität — die Rechnung überlässt er dem
+   Menschen, der den Anruf betreut, nicht sich selbst.
+3. **Ein fehlendes Bestätigungsfenster.** Ein Anruf endete, oder der Agent sagte, eine
+   Bestellung sei "verbindlich" aufgegeben, ohne dass die Gegenseite je ein echtes,
+   ausdrückliches Ja gegeben hatte. Behoben: Die Abschlussroutine muss dieses Ja jetzt
+   gehört haben, bevor irgendetwas als aufgegeben gilt — und muss es hörbar sagen, nicht
+   schweigend auflegen, wenn dieses Ja nie kommt.
+4. **Reihenfolge Bestellung vor Gesamtpreis.** Der Agent fragte ein Restaurant nach dem
+   Gesamtpreis, bevor er die Bestellung selbst je ausgesprochen hatte — etwas, das ein
+   Restaurant aus reinen Einzelpreisen nicht berechnen kann. Dreimal im ersten vollständigen
+   Durchlauf aufgetreten, durch einen späteren, am selben Tag geschriebenen Fix für ein
+   anderes Problem erneut abgeschwächt, und im Nachtest desselben Tages ein zweites Mal live
+   aufgetreten — obwohl die Anweisung, zuerst die Bestellung zu sprechen, textlich bereits an
+   der richtigen Stelle stand. Zu einer expliziten, als kritisch markierten
+   Reihenfolgeregel verschärft, statt nur eine Anweisung unter mehreren zu bleiben.
+5. **Ein Muster "Erstanruf einer Kaskade fälschlich als gescheitert gewertet".** Drei
+   Kaskaden hintereinander, über beide Testsitzungen hinweg, klassifizierten den jeweils
+   ersten Versuch eines Anrufs fälschlich als "nicht erreicht" — einmal wurde dabei ein
+   vollständiges, höflich abgelehntes Gespräch komplett verworfen. Weiterhin offen; die
+   abrufbaren Transkript-Belege deuten für diesen konkreten Fall auf die eigene
+   strukturierte Ergebnismeldung der Plattform hin, nicht auf die Logik dieses Repositories.
+6. **Eine Redaktionslücke.** Rufnummern werden in jedem gespeicherten Transkript und Log
+   korrekt maskiert, solange sie als Ziffern gesprochen oder erfasst werden — eine Nummer,
+   die als ausgeschriebene Zahlwörter vorgelesen wurde, rutschte live einmal an genau diesem
+   Filter vorbei. Dokumentiert, noch nicht behoben.
+
+Das Arbeitsmuster war an beiden Tagen dasselbe: **live finden, lokal beheben, exakt das
+Szenario, das gescheitert war, erneut fahren — und erst dann als erledigt gelten lassen.**
+Dieselbe Disziplin, die `AUFGABEN.txt` und `FINDINGS.md` für jeden Eintrag in der Geschichte
+dieses Repositories festhalten, kein Einmal-Akt zum Einreichungstermin.
+
+---
+
 ## Datenfluss und Datenschutz
 
 > ⚠️ **Hinweis zur Datenübermittlung**
