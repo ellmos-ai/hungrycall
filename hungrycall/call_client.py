@@ -24,6 +24,14 @@ from hungrycall.phone_utils import mask_phones_in_text, normalize_e164
 from hungrycall.safety import SafetyError, verify_phone_safety
 from hungrycall.schemas import get_result_schema
 
+
+class LiveCallBlocked(SafetyError):
+    """Refused to build a live client because DEMO_MODE=1 is set.
+
+    Raised by LiveCallClient.__init__ -- see the check at the top of it.
+    """
+
+
 DEFAULT_CALLE_ENV_FILE = Path(r"C:\_Local_DEV\CREDENTIALS\call-e\call-e.env")
 DEFAULT_CALLE_BASE_URL = "https://api.heycall-e.com"
 TERMINAL_STATUSES = {status.value for status in CallStatus}
@@ -301,6 +309,19 @@ class LiveCallClient(CallClient):
         poll_seconds: float = 8.0,
         poll_timeout_seconds: float = 900.0,
     ):
+        if os.environ.get("DEMO_MODE") == "1":
+            # Checked before the `confirmed` gate below and before anything
+            # else: this is the public dry-run demo deployment
+            # (demo/lambda_entry.py), and it must refuse a live call no
+            # matter what confirmation a caller supplies -- even
+            # confirmed=True. web.py's live_call_client() is the single seam
+            # that builds this class in the whole app; this guard exists so
+            # a future change there can never route around it.
+            raise LiveCallBlocked(
+                "This is the public dry-run demo (DEMO_MODE=1) -- it never places "
+                "a real call, regardless of what is configured. This is not a "
+                "bug: it is the one thing this deployment must never do."
+            )
         if not confirmed:
             raise SafetyError("Live calls require explicit confirmation.")
         self.settings = settings
