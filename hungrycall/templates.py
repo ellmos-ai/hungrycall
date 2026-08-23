@@ -439,6 +439,11 @@ main { flex: 1; width: 100%; max-width: 1180px; margin: 0 auto; padding: 2rem 1.
 @media (max-width: 700px) { .grid3, .grid2 { grid-template-columns: 1fr; } }
 .field { display: flex; flex-direction: column; gap: 0.3rem; }
 .field.wide { grid-column: 1 / -1; }
+/* Side-by-side fields line up on their inputs, not on their labels: a label
+   that wraps to two lines ("Maximum on collection (€)") would otherwise push
+   its own input a line below its neighbour's, so the row reads as broken even
+   though both boxes are the same size. */
+.fields-bottom > .field { justify-content: flex-end; }
 label { font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); font-family: var(--font-display); }
 input, select, textarea {
   background: var(--field-bg); color: var(--paper);
@@ -480,6 +485,15 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brass); out
 
 .checks { display: flex; flex-direction: column; gap: 0.5rem; }
 .check { display: flex; gap: 0.6rem; align-items: flex-start; font-size: 0.92rem; }
+/* One sentence with the number sitting inside it, instead of a checkbox that
+   states a value and a second field below that can silently contradict it.
+   The number input is deliberately a sibling of the labels, not nested in
+   one: a click on it would otherwise toggle the checkbox. */
+.check-inline { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; font-size: 0.92rem; }
+.check-inline label { cursor: pointer; margin: 0; }
+.check-inline input[type="number"] { width: 5.5rem; margin: 0; padding: 0.25rem 0.4rem; text-align: right; }
+.check-inline input[type="number"]:disabled { opacity: 0.45; cursor: not-allowed; }
+.check-inline:has(input[type="checkbox"]:not(:checked)) label { opacity: 0.7; }
 .check input { margin-top: 0.25rem; accent-color: var(--brass); }
 .tier { font-family: var(--font-mono); font-size: 0.75rem; color: var(--brass); border: 1px solid var(--brass-lo); border-radius: 3px; padding: 0 0.3rem; }
 
@@ -993,6 +1007,20 @@ def render_food_fields(
     concession_wait_minutes = defaults.get("concession_wait_minutes") or DEFAULT_CONCESSION_WAIT_MINUTES
     concession_price_delta_eur = defaults.get("concession_price_delta_eur") or DEFAULT_CONCESSION_PRICE_DELTA_EUR
 
+    # The number goes *into* the sentence rather than being stated in it and
+    # repeated in a field underneath -- the old shape let the two disagree the
+    # moment someone edited the field, since the sentence is rendered server
+    # side. Splitting each translation at its own placeholder keeps both
+    # languages correct without inventing prefix/suffix strings: German puts
+    # the unit after the number ("bis zu 3 € mehr"), English puts the currency
+    # before it ("Up to €3 more"), and each string already encodes that.
+    wait_before, wait_after = _split_at_placeholder(
+        t("food.concession.wait_longer_ok", lang, minutes=_PLACEHOLDER_SLOT)
+    )
+    price_before, price_after = _split_at_placeholder(
+        t("food.concession.higher_price_ok", lang, amount=_PLACEHOLDER_SLOT)
+    )
+
     return f"""
 <hr class="hr" style="margin:1.2rem 0;">
 <h3 class="eyebrow">{esc(t("food.mode.title", lang))}</h3>
@@ -1111,7 +1139,7 @@ def render_food_fields(
 
 <hr class="hr" style="margin:1.2rem 0;">
 <h3 class="eyebrow">{esc(t("food.price_range.title", lang))}</h3>
-<div class="grid3" style="margin-top:0.6rem;">
+<div class="grid3 fields-bottom" style="margin-top:0.6rem;">
   <div class="field">
     <label for="max_budget_eur" id="budget-label">{esc(t("food.budget.delivery", lang))}</label>
     <input type="number" id="max_budget_eur" name="max_budget_eur" value="{esc(max_budget)}" step="0.50" min="1" required>
@@ -1135,22 +1163,35 @@ def render_food_fields(
 <p class="help" style="margin:0.5rem 0 0.8rem;max-width:72ch;">{esc(t("food.concessions.help", lang))}</p>
 <div class="grid3">
   <div class="field">
-    <label class="check" for="concession-wait_longer_ok">
-      <input type="checkbox" id="concession-wait_longer_ok" name="concessions" value="wait_longer_ok">
-      <span>{esc(t("food.concession.wait_longer_ok", lang, minutes=_format_concession_number(concession_wait_minutes)))}</span>
-    </label>
-    <label for="concession_wait_minutes" class="help" style="margin-top:0.35rem;">{esc(t("food.concession.wait_minutes.label", lang))}</label>
-    <input type="number" id="concession_wait_minutes" name="concession_wait_minutes" value="{esc(_format_concession_number(concession_wait_minutes))}" min="0" max="180" step="1">
+    <div class="check-inline">
+      <input type="checkbox" id="concession-wait_longer_ok" name="concessions" value="wait_longer_ok" data-enables="concession_wait_minutes">
+      <label for="concession-wait_longer_ok">{esc(wait_before)}</label>
+      <input type="number" id="concession_wait_minutes" name="concession_wait_minutes" value="{esc(_format_concession_number(concession_wait_minutes))}" min="0" max="180" step="1" aria-label="{esc(t("food.concession.wait_minutes.label", lang))}" disabled>
+      <label for="concession-wait_longer_ok">{esc(wait_after)}</label>
+    </div>
   </div>
   <div class="field">
-    <label class="check" for="concession-higher_price_ok">
-      <input type="checkbox" id="concession-higher_price_ok" name="concessions" value="higher_price_ok">
-      <span>{esc(t("food.concession.higher_price_ok", lang, amount=_format_concession_number(concession_price_delta_eur)))}</span>
-    </label>
-    <label for="concession_price_delta_eur" class="help" style="margin-top:0.35rem;">{esc(t("food.concession.price_delta.label", lang))}</label>
-    <input type="number" id="concession_price_delta_eur" name="concession_price_delta_eur" value="{esc(_format_concession_number(concession_price_delta_eur))}" min="0" max="100" step="0.5">
+    <div class="check-inline">
+      <input type="checkbox" id="concession-higher_price_ok" name="concessions" value="higher_price_ok" data-enables="concession_price_delta_eur">
+      <label for="concession-higher_price_ok">{esc(price_before)}</label>
+      <input type="number" id="concession_price_delta_eur" name="concession_price_delta_eur" value="{esc(_format_concession_number(concession_price_delta_eur))}" min="0" max="100" step="0.5" aria-label="{esc(t("food.concession.price_delta.label", lang))}" disabled>
+      <label for="concession-higher_price_ok">{esc(price_after)}</label>
+    </div>
   </div>
 </div>
+<script>
+/* The number only means anything once its concession is switched on -- and a
+   disabled field is not submitted, so the server falls back to its own default
+   (bounded_float in web.py). Runs while parsing, like the chain editor's own
+   inline block below, so the initial state is correct before first paint. */
+document.querySelectorAll('[data-enables]').forEach(function (box) {{
+  var field = document.getElementById(box.dataset.enables);
+  if (!field) return;
+  var sync = function () {{ field.disabled = !box.checked; }};
+  box.addEventListener('change', sync);
+  sync();
+}});
+</script>
 <script>
 /* app.js is deferred and runs after every inline script; this block executes
    while parsing, so HC must be created here or the assignment throws and the
@@ -1206,6 +1247,25 @@ def _format_concession_number(value: float) -> str:
     """3.0 -> "3", 15 -> "15", 3.5 -> "3.5" -- a whole number embedded in an
     otherwise-numeric sentence should not carry a needless ".0"."""
     return f"{float(value):g}"
+
+
+_PLACEHOLDER_SLOT = "\x00"
+"""Stand-in rendered into a translated sentence so it can be split around the
+number afterwards. A NUL byte because no translation will ever contain one."""
+
+
+def _split_at_placeholder(text: str) -> tuple[str, str]:
+    """Split a rendered sentence into the part before and after its number.
+
+    Used to put an input field where the number would otherwise be printed.
+    A translation that lost its placeholder still renders sensibly: everything
+    lands in front of the field rather than raising, so a missing placeholder
+    costs a bit of wording, never the form.
+    """
+    before, found, after = text.partition(_PLACEHOLDER_SLOT)
+    if not found:
+        return text, ""
+    return before, after
 
 
 def resolved_food_concessions(

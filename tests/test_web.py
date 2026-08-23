@@ -1200,3 +1200,58 @@ def test_re_persisting_the_same_run_id_does_not_duplicate_the_attempt():
         live=True,
     )
     assert len(list_call_attempts("ord_dup_test")) == 2
+
+
+# --------------------------------------------------------------------------- concessions UI
+
+
+def test_concession_number_appears_once_as_a_field_inside_the_sentence(client):
+    """The value used to be printed in the checkbox text *and* repeated in a
+    separate field below it. Since the sentence is rendered server side, the
+    two silently disagreed the moment someone edited the field -- the form
+    then read "Up to 15 minutes longer would do" above an input saying 40.
+
+    Field-in-sentence is the fix; this guards the shape it has to keep.
+    """
+    body = client.get("/order?lang=en").text
+    start = body.index('id="concession-wait_longer_ok"')
+    block = body[start : start + 900]
+
+    # The sentence is split around the input, not stating the number itself.
+    assert "Up to </label>" in block
+    assert "minutes longer would do</label>" in block
+    assert 'id="concession_wait_minutes"' in block
+    # "Up to 15 minutes" as literal text is exactly the duplication removed here.
+    assert "Up to 15 minutes" not in block
+
+    # The old second label ("How many minutes longer?") survives only as the
+    # input's accessible name -- the field still needs one now that its visible
+    # label is running text.
+    assert 'aria-label="How many minutes longer?"' in block
+
+
+def test_the_number_is_inert_until_its_concession_is_switched_on(client):
+    """"Erst aktiv, wenn die Checkbox aktiviert wird": a number nobody
+    authorised must not look editable. Disabled fields are not submitted
+    either, so web.py falls back to its own default -- checked in
+    test_food_order_rejects_out_of_range_concession_values."""
+    body = client.get("/order?lang=en").text
+    for field_id in ("concession_wait_minutes", "concession_price_delta_eur"):
+        start = body.index(f'id="{field_id}"')
+        assert "disabled" in body[start : start + 400]
+    # ...and the checkbox carries the wiring that re-enables it.
+    assert 'data-enables="concession_wait_minutes"' in body
+    assert 'data-enables="concession_price_delta_eur"' in body
+
+
+def test_currency_sits_where_each_language_puts_it(client):
+    """English writes "Up to €3 more", German "bis zu 3 € mehr". Splitting the
+    existing translation at its own placeholder keeps that right in both
+    without a second set of prefix/suffix strings to translate."""
+    english = client.get("/order?lang=en").text
+    start = english.index('id="concession-higher_price_ok"')
+    assert "Up to €</label>" in english[start : start + 900]
+
+    german = client.get("/order?lang=de").text
+    start = german.index('id="concession-higher_price_ok"')
+    assert "€ mehr zahlen</label>" in german[start : start + 900]
