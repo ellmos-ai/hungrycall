@@ -13,7 +13,7 @@
 [![Umbrella: open-bricks](https://img.shields.io/badge/umbrella-open--bricks-indigo.svg)](https://github.com/open-bricks)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-368%20passed-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-396%20passed-brightgreen.svg)](tests/)
 [![llms.txt](https://img.shields.io/badge/llms.txt-standardisiert-green.svg)](llms.txt)
 
 > [!TIP]
@@ -204,6 +204,24 @@ Jeder gewählte Versuch — angenommen oder abgelehnt — wird mit Anbieter-Kenn
 Status, Ablehnungsgrund und maskiertem Transkript als **Bestellbeleg** gespeichert, sobald die
 Kaskade ihn auswertet, nicht erst am Ende. `GET /api/order-attempts?order_id=...` liefert diese
 Liste unter derselben Sitzungsregel wie der Live-Ereignisstrom.
+
+Im Bereich "Abgelehnte/fehlgeschlagene Bestellungen" des Verlaufs wird jeder fehlgeschlagene
+Versuch anhand seines gespeicherten Status und Ablehnungsgrunds nach **Fehlerschwere** eingestuft:
+eine klare, eindeutige Absage ist niedrige Schwere, ein Anruf aber, der mitten im Gespräch
+abgebrochen ist oder erst durch die eigene nachträgliche Prüfung dieser App abgelehnt wurde, gilt
+als kritisch — das Restaurant kann trotzdem glauben, eine Bestellung sei vereinbart, obwohl
+HungryCall sie verworfen hat. Zu prüfende und kritische Versuche, die noch nicht korrigiert
+wurden, erhalten einen manuellen Button **„Korrekturanruf auslösen"** — ausgelöst wird niemals
+automatisch. Der Korrekturanruf erreicht dasselbe Restaurant, nennt zuerst — noch vor allem
+anderen — dass es sich um einen Nachfassanruf im Auftrag des ursprünglichen Anrufers handelt,
+stellt ausdrücklich klar, dass es sich *nicht* um eine neue Bestellung oder Reservierung handelt,
+und fragt nur, ob noch etwas besteht — und storniert es sofort, falls ja. Der Gesprächstext liest
+dabei niemals `food_prompt`, `delivery_address`, Preis- oder Bestellkettendaten, sondern nur den
+Modus und den Namen des ursprünglichen Anrufers. Jeder Korrekturanruf erhält einen eigenen
+Idempotenzschlüssel (Präfix `"correction-{modus}"`, der den Schlüssel des Originalversuchs nie
+wiederverwendet) und wird über `corrects_attempt_id` mit dem korrigierten Versuch verknüpft, sodass
+ein korrigierter Versuch im Verlauf sichtbar markiert ist und selbst nicht ein zweites Mal
+korrigiert werden kann.
 
 **[`CONVERSATION-TREE.md`](CONVERSATION-TREE.md)** (Englisch) dokumentiert jeden Zweig, den der
 obige Gesprächstext nehmen kann, Knoten für Knoten mit der erzeugenden Funktion — dazu eine

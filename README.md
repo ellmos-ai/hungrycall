@@ -13,7 +13,7 @@
 [![Umbrella: open-bricks](https://img.shields.io/badge/umbrella-open--bricks-indigo.svg)](https://github.com/open-bricks)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-368%20passed-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-396%20passed-brightgreen.svg)](tests/)
 [![llms.txt](https://img.shields.io/badge/llms.txt-standardized-green.svg)](llms.txt)
 
 > [!TIP]
@@ -143,6 +143,11 @@ HungryCall addresses an entirely different class of problem — **a multi-candid
 
 10. **Order Receipt via Call Attempts**:
     - Every dialled attempt — accepted or rejected — is stored with its provider run id, status, rejection reason and masked transcript as soon as the cascade evaluates it, not only the final outcome. `GET /api/order-attempts?order_id=...` serves the list under the same session rule as the live event stream.
+
+11. **Correction-Call Queue for Ambiguous Failures**:
+    - Every failed attempt shown in history's "Rejected/failed orders" section is classified by severity from its own stored status and rejection reason: a clean, explicit decline is low severity, but a call that expired mid-conversation or was only rejected by this app's own post-hoc validation is critical — the restaurant may still believe an order was agreed, even though HungryCall discarded it (the field-trial case behind this feature: a restaurant believed an order stood while the app had already thrown it away).
+    - Moderate and critical attempts that have not already been corrected get a manual **Trigger correction call** button — nothing dials automatically. The correction call reaches the same restaurant, states up front (before anything else) that it is a follow-up to an earlier call on the requester's behalf, explicitly declares it is *not* a new order or reservation, and asks only whether anything still stands — cancelling it on the spot if so. Its goal text never reads `food_prompt`, `delivery_address`, price, or order-chain data, only the mode and the requester's own name.
+    - Correction calls get their own idempotency key (a `"correction-{mode}"` prefix that never reuses the original attempt's key) and are linked back to the attempt they correct via `corrects_attempt_id`, so a corrected attempt is visibly marked in history and cannot itself be corrected a second time.
 
 **[`CONVERSATION-TREE.md`](CONVERSATION-TREE.md)** documents every branch the goal text above can
 take, node by node, tagged with the exact builder function that produces it — plus a settings
