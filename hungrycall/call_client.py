@@ -217,6 +217,31 @@ class DryRunCallClient(CallClient):
     ) -> CallResult:
         normalized_phone = normalize_e164(restaurant.phone)
         verify_phone_safety(normalized_phone)
+
+        if user_request.is_correction:
+            # E41: a correction call has no ordering scenario to render from
+            # SCENARIO_FIXTURES (those are keyed by restaurant_id for a
+            # delivery/pickup/reservation ATTEMPT, not for this narrow
+            # yes/no follow-up) -- a dry run always answers "no, nothing was
+            # placed", which is both the safe default and the common real
+            # case, so route.py's own tests can assert on it deterministically.
+            return CallResult(
+                call_id=f"dry_call_{restaurant.id}_{int(time.time())}",
+                run_id=f"dry_run_{idempotency_key}",
+                status=CallStatus.COMPLETED,
+                task_completed=True,
+                completion_confidence=0.95,
+                structured_result={
+                    "order_or_reservation_exists": False,
+                    "cancelled_on_this_call": False,
+                },
+                transcript=[],
+                post_summary="Dry-run correction call: restaurant confirmed nothing was placed.",
+                rejection_reason=None,
+                activity=["Call initiated", "Restaurant confirmed nothing was placed"],
+                raw_transcript_text="",
+            )
+
         raw_mock_entry = self.scenario_data.get(restaurant.id)
 
         if not raw_mock_entry:
@@ -467,7 +492,7 @@ class LiveCallClient(CallClient):
                 "properties": {"completed_count": {"type": "integer"}},
             },
             "recipient_result_schema": get_result_schema(
-                user_request.mode, user_request.order_chain
+                user_request.mode, user_request.order_chain, is_correction=user_request.is_correction
             ),
             "metadata": {
                 "hungrycall_restaurant_id": restaurant.id,

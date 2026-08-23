@@ -1087,6 +1087,42 @@
     "de": "Angenommen",
     "en": "Accepted"
   },
+  "history.correction.trigger": {
+    "de": "Korrekturanruf auslösen",
+    "en": "Trigger correction call"
+  },
+  "history.correction.badge": {
+    "de": "Korrekturanruf",
+    "en": "Correction call"
+  },
+  "history.correction.severity.critical": {
+    "de": "Kritisch — möglicherweise wurde trotzdem bestellt",
+    "en": "Critical — an order may exist despite this"
+  },
+  "history.correction.severity.moderate": {
+    "de": "Zu prüfen — möglicherweise besteht trotzdem etwas",
+    "en": "Worth checking — something may still exist despite this"
+  },
+  "history.correction.result.none": {
+    "de": "Bestätigt: Es wurde nichts aufgegeben.",
+    "en": "Confirmed: nothing was placed."
+  },
+  "history.correction.result.cancelled": {
+    "de": "Bestätigt: Es bestand etwas — jetzt storniert.",
+    "en": "Confirmed: something existed — now cancelled."
+  },
+  "history.correction.result.unclear": {
+    "de": "Antwort unklar — siehe Transkript.",
+    "en": "Unclear answer — see transcript."
+  },
+  "history.correction.error": {
+    "de": "Korrekturanruf fehlgeschlagen.",
+    "en": "Correction call failed."
+  },
+  "history.correction.no_phone": {
+    "de": "Keine Telefonnummer für einen Korrekturanruf hinterlegt.",
+    "en": "No phone number on file for a correction call."
+  },
   "order.error.invalid": {
     "de": "Die Bestellkette ist ungültig: {detail}",
     "en": "The order chain is invalid: {detail}"

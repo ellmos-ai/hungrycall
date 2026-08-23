@@ -46,6 +46,33 @@ class CallStatus(StrEnum):
     EXPIRED = "EXPIRED"
 
 
+class AttemptSeverity(StrEnum):
+    """How urgently a dialled, unsuccessful call_attempts row (db.py) needs a
+    correction call (E41), on a call_attempts basis -- not a property of the
+    call itself, but a judgement about what the RESTAURANT's side may
+    believe happened despite our own system not counting it as a success.
+
+    NONE: the attempt passed; there is nothing to correct.
+    LOW: a clean, unambiguous decline or non-connection (the restaurant
+        either never picked up, or said plainly and explicitly that it could
+        not do what was asked) -- no risk that anything was left standing on
+        their side.
+    MODERATE: a real, if lesser, risk that something is still standing on
+        the restaurant's side despite our rejection (RESERVATION cases; an
+        answering-machine message for an order/pickup call).
+    CRITICAL: the classic E41 case for an actual food order (delivery or
+        pickup) -- the call did not end with a clear "no" from the
+        restaurant, so it may believe an order exists that our own system
+        never accepted. See ``classify_attempt_severity`` in engine.py for
+        exactly which combination of status/passed/rejection_reason ends up
+        in which bucket, and why.
+    """
+    NONE = "none"
+    LOW = "low"
+    MODERATE = "moderate"
+    CRITICAL = "critical"
+
+
 class ProductKind(StrEnum):
     """The two product kinds named by the approved order-chain blueprint."""
 
@@ -333,6 +360,17 @@ class UserRequest:
     # positional UserRequest(...) construction shifts.
     concession_wait_minutes: float = DEFAULT_CONCESSION_WAIT_MINUTES
     concession_price_delta_eur: float = DEFAULT_CONCESSION_PRICE_DELTA_EUR
+    # E41: a correction call is a standalone follow-up to an EARLIER dialled
+    # attempt, never a new order/reservation attempt of its own. When set,
+    # build_call_goal() (engine.py) hands off to build_correction_call_goal()
+    # instead of building an ordering/booking goal from this request's other
+    # fields -- so nothing above (food_prompt, delivery_address, order_chain,
+    # concessions, ...) is ever read for a correction call; only mode,
+    # requester_name() and the target restaurant are. Appended here, not
+    # inserted earlier, so no existing positional UserRequest(...)
+    # construction shifts.
+    is_correction: bool = False
+    corrects_attempt_id: str | None = None
 
     def granted_concession_keys(self) -> list[str]:
         return [c.key for c in self.concessions]

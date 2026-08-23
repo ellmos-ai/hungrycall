@@ -141,8 +141,52 @@ PICKUP_RESULT_SCHEMA: dict[str, Any] = {
 }
 
 
-def get_result_schema(mode: Mode, order_chain: OrderChain | None = None) -> dict[str, Any]:
-    """Retrieve the designated result_schema for a given HungryCall mode."""
+CORRECTION_RESULT_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["order_or_reservation_exists"],
+    "properties": {
+        "order_or_reservation_exists": {
+            "type": "boolean",
+            "description": (
+                "True if the restaurant confirmed that an order or reservation "
+                "from the EARLIER call actually exists on their side; False if "
+                "they confirmed none exists."
+            ),
+        },
+        "cancelled_on_this_call": {
+            "type": "boolean",
+            "description": (
+                "True only if one existed and was cancelled on THIS call, as "
+                "instructed. Always False when order_or_reservation_exists is "
+                "False -- there is nothing to cancel."
+            ),
+        },
+        "rejection_reason": {
+            "type": "string",
+            "description": (
+                "Free text ONLY if staff could not confirm either way this "
+                "call (e.g. the person who took the earlier call is not "
+                "available, no record could be found) -- never a reason for "
+                "declining a new order, since none was ever proposed here."
+            ),
+        },
+    },
+}
+
+
+def get_result_schema(
+    mode: Mode, order_chain: OrderChain | None = None, is_correction: bool = False
+) -> dict[str, Any]:
+    """Retrieve the designated result_schema for a given HungryCall mode.
+
+    is_correction (E41): a correction call is never about an order_chain --
+    it asks one narrow yes/no question about an EARLIER call, and its own
+    schema takes priority over everything else this function would otherwise
+    return for ``mode``.
+    """
+    if is_correction:
+        return CORRECTION_RESULT_SCHEMA
     if mode == Mode.DELIVERY:
         schema = DELIVERY_RESULT_SCHEMA
     elif mode == Mode.RESERVATION:

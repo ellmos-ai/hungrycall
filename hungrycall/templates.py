@@ -24,6 +24,7 @@ from hungrycall.i18n import SUPPORTED, has_key, t
 from hungrycall.models import (
     DEFAULT_CONCESSION_PRICE_DELTA_EUR,
     DEFAULT_CONCESSION_WAIT_MINUTES,
+    AttemptSeverity,
     Branch,
     Concession,
     Mode,
@@ -1939,6 +1940,14 @@ def render_history(
             for position in chain.get("posten", [])
         ) or order.get("food_prompt", "")
         attempts_html = ""
+        # E41: attempt ids that already GOT a correction call -- so the
+        # trigger button is offered at most once per attempt, not
+        # indefinitely after the follow-up already ran.
+        corrected_ids = {
+            attempt.get("corrects_attempt_id")
+            for attempt in entry["attempts"]
+            if attempt.get("corrects_attempt_id")
+        }
         for attempt in entry["attempts"]:
             outcome = (
                 t("cascade.rejected", lang) if not attempt.get("passed")
@@ -1949,6 +1958,30 @@ def render_history(
                 f'<p class="small muted">{esc(t("history.failed.attempt.reason", lang))}: {esc(reason)}</p>'
                 if reason else ""
             )
+            correction_html = ""
+            if attempt.get("corrects_attempt_id"):
+                # This row IS a correction call -- a badge, never another
+                # button (E41 v1: bounded to one follow-up per attempt).
+                correction_html = (
+                    f'<p class="small mono">🔄 {esc(t("history.correction.badge", lang))}</p>'
+                )
+            elif (
+                attempt.get("severity") in (AttemptSeverity.CRITICAL, AttemptSeverity.MODERATE)
+                and attempt.get("id") not in corrected_ids
+            ):
+                severity_key = (
+                    "history.correction.severity.critical"
+                    if attempt.get("severity") == AttemptSeverity.CRITICAL
+                    else "history.correction.severity.moderate"
+                )
+                correction_html = f"""
+    <p class="small notice">{esc(t(severity_key, lang))}</p>
+    <form hx-post="/api/correction-call?lang={lang}" hx-target="#correction-{esc(attempt.get("id", ""))}" hx-swap="outerHTML">
+      <input type="hidden" name="attempt_id" value="{esc(attempt.get("id", ""))}">
+      <span id="correction-{esc(attempt.get("id", ""))}">
+        <button type="submit" class="mini">{esc(t("history.correction.trigger", lang))}</button>
+      </span>
+    </form>"""
             attempts_html += f"""
   <div class="order-cell" style="margin-top:0.55rem;">
     <div class="order-cell-tools" style="margin-top:0;">
@@ -1956,6 +1989,7 @@ def render_history(
       <span class="small mono">{esc(attempt.get("created_at", ""))} — {esc(outcome)}</span>
     </div>
     {reason_html}
+    {correction_html}
     <details>
       <summary>{esc(t("result.transcript", lang))}</summary>
       <pre>{esc(attempt.get("transcript") or attempt.get("post_summary") or "")}</pre>

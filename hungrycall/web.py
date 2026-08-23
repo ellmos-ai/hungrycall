@@ -39,6 +39,7 @@ from hungrycall.call_client import CalleAPIError, DryRunCallClient, LiveCallClie
 from hungrycall.calle_key import resolve_call_settings
 from hungrycall.db import (
     create_order_record,
+    get_call_attempt,
     get_order_record,
     get_order_template,
     init_db,
@@ -53,7 +54,12 @@ from hungrycall.db import (
     save_order_template,
     save_tags,
 )
-from hungrycall.engine import CascadeEngine, build_call_goal, classify_rejection
+from hungrycall.engine import (
+    CascadeEngine,
+    build_call_goal,
+    classify_attempt_severity,
+    classify_rejection,
+)
 from hungrycall.fixtures import SCENARIO_FIXTURES
 from hungrycall.geo import today_weekday_key, weekday_key
 from hungrycall.i18n import LANG_COOKIE, resolve_lang, t
@@ -66,9 +72,12 @@ from hungrycall.location import (
 from hungrycall.models import (
     DEFAULT_CONCESSION_PRICE_DELTA_EUR,
     DEFAULT_CONCESSION_WAIT_MINUTES,
+    AttemptSeverity,
     Branch,
     CallResult,
+    CallStatus,
     Mode,
+    OpeningHours,
     Restaurant,
     Seating,
     UserRequest,
@@ -284,7 +293,14 @@ async def history_page(request: Request):
     # this new view does not reintroduce the exact leak that fix closed.
     failed_orders = list_orders_without_a_kept_result()
     for entry in failed_orders:
+        mode = Mode(entry["order"]["mode"])
         for attempt in entry["attempts"]:
+            # E41: classified BEFORE localisation, from the still-English
+            # rejection_reason evaluate_result() produced -- classify_
+            # attempt_severity() matches the exact English prefixes that
+            # function returns (_CLEAN_DECLINE_PREFIXES, engine.py), not
+            # whatever a given lang's translation happens to read.
+            attempt["severity"] = classify_attempt_severity(attempt, mode)
             attempt["rejection_reason"] = localize_engine_reason(
                 attempt.get("rejection_reason") or "", lang
             )
@@ -292,6 +308,131 @@ async def history_page(request: Request):
         render_history(lang, list_saved_results(), list_order_records(), failed_orders), lang,
         path="/history", title=t("history.title", lang)
     )
+
+
+def _correction_status_span(attempt_id: str, text: str, css_class: str = "small mono") -> str:
+    return (
+        f'<span id="correction-{html.escape(attempt_id)}" class="{html.escape(css_class)}">'
+        f"{html.escape(text)}</span>"
+    )
+
+
+@app.post("/api/correction-call", response_class=HTMLResponse)
+async def trigger_correction_call(request: Request):
+    """Manually trigger a correction call to the SAME restaurant as one
+    earlier, ambiguous call_attempts row (E41). Never automatic: this route
+    only ever runs from a user's own click on the button render_history()
+    (templates.py) puts next to a CRITICAL/MODERATE attempt -- there is no
+    other caller anywhere in this codebase. Returns a small HTML fragment
+    (the ``#correction-{attempt_id}`` span the button hx-swaps itself for),
+    same idiom as cancel_cascade()/api_save_result() above, not a redirect.
+    """
+    lang = lang_of(request)
+    form = await request.form()
+    attempt_id = str(form.get("attempt_id") or "").strip()
+    if not attempt_id:
+        return HTMLResponse(_correction_status_span("unknown", t("history.correction.error", lang)))
+
+    attempt = get_call_attempt(attempt_id)
+    if attempt is None:
+        return HTMLResponse(_correction_status_span(attempt_id, t("history.correction.error", lang)))
+    if attempt.get("corrects_attempt_id"):
+        # A correction call itself is never re-corrected through this same
+        # button -- keeps this a bounded, single follow-up per attempt (v1).
+        return HTMLResponse(_correction_status_span(attempt_id, t("history.correction.error", lang)))
+
+    order = get_order_record(attempt["order_id"])
+    if order is None:
+        return HTMLResponse(_correction_status_span(attempt_id, t("history.correction.error", lang)))
+
+    try:
+        mode = Mode(order["mode"])
+    except ValueError:
+        return HTMLResponse(_correction_status_span(attempt_id, t("history.correction.error", lang)))
+
+    severity = classify_attempt_severity(attempt, mode)
+    if severity in (AttemptSeverity.NONE, AttemptSeverity.LOW):
+        # Refuse for an attempt that already passed, or was a clean,
+        # unambiguous decline -- there is nothing to correct (E41 scope).
+        return HTMLResponse(_correction_status_span(attempt_id, t("history.correction.error", lang)))
+
+    restaurant_phone = attempt.get("restaurant_phone")
+    if not restaurant_phone:
+        # A legacy row recorded before the restaurant_phone column existed
+        # (db.py) -- there is no number on file to redial from here.
+        return HTMLResponse(
+            _correction_status_span(attempt_id, t("history.correction.no_phone", lang))
+        )
+
+    restaurant = Restaurant(
+        id=attempt["restaurant_id"],
+        name=attempt["restaurant_name"],
+        phone=restaurant_phone,
+        cuisines=[],
+        opening_hours=OpeningHours(days=[], open_time="00:00", close_time="23:59"),
+    )
+    # E41 privacy: built with ONLY the requester's name and the mode -- no
+    # food_prompt, delivery_address, order_chain, or any other field this
+    # UserRequest could otherwise carry; build_correction_call_goal()
+    # (engine.py) reads nothing else from it either.
+    correction_request = UserRequest(
+        mode=mode,
+        customer_name=order["customer_name"],
+        food_prompt="",
+        is_correction=True,
+        corrects_attempt_id=attempt_id,
+    )
+    live_mode = not bool(order.get("dry_run", 1))
+    client = live_call_client() if live_mode else DryRunCallClient()
+
+    # E41/R20: a distinct "correction-<mode>" prefix (never bare mode.value)
+    # guarantees this hashes to a different idempotency key than the
+    # original attempt regardless of timing -- generate_idempotency_key
+    # (safety.py) buckets by a 5-minute window keyed on (mode, restaurant_id)
+    # alone, so reusing the plain mode string here could otherwise collide
+    # with a same-restaurant retry still inside that window.
+    idempotency_key = generate_idempotency_key(
+        f"correction-{mode.value}", attempt["restaurant_id"], time.time()
+    )
+    call_args = {
+        "restaurant": restaurant,
+        "user_request": correction_request,
+        "idempotency_key": idempotency_key,
+    }
+    try:
+        if live_mode:
+            call_result = await asyncio.to_thread(client.execute_candidate_call, **call_args)
+        else:
+            call_result = client.execute_candidate_call(**call_args)
+    except (CalleAPIError, RuntimeError, TimeoutError, SafetyError) as exc:
+        logger.warning("Correction call for attempt %s failed: %s", attempt_id, exc)
+        return HTMLResponse(_correction_status_span(attempt_id, t("history.correction.error", lang)))
+
+    record_call_attempt(
+        order_id=attempt["order_id"],
+        restaurant_id=attempt["restaurant_id"],
+        restaurant_name=attempt["restaurant_name"],
+        run_id=call_result.run_id,
+        status=call_result.status.value,
+        passed=(call_result.status == CallStatus.COMPLETED),
+        rejection_reason=call_result.rejection_reason,
+        post_summary=call_result.post_summary,
+        transcript=mask_phones_in_text(call_result.raw_transcript_text or ""),
+        live=live_mode,
+        restaurant_phone=restaurant_phone,
+        corrects_attempt_id=attempt_id,
+    )
+
+    if call_result.status != CallStatus.COMPLETED:
+        return HTMLResponse(_correction_status_span(attempt_id, t("history.correction.error", lang)))
+    exists = bool(call_result.structured_result.get("order_or_reservation_exists"))
+    if not exists:
+        text = t("history.correction.result.none", lang)
+    elif call_result.structured_result.get("cancelled_on_this_call"):
+        text = t("history.correction.result.cancelled", lang)
+    else:
+        text = t("history.correction.result.unclear", lang)
+    return HTMLResponse(_correction_status_span(attempt_id, text, "small mono notice"))
 
 
 # --------------------------------------------------------------------------
@@ -1110,6 +1251,11 @@ async def cascade_stream(request: Request, order_id: str = Query(...)):
                 post_summary=call_result.post_summary,
                 transcript=mask_phones_in_text(call_result.raw_transcript_text or ""),
                 live=live_mode,
+                # E41: kept so a LATER, standalone correction call can redial
+                # this same restaurant without a fresh search -- the
+                # candidate pool a cascade dialled from is never itself
+                # persisted anywhere else.
+                restaurant_phone=restaurant.phone,
             )
 
             if not passed:

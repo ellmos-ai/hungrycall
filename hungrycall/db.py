@@ -120,6 +120,23 @@ def init_db(db_path_override: str | None = None) -> None:
             created_at TEXT NOT NULL
         );
     """)
+    call_attempt_columns = {
+        row[1] for row in cursor.execute("PRAGMA table_info(call_attempts)").fetchall()
+    }
+    # E41: restaurant_phone lets a later, standalone correction call reach
+    # the SAME restaurant again without a fresh search (the candidate pool a
+    # cascade dialled from is never itself persisted) -- older rows written
+    # before this column existed simply have it NULL, and are then not
+    # offered a correction-call button (web.py checks for it). corrects_
+    # attempt_id is NULL on every normal dialled attempt and set only on a
+    # correction attempt, to the id of the attempt it followed up on -- so a
+    # correction call is itself just one more call_attempts row, and the
+    # link back is explicit rather than inferred from timing or restaurant_id
+    # alone.
+    if "restaurant_phone" not in call_attempt_columns:
+        cursor.execute("ALTER TABLE call_attempts ADD COLUMN restaurant_phone TEXT")
+    if "corrects_attempt_id" not in call_attempt_columns:
+        cursor.execute("ALTER TABLE call_attempts ADD COLUMN corrects_attempt_id TEXT")
 
     conn.commit()
     conn.close()
@@ -186,6 +203,8 @@ def record_call_attempt(
     post_summary: str | None,
     transcript: str | None,
     live: bool,
+    restaurant_phone: str | None = None,
+    corrects_attempt_id: str | None = None,
 ) -> dict[str, Any]:
     """Persist one dialled attempt with its masked transcript.
 
@@ -198,6 +217,16 @@ def record_call_attempt(
     regardless of how it got here. Re-persisting a run_id already on file
     updates that row instead of inserting a second, duplicate receipt for a
     call that only happened once in the real world.
+
+    restaurant_phone (E41) is appended-only, defaulting to None for every
+    existing caller: it exists so a LATER, standalone correction call can
+    redial this SAME restaurant without a fresh search. corrects_attempt_id
+    (E41) is set only by a correction call itself, to the id of the attempt
+    it followed up on; it must never be reused as this call's own dedup key
+    -- correction attempts get their own fresh run_id from a deliberately
+    distinct idempotency key (generate_idempotency_key with a
+    "correction-<mode>" prefix, web.py), so they are never mistaken for a
+    retry of the original attempt.
     """
     init_db()
     conn = get_db_connection()
@@ -214,11 +243,13 @@ def record_call_attempt(
             cursor.execute("""
                 UPDATE call_attempts
                 SET restaurant_id = ?, restaurant_name = ?, status = ?, passed = ?,
-                    rejection_reason = ?, post_summary = ?, transcript = ?, live = ?
+                    rejection_reason = ?, post_summary = ?, transcript = ?, live = ?,
+                    restaurant_phone = ?, corrects_attempt_id = ?
                 WHERE id = ?
             """, (
                 restaurant_id, restaurant_name, status, 1 if passed else 0,
                 rejection_reason, post_summary, transcript, 1 if live else 0,
+                restaurant_phone, corrects_attempt_id,
                 existing["id"],
             ))
             conn.commit()
@@ -232,16 +263,32 @@ def record_call_attempt(
     cursor.execute("""
         INSERT INTO call_attempts (
             id, order_id, restaurant_id, restaurant_name, run_id, status,
-            passed, rejection_reason, post_summary, transcript, live, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            passed, rejection_reason, post_summary, transcript, live, created_at,
+            restaurant_phone, corrects_attempt_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         attempt_id, order_id, restaurant_id, restaurant_name, run_id, status,
         1 if passed else 0, rejection_reason, post_summary, transcript,
-        1 if live else 0, created_at,
+        1 if live else 0, created_at, restaurant_phone, corrects_attempt_id,
     ))
     conn.commit()
     conn.close()
     return {"id": attempt_id, "order_id": order_id, "created_at": created_at}
+
+
+def get_call_attempt(attempt_id: str) -> dict[str, Any] | None:
+    """Look up one call_attempts row by id (E41: the correction-call route
+    in web.py needs the attempt a user clicked "trigger correction call" on
+    -- restaurant_id/name/phone, its own status/passed/rejection_reason for
+    severity classification, and order_id to find the parent order's mode
+    and customer_name)."""
+    init_db()
+    conn = get_db_connection()
+    row = conn.execute(
+        "SELECT * FROM call_attempts WHERE id = ?", (attempt_id,)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row is not None else None
 
 
 def list_call_attempts(order_id: str) -> list[dict[str, Any]]:

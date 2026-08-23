@@ -14,6 +14,7 @@ from hungrycall.call_client import CallClient, DryRunCallClient
 from hungrycall.call_language import call_language
 from hungrycall.models import (
     AttemptRecord,
+    AttemptSeverity,
     CallResult,
     CallStatus,
     CascadeSummary,
@@ -265,12 +266,154 @@ def _quantity_announcement_example(locale: str) -> str:
     return 'Das sind 2 x Pizza Margherita und 1 x Cola.'
 
 
+def _correction_intro(locale: str, requester_name: str) -> str:
+    """The VERBATIM-quoted, always-FIRST sentence of a correction call (E41).
+
+    Mirrors _call_intro's disclosure pattern, but states up front that this
+    is a follow-up to an earlier call at this SAME restaurant -- exactly the
+    ringedingeding R21 precedent (commits f23aa2b/a8d2099 there): a fixed
+    self-reference sentence, spoken before anything else, every time.
+    """
+    if locale == "en":
+        return (
+            f"Hello, this is an automated assistant. I already called this restaurant once "
+            f"today on behalf of {requester_name}. "
+            "Conduct the entire conversation in English; every sentence spoken aloud must be English."
+        )
+    return (
+        f"Hallo, hier spricht ein automatisierter Assistent. Ich habe heute bereits einmal bei "
+        f"diesem Restaurant im Auftrag von {requester_name} angerufen. "
+        "Conduct the entire conversation in German; every sentence spoken aloud must be German."
+    )
+
+
+def _correction_mandate_clause(locale: str, mode: Mode) -> str:
+    """State the mandate limit BEFORE the clarifying question is even built.
+
+    Team-lead instruction (E41): "Der Korrekturanruf darf unter keinen
+    Umständen wie eine neue Bestellung klingen -- er klärt/storniert nur;
+    die Konsequenz wird laut ausgesprochen." Mirrors the E30 mandate
+    principle (this app's bot never negotiates or agrees to anything beyond
+    its explicit authority) applied to a call whose entire authority is
+    "ask, and cancel if yes" -- nothing else.
+    """
+    if mode is Mode.RESERVATION:
+        exists_en, action_en = "a table was reserved", "cancel that reservation now"
+        exists_de = "ein Tisch reserviert wurde"
+        action_de = "stornieren Sie diese Reservierung jetzt bitte"
+    else:
+        exists_en = "an order was placed"
+        action_en = "cancel that order now -- say clearly that nothing should be prepared or delivered"
+        exists_de = "eine Bestellung aufgegeben wurde"
+        action_de = (
+            "stornieren Sie diese Bestellung jetzt bitte -- sagen Sie klar, dass nichts "
+            "zubereitet oder ausgeliefert werden soll"
+        )
+    if locale == "en":
+        return (
+            " This call is NOT a new order and NOT a new reservation -- under no circumstances "
+            "place, change, or agree to anything new. Its only purpose is to find out whether "
+            f"{exists_en} on the earlier call and, if so, to have it cancelled. If staff confirm "
+            f"{exists_en}, {action_en}, and say so explicitly out loud so there is no doubt "
+            "afterwards on either side."
+        )
+    return (
+        " Dieser Anruf ist KEINE neue Bestellung und KEINE neue Reservierung -- geben Sie unter "
+        "keinen Umständen etwas Neues auf und stimmen Sie nichts Neues zu. Sein einziger Zweck "
+        f"ist herauszufinden, ob {exists_de} beim vorherigen Anruf, und falls ja, das zu "
+        f"stornieren. Bestätigt das Personal, dass {exists_de}, {action_de} und sagen Sie das "
+        "ausdrücklich laut, damit danach auf keiner Seite Zweifel besteht."
+    )
+
+
+def _correction_question_example(locale: str, mode: Mode) -> str:
+    """The VERBATIM-quoted worked example for the correction call's core
+    question -- team-lead's own wording for the order case, mirrored for
+    reservations."""
+    if mode is Mode.RESERVATION:
+        if locale == "en":
+            return (
+                "I want to make sure: no table was actually reserved, or the reservation has "
+                "already been cancelled -- can you confirm that?"
+            )
+        return (
+            "Ich möchte sicherstellen: Es wurde kein Tisch reserviert, oder die Reservierung "
+            "ist bereits storniert -- können Sie das bestätigen?"
+        )
+    if locale == "en":
+        return (
+            "I want to make sure: no order was actually placed, or the order has already "
+            "been cancelled -- can you confirm that?"
+        )
+    return (
+        "Ich möchte sicherstellen: Es wurde keine Bestellung aufgegeben, oder die Bestellung "
+        "ist bereits storniert -- können Sie das bestätigen?"
+    )
+
+
+def build_correction_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
+    """Build the goal text for a correction call (E41): a standalone
+    follow-up asking whether an EARLIER call's order or reservation still
+    stands, and having it cancelled if it does.
+
+    Privacy and mandate hold by construction here, not only by instruction:
+    - Only ``request.mode`` and ``request.requester_name()`` are ever read
+      from ``request`` -- never food_prompt, delivery_address,
+      max_budget_eur, order_chain, concessions, or any other field
+      describing what was ordered. Nothing beyond the requester's own name
+      is disclosed to a third party; the restaurant already knows its own
+      name, phone and address. ``restaurant`` itself is only used to reach
+      it (call_client.py dials ``restaurant.phone``) -- its fields are never
+      quoted into this text.
+    - The self-reference sentence (``_correction_intro``) is textually
+      FIRST in the string this function returns -- the ringedingeding R21
+      privacy-order precedent, applied here.
+    - The mandate clause comes immediately after, stating explicitly that
+      this is not a new order/reservation and that the consequence of "yes,
+      one exists" (cancellation) must be spoken aloud -- both BEFORE the
+      actual clarifying question is even posed.
+    - Nothing here ever reads a raw transcript or post_summary of the
+      earlier call; the earlier attempt's own free text is never quoted
+      back into a goal a second call would speak aloud.
+    """
+    requester_name = request.requester_name()
+    language = call_language()
+    intro = _correction_intro(language.locale, requester_name)
+    mandate = _correction_mandate_clause(language.locale, request.mode)
+    example = _correction_question_example(language.locale, request.mode)
+    if language.locale == "en":
+        task = (
+            f' Ask this clearly, as a direct yes/no question, for example: "{example}" '
+            "Report only whether an order or reservation actually exists (field "
+            "'order_or_reservation_exists') and, if so, whether it was cancelled on this call "
+            "(field 'cancelled_on_this_call' -- always False when none exists). If staff cannot "
+            "confirm either way this call, say so in 'rejection_reason' and end the call "
+            "politely; never guess."
+        )
+    else:
+        task = (
+            f' Fragen Sie das klar als direkte Ja/Nein-Frage, zum Beispiel: "{example}" '
+            "Melden Sie nur, ob tatsächlich eine Bestellung oder Reservierung existiert (Feld "
+            "'order_or_reservation_exists') und, falls ja, ob sie in diesem Anruf storniert "
+            "wurde (Feld 'cancelled_on_this_call' -- immer False, wenn keine existiert). Kann "
+            "das Personal das in diesem Anruf nicht klären, vermerken Sie das in "
+            "'rejection_reason' und beenden Sie den Anruf höflich -- raten Sie nicht."
+        )
+    return intro + mandate + task
+
+
 def build_call_goal(restaurant: Restaurant, request: UserRequest) -> str:
     """Build the CALL-E goal text: identity disclosure, task, limits, fallbacks.
 
     Everything the agent needs must be in here. Once this leaves, there is no
     second chance to add a condition (AGENTS.md, control boundary).
     """
+    if request.is_correction:
+        # E41: a correction call is not an ordering/booking attempt at all --
+        # none of this function's other fields (food_prompt, order_chain,
+        # concessions, reservation seating checks, ...) apply to it, so it
+        # hands off before any of them are even read.
+        return build_correction_call_goal(restaurant, request)
     requester_name = request.requester_name()
     # Single seam for the call's language (call_language.py): resolved once
     # here and threaded through to the order-chain instruction below, so a
@@ -566,6 +709,70 @@ def classify_rejection(result: CallResult, rejection_reason: str | None) -> str:
     if rejection_reason and rejection_reason.startswith(_NO_CONVERSATION_REASON_PREFIX):
         return "not_reached"
     return "declined"
+
+
+#: Rejection-reason prefixes that mean the restaurant gave a clean,
+#: unambiguous "no" -- exactly the earliest gate evaluate_result checks for
+#: each mode, before any negotiation about price, authority or order-chain
+#: rules could plausibly have implied an agreement. E41: only these leave NO
+#: doubt that nothing was placed; every other rejection got far enough into
+#: the call that the restaurant may believe something was agreed, even
+#: though this app's own validation rejected it afterwards -- the exact
+#: "Restaurant glaubte an eine Bestellung, App verwarf sie" field-trial case
+#: this feature exists for.
+_CLEAN_DECLINE_PREFIXES: dict[Mode, str] = {
+    Mode.DELIVERY: "Restaurant does not deliver to specified address",
+    Mode.PICKUP: "Pickup not available at restaurant",
+    Mode.RESERVATION: "No table available for requested date and time",
+}
+
+
+def classify_attempt_severity(attempt: dict, mode: Mode) -> AttemptSeverity:
+    """How urgently ONE dialled call_attempts row (db.py) needs a correction
+    call (E41), on a call_attempts basis as specified.
+
+    Takes a plain dict -- exactly the shape ``list_orders_without_a_kept_
+    result()``/``get_call_attempt()`` (db.py) return -- plus the mode of its
+    parent order, since call_attempts itself does not carry mode. Reads only
+    status/passed/rejection_reason, never transcript/post_summary: severity
+    is a judgement about the OUTCOME reported for the attempt, not the
+    conversation's wording.
+    """
+    if attempt.get("passed"):
+        return AttemptSeverity.NONE
+
+    status_value = attempt.get("status")
+    try:
+        status = CallStatus(status_value) if status_value else None
+    except ValueError:
+        status = None
+
+    if status in (
+        CallStatus.FAILED, CallStatus.NO_ANSWER, CallStatus.BUSY,
+        CallStatus.CANCELED, CallStatus.DECLINED,
+    ):
+        # FAILED/NO_ANSWER/BUSY: nobody was ever reached. CANCELED: we ended
+        # it ourselves. DECLINED: an explicit refusal at the call layer
+        # itself. None of these leave room for the restaurant to believe
+        # anything was agreed.
+        return AttemptSeverity.LOW
+    if status is CallStatus.VOICEMAIL:
+        # A message was left; staff MIGHT act on it, but that is markedly
+        # less likely than an agreement reached in a live conversation.
+        return AttemptSeverity.MODERATE
+    if status is CallStatus.EXPIRED:
+        # The call was live and ended without warning -- the "cut off
+        # mid-agreement" risk this feature exists for, for an actual order.
+        return AttemptSeverity.MODERATE if mode is Mode.RESERVATION else AttemptSeverity.CRITICAL
+
+    # status is COMPLETED (or, for a legacy row recorded before this
+    # feature, unrecorded/None): a real conversation happened, so whether
+    # doubt remains depends on WHY evaluate_result rejected it.
+    reason = attempt.get("rejection_reason") or ""
+    clean_prefix = _CLEAN_DECLINE_PREFIXES.get(mode)
+    if clean_prefix and reason.startswith(clean_prefix):
+        return AttemptSeverity.LOW
+    return AttemptSeverity.MODERATE if mode is Mode.RESERVATION else AttemptSeverity.CRITICAL
 
 
 class CascadeEngine:
