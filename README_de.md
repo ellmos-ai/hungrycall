@@ -4,6 +4,14 @@
 
 [![Demovideo ansehen](youtube-play-thumb.png)](https://youtu.be/5RIq7lpKv4w)
 
+**Live-Demo (Dry-Run, keine echten Anrufe möglich):** https://yr5xa7sodp76bt6uvivprlvz5i0wbfcd.lambda-url.eu-central-1.on.aws/
+
+Die öffentliche Fassung läuft mit `DEMO_MODE=1` und ohne jede `CALLE_*`-
+Zugangsdatei; `LiveCallClient` verweigert damit jeden Live-Anruf noch vor der
+eigenen Bestätigungsprüfung — auch den E41-Korrekturanruf, der über dieselbe
+Stelle läuft. Die Restaurantsuche startet im hauseigenen Beispieldaten-Modus,
+es verlässt also nichts die Sandbox. Siehe [`infra/README.md`](infra/README.md).
+
 
 # HungryCall 🍕📞
 
@@ -13,7 +21,7 @@
 [![Umbrella: open-bricks](https://img.shields.io/badge/umbrella-open--bricks-indigo.svg)](https://github.com/open-bricks)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-396%20passed-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-404%20passed-brightgreen.svg)](tests/)
 [![llms.txt](https://img.shields.io/badge/llms.txt-standardisiert-green.svg)](llms.txt)
 
 > [!TIP]

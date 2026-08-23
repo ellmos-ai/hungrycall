@@ -4,7 +4,7 @@
 
 ## System Architecture
 
-- **Core Framework**: Python 3.11+, FastAPI (Web UI), SQLite (persistent history & templates), Jinja2 (HTML templates), Pytest (396 tests).
+- **Core Framework**: Python 3.11+, FastAPI (Web UI), SQLite (persistent history & templates), Jinja2 (HTML templates), Pytest (404 tests).
 - **Voice Platform**: CALL-E / AiRudder API (`plan_call` -> `run_call` -> `get_call_run`).
 - **Execution Pattern**: Sequential calling cascade with judgment and immediate early exit upon candidate success.
 - **Safety Architecture**: Full E.164 phone sanitization, strict number masking (`+49 ••• ••••567`), financial commitment limits (`max_budget_eur`), content moderation filters, and explicit user consent gates.

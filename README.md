@@ -4,6 +4,14 @@
 
 [![Watch the demo video](youtube-play-thumb.png)](https://youtu.be/5RIq7lpKv4w)
 
+**Live demo (dry-run, no calls possible):** https://yr5xa7sodp76bt6uvivprlvz5i0wbfcd.lambda-url.eu-central-1.on.aws/
+
+The public deployment runs with `DEMO_MODE=1` and without any `CALLE_*`
+credential, so `LiveCallClient` refuses every live call before it even reaches
+its own confirmation gate — including the E41 correction call, which goes
+through the same seam. Restaurant lookup defaults to the app's own fixture
+mode, so nothing leaves the sandbox. See [`infra/README.md`](infra/README.md).
+
 
 # HungryCall 🍕📞
 
@@ -13,7 +21,7 @@
 [![Umbrella: open-bricks](https://img.shields.io/badge/umbrella-open--bricks-indigo.svg)](https://github.com/open-bricks)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-396%20passed-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-404%20passed-brightgreen.svg)](tests/)
 [![llms.txt](https://img.shields.io/badge/llms.txt-standardized-green.svg)](llms.txt)
 
 > [!TIP]
