@@ -15,7 +15,7 @@ FICTIONAL_CALLBACK = "+4910004069000"
 
 def test_validate_e164_valid():
     assert validate_e164("+441632960090") is True
-    assert validate_e164("+15551234567") is True
+    assert validate_e164("+12025550123") is True
     assert validate_e164("+442079460999") is True
 
 
@@ -34,9 +34,9 @@ def test_normalize_e164():
 
 def test_mask_phone():
     masked = mask_phone("+441632960090")
-    assert "170" in masked or "+49" in masked
-    assert "1234" not in masked  # Middle numbers masked
-    assert "567" in masked       # Suffix kept for callback reference
+    assert "+49" in masked
+    assert "3920" not in masked  # Middle numbers masked
+    assert "090" in masked       # Suffix kept for callback reference
     assert "•••" in masked
 
 
@@ -45,7 +45,7 @@ def test_mask_phone_inside_api_text():
     masked = mask_phones_in_text(text)
     assert "+441632960090" not in masked
     assert "+44 20 79460090" not in masked
-    assert masked.endswith("••• ••••567; second +493 ••• ••••567.")
+    assert masked.endswith("••• ••••090; second +493 ••• ••••090.")
 
 
 def test_national_format_numbers_are_masked_in_text():
@@ -70,7 +70,7 @@ def test_spelled_out_digit_words_of_a_known_number_are_redacted():
     callback number aloud as individual German digit words, which neither
     PHONE_CANDIDATE_REGEX (redact_specific_phone) nor mask_phones_in_text
     (no contiguous digit run) recognised as the same number."""
-    text = "Die Rückrufnummer ist plus vier neun, eins null null, eins zwei drei, vier fünf sechs, sieben acht."
+    text = "Die Rückrufnummer ist plus vier neun, eins null null, null vier null, sechs neun null, null null."
     redacted = redact_specific_phone(text, FICTIONAL_CALLBACK)
     assert "vier" not in redacted
     assert "neun" not in redacted
@@ -84,7 +84,7 @@ def test_spelled_out_digit_words_split_across_a_transcript_turn_header():
     words."""
     text = (
         "[01:10] BOT: Die direkte Rückrufnummer ist plus vier neun,\n"
-        "[01:15] BOT: eins null null, eins zwei drei, vier fünf sechs, sieben acht."
+        "[01:15] BOT: eins null null, null vier null, sechs neun null, null null."
     )
     redacted = redact_specific_phone(text, FICTIONAL_CALLBACK)
     assert "[REDACTED-REQUESTER-CALLBACK]" in redacted

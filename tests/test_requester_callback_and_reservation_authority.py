@@ -429,7 +429,7 @@ def test_requester_callback_is_transient_and_never_persisted(tmp_path, monkeypat
         mode=request.mode.value,
         restaurant_id="restaurant-1",
         restaurant_name="Example Restaurant",
-        masked_phone="+491 ••• ••••222",
+        masked_phone="+491 ••• ••••001",
         callback_number="+441632960001",
         total_price_eur=20,
         eta_minutes=30,
@@ -463,11 +463,11 @@ def test_callback_spoken_as_digit_words_across_turns_is_still_redacted():
     phone_utils.redact_specific_phone): the voice agent read the requester's
     callback number aloud as German digit words, and CALL-E's transcript
     reconstruction split it across two turn-header lines. The digits below
-    spell CALLBACK ("+4910004069000") -> vier neun eins null null eins
-    zwei drei vier fünf sechs sieben acht."""
+    spell CALLBACK ("+4910004069000") -> vier neun eins null null null
+    vier null sechs neun null null null."""
     raw_transcript = (
         "[01:10] BOT: Die direkte Rückrufnummer ist plus vier neun,\n"
-        "[01:15] BOT: eins null null, eins zwei drei, vier fünf sechs, sieben acht."
+        "[01:15] BOT: eins null null, null vier null, sechs neun null, null null."
     )
     leaky_result = CallResult(
         call_id="spelled-out-call",

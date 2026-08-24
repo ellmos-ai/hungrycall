@@ -385,14 +385,12 @@ gerade geprüft wurde. Keine Nummer außerhalb dieser einen Testleitung wurde je
 
 **2026-08-11 — die ersten Live-Anrufe.** Der allererste echte `POST /v1/calls`-Verkehr
 gegen die reale API, gefahren gegen deterministische Fixture-Restaurantdaten (die öffentliche
-Restaurantsuche war an diesem Abend rate-limitiert). Vier Kaskaden hinterließen ein
-abrufbares Transkript und einen gespeicherten Beleg (`EVIDENCE.md` §16): eine Lieferkette,
-die ein nicht verfügbares Gericht korrekt ersetzte, ein Abholanruf, der einen ungefähren
-Preis so lange ablehnte, bis ein exakter genannt wurde, eine Reservierung, deren Gebühr der
-Sprachagent mündlich akzeptierte, die aber das eigene strukturierte Audit der App trotzdem
-zurückwies, sowie eine vollständig erfolgreiche Lieferkaskade Ende zu Ende. Zwei frühere
-Kaskaden desselben Abends liefen in einen Fehler, bevor die Beleg-Tabelle überhaupt
-existierte, und hinterließen dadurch keinen eigenen abrufbaren Nachweis.
+Restaurantsuche war an diesem Abend rate-limitiert). Vier Kaskaden erzeugten lokale,
+gitignorierte Diagnosebelege: eine Lieferkette mit Ersatzposition, ein Abholanruf mit
+Preispräzisierung, eine durch das unabhängige Vollmachts-Audit verworfene neue Gebühr und
+eine vollständige Lieferkaskade. Das öffentliche `EVIDENCE.md` §16 enthält absichtlich nur
+aggregierte Befunde und klar gekennzeichnete synthetische Reproduktionen — keine
+Rohtranskripte, Call-/Order-IDs, Personennamen, exakten Zeitstempel oder Rufnummernfragmente.
 
 **2026-08-22 — vollständiger Durchlauf, dann ein Nachtest am selben Tag.** Alle drei
 Anruf-Modi wurden in einer Sitzung live Ende zu Ende durchgespielt, jeder als eigene
@@ -444,10 +442,10 @@ Live-Anrufen selbst nachgeprüft.
    vollständiges, höflich abgelehntes Gespräch komplett verworfen. Weiterhin offen; die
    abrufbaren Transkript-Belege deuten für diesen konkreten Fall auf die eigene
    strukturierte Ergebnismeldung der Plattform hin, nicht auf die Logik dieses Repositories.
-6. **Eine Redaktionslücke.** Rufnummern werden in jedem gespeicherten Transkript und Log
-   korrekt maskiert, solange sie als Ziffern gesprochen oder erfasst werden — eine Nummer,
-   die als ausgeschriebene Zahlwörter vorgelesen wurde, rutschte live einmal an genau diesem
-   Filter vorbei. Dokumentiert, noch nicht behoben.
+6. **Eine Redaktionslücke.** Eine als Zahlwörter vorgelesene Rückrufnummer umging einmal die
+   allgemeine Rufnummernmaskierung. Behoben: Die zweckgebundene Rückrufnummer wird nun in
+   numerischer, formatierter und bekannter Zahlwortform rekursiv entfernt, bevor Ergebnis,
+   Beleg oder Diagnose-Payload sie behalten können.
 
 Das Arbeitsmuster war an beiden Tagen dasselbe: **live finden, lokal beheben, exakt das
 Szenario, das gescheitert war, erneut fahren — und erst dann als erledigt gelten lassen.**
@@ -489,6 +487,8 @@ dieses Repositories festhalten, kein Einmal-Akt zum Einreichungstermin.
 * **Nur auf ausdrückliche Handlung** wird gewählt.
 * **E.164-Prüfung** jeder Zielnummer vor dem Wählen.
 * **Rufnummern-Maskierung** in Konsole, JSON-Berichten und Zusammenfassungen.
+* **Öffentliche deutsche Beispielnummern** stammen ausschließlich aus den dauerhaft nicht
+  zugeteilten „Drama Numbers“ der Bundesnetzagentur-Mitteilung 148/2021.
 * **Keine Zugangsdaten im Code oder Log** — Prozess-Umgebung oder eine externe
   `.env`-Datei außerhalb des Repos; die Umgebung hat Vorrang.
 * **Keine versteckten wiederkehrenden Zeitpläne** — ein CLI-Lauf, kein Daemon, keine

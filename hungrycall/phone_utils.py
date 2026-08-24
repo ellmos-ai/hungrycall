@@ -42,7 +42,7 @@ def mask_phone(phone: str) -> str:
     """Mask phone numbers for safe display in logs, outputs, and reports.
 
     Example:
-        '+441632960090' -> '+49 ••• ••••567'
+        '+441632960090' -> '+491 ••• ••••090'
     """
     if not phone:
         return "[MASKED-PHONE]"
@@ -98,7 +98,7 @@ def mask_phones_in_text(text: str) -> str:
 # A voice agent reads the requester's callback number aloud on the call, and
 # the STT transcript sometimes returns it as individual German digit words
 # rather than digits (field trial 2026-08-11: e.g. "plus vier neun, eins
-# sieben null, ..." for a number like "+4416329600..."). Neither
+# sieben sechs, ..." for a number like "+4910004069..."). Neither
 # PHONE_CANDIDATE_REGEX (needs a contiguous digit run) nor
 # NATIONAL_IN_TEXT_REGEX catches that, so the requester's own number survived
 # redaction and reached the stored transcript/receipt unmasked. Worse: the

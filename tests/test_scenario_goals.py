@@ -495,7 +495,7 @@ def test_flip_reservation_step_numbering_shifts_with_granted_tolerances(monkeypa
 
 def test_delivery_and_pickup_chain_goals_require_the_order_summary_before_price(monkeypatch):
     """E5, reproduced live 3x in the first measurement, then AGAIN live in
-    RT-1b (2026-08-22, ord_synthetic) despite this instruction already
+    RT-1b (2026-08-22, ord_quantity_gap) despite this instruction already
     standing textually before the total-price question -- the agent asked
     only for unit prices, then demanded a bare total, without ever having
     spoken the order out loud, and the human had to demand it ("what would
