@@ -109,7 +109,7 @@ def test_db_order_and_save_result(setup_test_db):
         restaurant_id="rest_burger_house",
         restaurant_name="Burger House Dorfstadt",
         masked_phone="+49170...",
-        callback_number="+441632960000",
+        callback_number="+447700900000",
         total_price_eur=28.50,
         eta_minutes=35,
         post_summary="Order confirmed successfully",
@@ -331,7 +331,7 @@ def test_confirmed_live_transport_reaches_the_real_client_seam(client, monkeypat
 def test_web_stream_redacts_an_echoed_requester_callback_before_sse_and_save(
     client, setup_test_db
 ):
-    callback = "+441632960090"
+    callback = "+447700900090"
 
     class EchoingClient:
         def execute_candidate_call(self, restaurant, user_request, idempotency_key):
@@ -486,7 +486,7 @@ def search_form(**overrides):
         "delivery_address": "Dorfstraße 10, 12345 Dorfstadt",
         "first_name": "Alex",
         "last_name": "Test",
-        "requester_callback_number": "+441632960090",
+        "requester_callback_number": "+447700900090",
         "food_prompt": "Burger",
         "max_budget_eur": "35.00",
         "scenario": "jury_30s_demo",
@@ -555,7 +555,7 @@ def test_table_search_filters_by_party_size(client):
         "branch": "table", "mode": "reservation", "postcode": "12345",
         "city": "Dorfstadt", "radius_km": "3.0",
         "delivery_address": "Dorfstraße 10", "first_name": "Alex", "last_name": "Test",
-        "requester_callback_number": "+441632960090",
+        "requester_callback_number": "+447700900090",
         "food_prompt": "Italienisch", "reservation_date": "2026-08-07",
         "reservation_time": "19:00", "party_size": "12", "seating": "any",
         "scenario": "table_cascade",
@@ -595,7 +595,7 @@ def test_goal_preview_follows_the_mode(client):
 def test_goal_preview_ignores_removed_legacy_concessions(client):
     form = {
         "branch": "table", "mode": "reservation", "city": "Dorfstadt",
-        "first_name": "Alex", "last_name": "Test", "requester_callback_number": "+441632960090",
+        "first_name": "Alex", "last_name": "Test", "requester_callback_number": "+447700900090",
         "food_prompt": "Italienisch",
         "reservation_date": "2026-08-07", "reservation_time": "19:00",
         "party_size": "4", "seating": "outdoor",
@@ -918,7 +918,7 @@ def test_table_cascade_books_a_table_and_names_the_seating(client):
         "branch": "table", "mode": "reservation", "city": "Dorfstadt",
         "postcode": "12345", "radius_km": "3.0",
         "delivery_address": "Dorfstraße 10", "first_name": "Alex", "last_name": "Test",
-        "requester_callback_number": "+441632960090",
+        "requester_callback_number": "+447700900090",
         "food_prompt": "Italienisch", "reservation_date": "2026-08-07",
         "reservation_time": "19:00", "party_size": "4", "seating": "outdoor",
         "scenario": "table_cascade",
@@ -941,7 +941,7 @@ def test_table_cascade_cannot_be_reopened_by_a_legacy_concession(client):
         "branch": "table", "mode": "reservation", "city": "Dorfstadt",
         "postcode": "12345", "radius_km": "3.0",
         "delivery_address": "Dorfstraße 10", "first_name": "Alex", "last_name": "Test",
-        "requester_callback_number": "+441632960090",
+        "requester_callback_number": "+447700900090",
         "food_prompt": "Italienisch", "reservation_date": "2026-08-07",
         "reservation_time": "19:00", "party_size": "4", "seating": "outdoor",
         "scenario": "table_concession_cascade",
@@ -970,7 +970,7 @@ def test_saved_result_keeps_the_mode_that_actually_happened(client):
         "branch": "table", "mode": "reservation", "city": "Dorfstadt",
         "postcode": "12345", "radius_km": "3.0",
         "delivery_address": "Dorfstraße 10", "first_name": "Alex", "last_name": "Test",
-        "requester_callback_number": "+441632960090",
+        "requester_callback_number": "+447700900090",
         "food_prompt": "Italienisch", "reservation_date": "2026-08-07",
         "reservation_time": "19:00", "party_size": "4", "seating": "any",
         "scenario": "table_cascade",
@@ -1110,7 +1110,7 @@ def test_live_with_fixtures_stays_refused_without_field_trial(client, monkeypatc
 def test_live_with_fixtures_allowed_under_field_trial_override(client, monkeypatch):
     """With the consenting test number configured, a supervised field trial may
     run live against fixture restaurants — every candidate is rewired to it."""
-    trial_number = "+4910004069001"
+    trial_number = "+447700900201"
     monkeypatch.setenv("HUNGRYCALL_FIELD_TRIAL_PHONE", trial_number)
     monkeypatch.setattr(web, "live_call_client", lambda: DryRunCallClient("jury_30s_demo"))
     form = cascade_form(transport="live", confirm_live="yes")

@@ -291,7 +291,7 @@ class OrderChain:
 class Restaurant:
     id: str
     name: str
-    phone: str  # E.164 format, e.g. +441632960090
+    phone: str  # E.164 format, e.g. +447700900090
     cuisines: list[str]  # e.g. ["Burger", "American"]
     opening_hours: OpeningHours
     is_favorite: bool = False

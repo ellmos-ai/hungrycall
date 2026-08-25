@@ -61,7 +61,7 @@ def search_form(**overrides):
         "delivery_address": "Invalidenstraße 1, 10115 Berlin",
         "first_name": "Test",
         "last_name": "User",
-        "requester_callback_number": "+4910004069000",
+        "requester_callback_number": "+447700900200",
         "food_prompt": "Burger",
         "max_budget_eur": "35.00",
         "scenario": "jury_30s_demo",
@@ -151,7 +151,7 @@ def test_overpass_normalizes_formatted_german_phone_for_calling(monkeypatch):
                         "lon": 13.405,
                         "tags": {
                             "name": "Fixture Bistro",
-                            "phone": "030 / 23125 090",
+                            "phone": "0100 / 00000 90",
                         },
                     }
                 ]
@@ -161,7 +161,7 @@ def test_overpass_normalizes_formatted_german_phone_for_calling(monkeypatch):
 
     restaurants = search_overpass_restaurants(52.52, 13.405)
 
-    assert restaurants[0].phone == "+442079460090"
+    assert restaurants[0].phone == "+491000000090"
 
 
 def test_repeated_identical_search_reuses_the_cache_instead_of_asking_osm_again(monkeypatch):

@@ -17,7 +17,7 @@ const path = require("node:path");
 const huckepack = require(path.join(__dirname, "..", "hungrycall", "static", "huckepack.js"));
 
 test("phone numbers do not survive into a receipt", () => {
-  const masked = huckepack.maskPhones("Rufen Sie 020 79460090 an oder +44 1632 960090.");
+  const masked = huckepack.maskPhones("Rufen Sie 020 79460090 an oder +44 7700 900090.");
   assert.ok(!masked.includes("1234567"));
   assert.ok(masked.includes("•••"));
 });

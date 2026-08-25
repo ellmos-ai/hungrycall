@@ -268,7 +268,7 @@ def test_dynamic_schema_and_goal_come_from_the_same_chain():
         max_budget_eur=35,
         delivery_address="Dorfstraße 10",
         order_chain=chain,
-        requester_callback_number="+4910004069000",
+        requester_callback_number="+447700900200",
     )
 
     schema = get_result_schema(Mode.DELIVERY, chain)
@@ -364,7 +364,7 @@ def test_web_dry_run_uses_chain_and_renders_grouped_tag_summary(chain_db, monkey
         "delivery_address": "Dorfstraße 10, 12345 Dorfstadt",
         "first_name": "Alex",
         "last_name": "Test",
-        "requester_callback_number": "+4910004069000",
+        "requester_callback_number": "+447700900200",
         "food_prompt": chain.summary(),
         "order_chain_json": order_chain_json(chain),
         "max_budget_eur": "35.00",

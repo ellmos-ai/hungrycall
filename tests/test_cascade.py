@@ -82,7 +82,7 @@ def build_reservation_request(seating=Seating.ANY, **overrides):
         "reservation_time": "19:00",
         "party_size": 4,
         "seating": seating,
-        "requester_callback_number": "+4910004069000",
+        "requester_callback_number": "+447700900200",
     }
     values.update(overrides)
     return UserRequest(**values)

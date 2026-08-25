@@ -37,7 +37,7 @@ def verify_phone_safety(phone: str) -> None:
     """Verify phone number is valid E.164 prior to initiating any call."""
     if not validate_e164(phone):
         raise SafetyError(
-            f"Invalid phone number format '{phone}'. Must be a valid E.164 phone number (e.g. +441632960090)."
+            f"Invalid phone number format '{phone}'. Must be a valid E.164 phone number (e.g. +447700900090)."
         )
 
 

@@ -429,8 +429,8 @@ def test_requester_callback_is_transient_and_never_persisted(tmp_path, monkeypat
         mode=request.mode.value,
         restaurant_id="restaurant-1",
         restaurant_name="Example Restaurant",
-        masked_phone="+491 ••• ••••001",
-        callback_number="+441632960001",
+        masked_phone="+447 ••• ••••001",
+        callback_number="+447700900001",
         total_price_eur=20,
         eta_minutes=30,
         post_summary=leaky_result.post_summary,
@@ -467,7 +467,7 @@ def test_callback_spoken_as_digit_words_across_turns_is_still_redacted():
     vier null sechs neun null null null."""
     raw_transcript = (
         "[01:10] BOT: Die direkte Rückrufnummer ist plus vier neun,\n"
-        "[01:15] BOT: eins null null, null vier null, sechs neun null, null null."
+        "[01:15] BOT: eins null null null, vier null sechs neun, null null null."
     )
     leaky_result = CallResult(
         call_id="spelled-out-call",

@@ -17,7 +17,7 @@ SAMPLE_RESTAURANTS: list[Restaurant] = [
     Restaurant(
         id="rest_burger_house",
         name="Burger House Dorfstadt",
-        phone="+441632960000",
+        phone="+447700900000",
         cuisines=["Burger", "American", "Fast Food"],
         opening_hours=OpeningHours(days=ALL_WEEK, open_time="11:00", close_time="23:00"),
         is_favorite=False,
@@ -34,7 +34,7 @@ SAMPLE_RESTAURANTS: list[Restaurant] = [
     Restaurant(
         id="rest_trattoria_luigi",
         name="Trattoria Bella Luigi",
-        phone="+441632960001",
+        phone="+447700900001",
         cuisines=["Italian", "Pizza", "Pasta"],
         opening_hours=OpeningHours(days=ALL_WEEK, open_time="12:00", close_time="22:00"),
         is_favorite=True,  # Favourite Italian restaurant
@@ -51,7 +51,7 @@ SAMPLE_RESTAURANTS: list[Restaurant] = [
     Restaurant(
         id="rest_asian_wok",
         name="Asia Wok Express",
-        phone="+441632960002",
+        phone="+447700900002",
         cuisines=["Asian", "Chinese", "Noodles"],
         opening_hours=OpeningHours(
             days=["Wed", "Thu", "Fri", "Sat", "Sun"], open_time="16:00", close_time="22:00"
@@ -69,7 +69,7 @@ SAMPLE_RESTAURANTS: list[Restaurant] = [
     Restaurant(
         id="rest_gasthaus_linde",
         name="Gasthaus Zur Linde",
-        phone="+441632960004",
+        phone="+447700900004",
         cuisines=["German", "Regional", "Beer Garden"],
         opening_hours=OpeningHours(
             days=["Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], open_time="11:30", close_time="23:00"
@@ -87,7 +87,7 @@ SAMPLE_RESTAURANTS: list[Restaurant] = [
     Restaurant(
         id="rest_sushi_kudo",
         name="Sushi Kudo",
-        phone="+441632960005",
+        phone="+447700900005",
         cuisines=["Japanese", "Sushi", "Ramen"],
         opening_hours=OpeningHours(
             days=["Tue", "Wed", "Thu", "Fri", "Sat"], open_time="17:00", close_time="22:30"
@@ -105,7 +105,7 @@ SAMPLE_RESTAURANTS: list[Restaurant] = [
     Restaurant(
         id="rest_closed_diner",
         name="Late Night Snack Shack",
-        phone="+441632960003",
+        phone="+447700900003",
         cuisines=["Burger", "Snack"],
         opening_hours=OpeningHours(days=["Fri", "Sat"], open_time="22:00", close_time="04:00"),
         is_favorite=False,
@@ -241,7 +241,7 @@ SCENARIO_FIXTURES: dict[str, dict[str, Any]] = {
                 "total_price_eur": 28.50,
                 "eta_minutes": 35,
                 "order_placed": True,
-                "callback_number": "+441632960000",
+                "callback_number": "+447700900000",
                 "rejection_reason": None
             },
             "post_summary": "Order placed successfully. Total: 28.50 EUR, ETA: 35 minutes.",
@@ -278,7 +278,7 @@ SCENARIO_FIXTURES: dict[str, dict[str, Any]] = {
                 "total_price_eur": 30.0,
                 "eta_minutes": 40,
                 "order_placed": False,
-                "callback_number": "+441632960000",
+                "callback_number": "+447700900000",
                 "rejection_reason": "Unclear price statement: Restaurant said 'about 30 Euro depending on driver'"
             },
             "post_summary": "Declined order due to unconfirmed vague price quote.",
@@ -306,7 +306,7 @@ SCENARIO_FIXTURES: dict[str, dict[str, Any]] = {
                 "total_price_eur": 29.00,
                 "eta_minutes": 45,
                 "order_placed": True,
-                "callback_number": "+441632960001",
+                "callback_number": "+447700900001",
                 "rejection_reason": None
             },
             "post_summary": "Order placed successfully at Trattoria Bella Luigi. Total 29.00 EUR.",
@@ -337,7 +337,7 @@ SCENARIO_FIXTURES: dict[str, dict[str, Any]] = {
                 "total_price_eur": 42.00,  # Exceeds limit!
                 "eta_minutes": 30,
                 "order_placed": False,
-                "callback_number": "+441632960000",
+                "callback_number": "+447700900000",
                 "rejection_reason": "Total price 42.00 EUR exceeds budget limit of {max_budget_eur} EUR"
             },
             "post_summary": "Declined order: total 42.00 EUR exceeds limit of {max_budget_eur} EUR.",
@@ -363,7 +363,7 @@ SCENARIO_FIXTURES: dict[str, dict[str, Any]] = {
                 "total_price_eur": 31.50,
                 "eta_minutes": 40,
                 "order_placed": True,
-                "callback_number": "+441632960001",
+                "callback_number": "+447700900001",
                 "rejection_reason": None
             },
             "post_summary": "Order placed successfully at Trattoria Bella Luigi. Total 31.50 EUR.",
@@ -394,7 +394,7 @@ SCENARIO_FIXTURES: dict[str, dict[str, Any]] = {
                 "seating_preference_met": True,
                 "booking_fee_eur": 0,
                 "authority_steps_applied": [],
-                "callback_number": "+441632960001",
+                "callback_number": "+447700900001",
                 "rejection_reason": None
             },
             "post_summary": "Table reserved for {party_size} people on {reservation_date} at {reservation_time}.",
@@ -425,7 +425,7 @@ SCENARIO_FIXTURES: dict[str, dict[str, Any]] = {
                 "total_price_eur": 22.00,
                 "prep_time_minutes": 20,
                 "order_placed": True,
-                "callback_number": "+441632960000",
+                "callback_number": "+447700900000",
                 "rejection_reason": None
             },
             "post_summary": "Pickup order placed. Total 22.00 EUR, ready in 20 minutes.",
@@ -452,7 +452,7 @@ SCENARIO_FIXTURES: dict[str, dict[str, Any]] = {
                 "total_price_eur": 24.0,
                 "prep_time_minutes": 25,
                 "order_placed": False,
-                "callback_number": "+441632960001",
+                "callback_number": "+447700900001",
                 "rejection_reason": "Unclear price: 'somewhere around 24, depends on the toppings'"
             },
             "post_summary": "Declined: no exact total was given, so nothing was ordered.",
@@ -476,7 +476,7 @@ SCENARIO_FIXTURES: dict[str, dict[str, Any]] = {
                 "total_price_eur": 21.40,
                 "prep_time_minutes": 25,
                 "order_placed": True,
-                "callback_number": "+441632960004",
+                "callback_number": "+447700900004",
                 "rejection_reason": None
             },
             "post_summary": "Pickup order placed at Gasthaus Zur Linde. Total 21.40 EUR, ready at {pickup_time}.",
@@ -505,7 +505,7 @@ SCENARIO_FIXTURES: dict[str, dict[str, Any]] = {
                 "total_price_eur": 42.00,
                 "eta_minutes": 30,
                 "order_placed": False,
-                "callback_number": "+441632960000",
+                "callback_number": "+447700900000",
                 "rejection_reason": "Total price 42.00 EUR exceeds maximum budget limit of {max_budget_eur} EUR"
             },
             "post_summary": "Declined order: total price 42.00 EUR exceeds doorstep budget limit of {max_budget_eur} EUR.",
@@ -531,7 +531,7 @@ SCENARIO_FIXTURES: dict[str, dict[str, Any]] = {
                 "total_price_eur": 30.00,
                 "eta_minutes": 40,
                 "order_placed": False,
-                "callback_number": "+441632960001",
+                "callback_number": "+447700900001",
                 "rejection_reason": "Unclear price statement: Restaurant stated 'roughly around 30 Euros depending on driver'"
             },
             "post_summary": "Declined order due to unconfirmed vague price quote.",
@@ -557,7 +557,7 @@ SCENARIO_FIXTURES: dict[str, dict[str, Any]] = {
                 "total_price_eur": 28.50,
                 "eta_minutes": 35,
                 "order_placed": True,
-                "callback_number": "+441632960002",
+                "callback_number": "+447700900002",
                 "rejection_reason": None
             },
             "post_summary": "Order placed successfully at Asia Wok Express. Total 28.50 EUR, ETA 35 minutes.",
@@ -595,7 +595,7 @@ SCENARIO_FIXTURES: dict[str, dict[str, Any]] = {
                 "seating_preference_met": False,
                 "booking_fee_eur": 0,
                 "authority_steps_applied": [],
-                "callback_number": "+441632960001",
+                "callback_number": "+447700900001",
                 "rejection_reason": "Fully booked from 18:30 on {reservation_date}"
             },
             "post_summary": "No table free at {reservation_time}. Ended the call politely.",
@@ -624,7 +624,7 @@ SCENARIO_FIXTURES: dict[str, dict[str, Any]] = {
                 "seating_preference_met": True,
                 "booking_fee_eur": 0,
                 "authority_steps_applied": [],
-                "callback_number": "+441632960004",
+                "callback_number": "+447700900004",
                 "rejection_reason": None
             },
             "post_summary": "Table for {party_size} reserved in the beer garden at {reservation_time}, under {customer_name}.",
@@ -654,7 +654,7 @@ SCENARIO_FIXTURES: dict[str, dict[str, Any]] = {
                 "seating_preference_met": True,
                 "booking_fee_eur": 0,
                 "authority_steps_applied": [],
-                "callback_number": "+441632960000",
+                "callback_number": "+447700900000",
                 "rejection_reason": None
             },
             "post_summary": "Indoor table for {party_size} reserved at {reservation_time} under {customer_name}.",
@@ -706,7 +706,7 @@ SCENARIO_FIXTURES: dict[str, dict[str, Any]] = {
                 "seating_preference_met": False,
                 "booking_fee_eur": 0,
                 "authority_steps_applied": [],
-                "callback_number": "+441632960001",
+                "callback_number": "+447700900001",
                 "rejection_reason": "Fully booked on {reservation_date}"
             },
             "post_summary": "No table free at {reservation_time}. Ended the call politely.",
@@ -733,7 +733,7 @@ SCENARIO_FIXTURES: dict[str, dict[str, Any]] = {
                 "booking_fee_eur": 0,
                 "authority_steps_applied": [],
                 "tier_applied": "indoor_ok",
-                "callback_number": "+441632960004",
+                "callback_number": "+447700900004",
                 "rejection_reason": None
             },
             "post_summary": "Beer garden booked out; fell back to the granted concession and took an indoor table for {party_size} at {reservation_time}.",
@@ -765,7 +765,7 @@ SCENARIO_FIXTURES: dict[str, dict[str, Any]] = {
                 "seating_preference_met": True,
                 "booking_fee_eur": 15,
                 "authority_steps_applied": ["booking_fee"],
-                "callback_number": "+441632960001",
+                "callback_number": "+447700900001",
                 "rejection_reason": None
             },
             "post_summary": "Table reserved at Trattoria Bella Luigi with the authorised 15 EUR booking fee.",

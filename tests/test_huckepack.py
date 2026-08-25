@@ -247,7 +247,7 @@ def test_the_visitors_key_reaches_no_store_and_no_log(monkeypatch, caplog):
                 "mode": "delivery",
                 "first_name": "Ada",
                 "last_name": "Test",
-                "requester_callback_number": "+4910004069000",
+                "requester_callback_number": "+447700900200",
                 "food_prompt": "Pizza",
                 # E29 (2026-08-22): the real form always sends this
                 # (HTML `required`); see cascade_form() above.
@@ -340,14 +340,14 @@ def test_the_receipt_payload_carries_no_dialable_number():
 
     class Result:
         post_summary = "Bestellt bei 020 79460090."
-        raw_transcript_text = "Kunde: Meine Nummer ist +44 1632 960090."
+        raw_transcript_text = "Kunde: Meine Nummer ist +44 7700 900090."
 
     restaurant = get_offline_restaurants()[0]
     payload = web.build_receipt_payload(
         order_id="ord_1",
         mode="delivery",
         restaurant=restaurant,
-        structured={"callback_number": "+44 1632 960090", "total_price_eur": 18.5},
+        structured={"callback_number": "+44 7700 900090", "total_price_eur": 18.5},
         call_result=Result(),
         customer_name="Ada",
     )
@@ -396,7 +396,7 @@ def cascade_form(**overrides):
         "mode": "delivery",
         "first_name": "Ada",
         "last_name": "Test",
-        "requester_callback_number": "+4910004069000",
+        "requester_callback_number": "+447700900200",
         "food_prompt": "Pizza",
         # E29 (2026-08-22): the real form always sends this (HTML `required`);
         # its absence used to slip past build_user_request unnoticed and only

@@ -48,7 +48,7 @@ from hungrycall.models import (
 )
 
 RESTAURANT = SAMPLE_RESTAURANTS[0]  # build_call_goal never reads restaurant fields
-CALLBACK = "+4910004069000"  # fictional throughout (AGENTS.md); matches other test files
+CALLBACK = "+447700900200"  # fictional throughout (AGENTS.md); matches other test files
 GOLDENS_DIR = Path(__file__).parent / "goldens"
 LANGUAGES = ("de", "en")
 

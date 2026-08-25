@@ -149,13 +149,13 @@ NOTICE: CALL-E voice agent operates via AiRudder servers located in Singapore (h
 
 Attempt History & Activity Stream:
 
-  Attempt #1: Trattoria Bella Luigi (+491 ••• ••••001) -> [REJECTED]
+  Attempt #1: Trattoria Bella Luigi (+447 ••• ••••001) -> [REJECTED]
     Reason: Call failed with status 'FAILED'
     Live Activity Progress:
       * Call initiated
       * No response
 
-  Attempt #2: Burger House Dorfstadt (+491 ••• ••••000) -> [PASSED]
+  Attempt #2: Burger House Dorfstadt (+447 ••• ••••000) -> [PASSED]
     Live Activity Progress:
       * 17:37:05.100 | Bot initialized.
       * 17:37:44.200 | Call is ringing (~40s setup latency).
@@ -168,7 +168,7 @@ Attempt History & Activity Stream:
 
 ============================================================
 RESULT: SUCCESS
-SUMMARY: Ordered from Burger House Dorfstadt: delivers in 35 minutes, items '2x Döner Kebab', total 28.50 EUR. Callback at +491 ••• ••••000.
+SUMMARY: Ordered from Burger House Dorfstadt: delivers in 35 minutes, items '2x Döner Kebab', total 28.50 EUR. Callback at +447 ••• ••••000.
 
 Verification Transcript (Order Proof):
   [00:05] BOT: Hello, I am an automated assistant calling on behalf of Alex. Do you deliver to Dorfstrasse 1, 12345 Dorfstadt?
@@ -201,7 +201,7 @@ NOTICE: CALL-E voice agent operates via AiRudder servers located in Singapore (h
 
 Attempt History & Activity Stream:
 
-  Attempt #1: Burger House Dorfstadt (+491 ••• ••••000) -> [REJECTED]
+  Attempt #1: Burger House Dorfstadt (+447 ••• ••••000) -> [REJECTED]
     Reason: Total price 42.00 EUR exceeds maximum budget limit of 35.00 EUR
     Live Activity Progress:
       * 17:37:05.100 | Bot initialized.
@@ -211,7 +211,7 @@ Attempt History & Activity Stream:
       * 17:37:52.200 | Callee said: 42 Euro.
       * 17:38:00.100 | Call ended; syncing final Calling result.
 
-  Attempt #2: Trattoria Bella Luigi (+491 ••• ••••001) -> [PASSED]
+  Attempt #2: Trattoria Bella Luigi (+447 ••• ••••001) -> [PASSED]
     Live Activity Progress:
       * 17:38:10.100 | Bot initialized.
       * 17:38:50.200 | Call is ringing (~40s setup latency).
@@ -222,7 +222,7 @@ Attempt History & Activity Stream:
 
 ============================================================
 RESULT: SUCCESS
-SUMMARY: Ordered from Trattoria Bella Luigi: delivers in 40 minutes, items 'Burger', total 31.50 EUR. Callback at +491 ••• ••••001.
+SUMMARY: Ordered from Trattoria Bella Luigi: delivers in 40 minutes, items 'Burger', total 31.50 EUR. Callback at +447 ••• ••••001.
 
 Verification Transcript (Order Proof):
   [00:05] BOT: Hello, calling on behalf of Alex. Can you deliver Burger to Hauptstraße 12, 12345 Dorfstadt for 31.50 EUR total?
@@ -370,7 +370,7 @@ NOTICE: CALL-E voice agent operates via AiRudder servers located in Singapore (h
 
 Attempt History & Activity Stream:
 
-  Attempt #1: Trattoria Bella Luigi (+491 ••• ••••001) -> [REJECTED]
+  Attempt #1: Trattoria Bella Luigi (+447 ••• ••••001) -> [REJECTED]
     Reason: Unclear price statement: Restaurant stated 'roughly around 30 Euros depending on driver'
     Live Activity Progress:
       * 17:38:10.100 | Bot initialized.
@@ -380,7 +380,7 @@ Attempt History & Activity Stream:
       * 17:38:57.200 | Callee said: Roughly 30 Euro.
       * 17:39:05.100 | Call ended; syncing final Calling result.
 
-  Attempt #2: Burger House Dorfstadt (+491 ••• ••••000) -> [REJECTED]
+  Attempt #2: Burger House Dorfstadt (+447 ••• ••••000) -> [REJECTED]
     Reason: Total price 42.00 EUR exceeds maximum budget limit of 35.00 EUR
     Live Activity Progress:
       * 17:37:05.100 | Bot initialized.
@@ -390,7 +390,7 @@ Attempt History & Activity Stream:
       * 17:37:52.200 | Callee said: 42 Euro.
       * 17:38:00.100 | Call ended; syncing final Calling result.
 
-  Attempt #3: Asia Wok Express (+491 ••• ••••002) -> [PASSED]
+  Attempt #3: Asia Wok Express (+447 ••• ••••002) -> [PASSED]
     Live Activity Progress:
       * 17:39:15.100 | Bot initialized.
       * 17:39:54.200 | Call ringing (~40s setup latency).
@@ -401,7 +401,7 @@ Attempt History & Activity Stream:
 
 ============================================================
 RESULT: SUCCESS
-SUMMARY: Ordered from Asia Wok Express: delivers in 35 minutes, items '2x Döner Kebab & Drinks', total 28.50 EUR. Callback at +491 ••• ••••002.
+SUMMARY: Ordered from Asia Wok Express: delivers in 35 minutes, items '2x Döner Kebab & Drinks', total 28.50 EUR. Callback at +447 ••• ••••002.
 
 Verification Transcript (Order Proof):
   [00:05] BOT: Hello, calling on behalf of Alex. Do you deliver to Dorfstrasse 1, 12345 Dorfstadt?
@@ -559,14 +559,14 @@ requested time instead of a hardcoded "Fri 19:00".
 
 ```text
 $ hungrycall reservation --food Italian --date 2026-08-07 --time 19:00 --party 4     --seating outdoor --scenario table_concession_cascade
-  Attempt #2: Gasthaus Zur Linde (+491 ... ....555) -> [REJECTED]
+  Attempt #2: Gasthaus Zur Linde (+447 ... ....555) -> [REJECTED]
     Reason: Agent applied concession 'indoor_ok', which was not authorised. Result rejected.
 RESULT: FAILED
 
 $ hungrycall reservation ... --concession indoor_ok --scenario table_concession_cascade
 RESULT: SUCCESS
 SUMMARY: Table reserved at Gasthaus Zur Linde for 4 people on 2026-08-07 at 19:00,
-         seated indoor. Callback at +491 ... ....555.
+         seated indoor. Callback at +447 ... ....555.
 ```
 
 ### 9.2 Stubs found, and what they actually were

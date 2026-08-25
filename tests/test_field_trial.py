@@ -12,7 +12,7 @@ from hungrycall import field_trial
 from hungrycall.fixtures import SAMPLE_RESTAURANTS
 from hungrycall.safety import SafetyError
 
-TEST_NUMBER = "+4910004069001"
+TEST_NUMBER = "+447700900201"
 
 
 def test_without_env_candidates_stay_untouched(monkeypatch):
@@ -36,9 +36,9 @@ def test_with_env_every_candidate_dials_the_test_number(monkeypatch):
 
 
 def test_display_formatting_is_normalized(monkeypatch):
-    monkeypatch.setenv(field_trial.ENV_VAR, "+49 100 040690 01")
+    monkeypatch.setenv(field_trial.ENV_VAR, "+44 7700 900201")
     _, number = field_trial.apply(SAMPLE_RESTAURANTS)
-    assert number == "+4910004069001"
+    assert number == "+447700900201"
 
 
 def test_invalid_number_refuses_instead_of_falling_back(monkeypatch):

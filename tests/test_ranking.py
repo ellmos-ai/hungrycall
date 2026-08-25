@@ -20,7 +20,7 @@ def build_sample_candidates():
     burger_house = Restaurant(
         id="rest_burger",
         name="Dorf Burger Joint",
-        phone="+441632960000",
+        phone="+447700900000",
         cuisines=["Burger", "American"],
         opening_hours=open_hours,
         is_favorite=False
@@ -29,7 +29,7 @@ def build_sample_candidates():
     favorite_italian = Restaurant(
         id="rest_italian",
         name="Mama Mia Pizza",
-        phone="+441632960001",
+        phone="+447700900001",
         cuisines=["Italian", "Pizza"],
         opening_hours=open_hours,
         is_favorite=True
@@ -38,7 +38,7 @@ def build_sample_candidates():
     closed_restaurant = Restaurant(
         id="rest_closed",
         name="Closed Diner",
-        phone="+441632960002",
+        phone="+447700900002",
         cuisines=["Burger"],
         opening_hours=OpeningHours(days=["Mon"], open_time="10:00", close_time="12:00"),
         is_favorite=False
@@ -105,11 +105,11 @@ def test_distance_weighs_differently_per_mode():
     """
     hours = OpeningHours(days=["Fri"], open_time="10:00", close_time="23:00")
     near = Restaurant(
-        id="near", name="Ecke", phone="+441632960000", cuisines=["Pizza"],
+        id="near", name="Ecke", phone="+447700900000", cuisines=["Pizza"],
         opening_hours=hours, lat=52.5200, lon=13.4050, distance_km=0.2,
     )
     far_favorite = Restaurant(
-        id="far", name="Mama Mia", phone="+441632960001", cuisines=["Pizza"],
+        id="far", name="Mama Mia", phone="+447700900001", cuisines=["Pizza"],
         opening_hours=hours, is_favorite=True,
         lat=52.5560, lon=13.4050, distance_km=4.0,
     )
@@ -130,7 +130,7 @@ def test_distance_weighs_differently_per_mode():
 def test_distance_limit_removes_candidates_before_any_call():
     hours = OpeningHours(days=["Fri"], open_time="10:00", close_time="23:00")
     far = Restaurant(
-        id="far", name="Weit weg", phone="+441632960001", cuisines=["Pizza"],
+        id="far", name="Weit weg", phone="+447700900001", cuisines=["Pizza"],
         opening_hours=hours, distance_km=9.0,
     )
     request = UserRequest(

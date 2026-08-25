@@ -244,7 +244,7 @@ def _seed_critical_delivery_attempt(order_id: str = "ord_e41", restaurant_id: st
         post_summary="Restaurant agreed to a fee we could not authorise.",
         transcript="[masked]",
         live=False,
-        restaurant_phone="+4910004069002",
+        restaurant_phone="+4477009002002",
     )
     return attempt["id"]
 
@@ -273,7 +273,7 @@ def test_a_clean_decline_refuses_a_correction_call_and_writes_nothing(client):
         order_id="ord_clean", restaurant_id="rest_clean", restaurant_name="Pizzeria Clean",
         run_id="run_clean", status="COMPLETED", passed=False,
         rejection_reason="Restaurant does not deliver to specified address",
-        post_summary="", transcript="", live=False, restaurant_phone="+4910004069003",
+        post_summary="", transcript="", live=False, restaurant_phone="+4477009002003",
     )
 
     response = client.post("/api/correction-call?lang=en", data={"attempt_id": attempt["id"]})

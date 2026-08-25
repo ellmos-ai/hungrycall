@@ -122,7 +122,7 @@ def test_live_rest_payload_polls_and_masks_phone_numbers():
             "taskCompleted": True,
             "completionConfidence": 0.93,
             "activity": [
-                {"timestamp": "17:01:02", "message": "Callback +441632960090"}
+                {"timestamp": "17:01:02", "message": "Callback +447700900090"}
             ],
             "result": {
                 "structuredResult": {
@@ -131,9 +131,9 @@ def test_live_rest_payload_polls_and_masks_phone_numbers():
                     "total_price_eur": 28.5,
                     "eta_minutes": 35,
                     "order_placed": True,
-                    "callback_number": "+441632960090",
+                    "callback_number": "+447700900090",
                 },
-                "transcript": "[00:10] USER: Call +441632960090",
+                "transcript": "[00:10] USER: Call +447700900090",
             },
         },
     ])
@@ -142,21 +142,21 @@ def test_live_rest_payload_polls_and_masks_phone_numbers():
         requests.append((method, path, payload, idempotency_key))
         return next(responses)
 
-    restaurant = replace(SAMPLE_RESTAURANTS[0], phone="+44 1632 960090")
+    restaurant = replace(SAMPLE_RESTAURANTS[0], phone="+44 7700 900090")
     request = UserRequest(
         mode=Mode.DELIVERY,
         customer_name="Test User",
         food_prompt="Burger",
         max_budget_eur=35,
         delivery_address="Teststraße 1",
-        requester_callback_number="+4910004069000",
+        requester_callback_number="+447700900200",
     )
     with patch.object(client, "_request", side_effect=fake_request):
         result = client.execute_candidate_call(restaurant, request, "stable-key")
 
     assert requests[0][0:2] == ("POST", "/v1/calls")
     assert requests[0][3] == "stable-key"
-    assert requests[0][2]["recipients"][0]["phones"] == ["+441632960090"]
+    assert requests[0][2]["recipients"][0]["phones"] == ["+447700900090"]
     # call_language.py: HUNGRYCALL_CALL_LOCALE unset -> German by default.
     assert requests[0][2]["recipients"][0]["locale"] == "de"
     assert requests[0][2]["recipients"][0]["region"] == "DE"
@@ -164,8 +164,8 @@ def test_live_rest_payload_polls_and_masks_phone_numbers():
     assert requests[1][0:2] == ("GET", "/v1/calls/rest-call-1")
     assert result.status is CallStatus.COMPLETED
     assert result.structured_result["order_placed"] is True
-    assert "+441632960090" not in result.raw_transcript_text
-    assert "+441632960090" not in result.activity[0]
+    assert "+447700900090" not in result.raw_transcript_text
+    assert "+447700900090" not in result.activity[0]
 
 
 def test_live_payload_locale_follows_the_call_language_seam(monkeypatch):
@@ -197,7 +197,7 @@ def test_live_payload_locale_follows_the_call_language_seam(monkeypatch):
         food_prompt="Pizza",
         max_budget_eur=20.0,
         pickup_time="19:30",
-        requester_callback_number="+4910004069000",
+        requester_callback_number="+447700900200",
     )
     with patch.object(client, "_request", side_effect=fake_request):
         client.execute_candidate_call(SAMPLE_RESTAURANTS[0], request, "lang-key-en")
@@ -260,7 +260,7 @@ def test_recipient_region_locale_and_goal_language_cannot_diverge(lang, other_in
     request = UserRequest(
         mode=Mode.DELIVERY, customer_name="Test User", food_prompt=chain.summary(),
         max_budget_eur=25.0, delivery_address="Teststr. 1", order_chain=chain,
-        requester_callback_number="+4910004069000",
+        requester_callback_number="+447700900200",
     )
     with patch.object(client, "_request", side_effect=fake_request):
         client.execute_candidate_call(SAMPLE_RESTAURANTS[0], request, f"lang-invariant-{lang}")
@@ -357,7 +357,7 @@ def test_create_retries_with_same_idempotency_key_on_transient_failure(monkeypat
     request = UserRequest(
         mode=Mode.PICKUP, customer_name="Alex Beispiel",
         food_prompt="Burger", max_budget_eur=20.0, pickup_time="19:30",
-        requester_callback_number="+4910004069001",
+        requester_callback_number="+447700900201",
     )
     result = client.execute_candidate_call(SAMPLE_RESTAURANTS[0], request, "idem-key-1")
     posts = [c for c in calls if c[0] == "POST"]

@@ -237,7 +237,7 @@ HungryCall adheres strictly to the CALL-E repository safety guidelines:
 - **Call Dry-Run by Default**: Unless `--live` and `--confirm-live` are explicitly supplied, the call cascade uses local fixtures and needs no CALL-E account. Restaurant discovery is a separate boundary: normal web searches use OpenStreetMap, while an explicit, clearly labelled restaurant test mode is fully local.
 - **Field-Trial Mode**: `HUNGRYCALL_FIELD_TRIAL_PHONE` reroutes every live candidate's phone number to one explicitly consenting test number before a cascade starts; restaurant names and ranking stay real, only the dialled wire is redirected. Fail-closed: a set-but-invalid number refuses the live run instead of silently falling back to real numbers. Only under this override may a restaurant sourced from the fixture/test-mode scenarios go out on a live wire — never with a real restaurant's own number.
 - **Explicit User Intent**: Calls are only initiated upon direct user action.
-- **E.164 Validation**: All target phone numbers are validated against standard E.164 format (`+441632960090`) prior to dialing.
+- **E.164 Validation**: All target phone numbers are validated against standard E.164 format (`+447700900090`) prior to dialing.
 - **Phone Number Masking**: All phone numbers in console logs, JSON reports, and summaries are masked (e.g. `+49 ••• ••••123`).
 - **Public German Example Numbers**: Every German diallable-looking number committed as fixture or documentation data comes from the permanently unassigned “Drama Numbers” in Bundesnetzagentur Mitteilung 148/2021.
 - **No Hardcoded Credentials**: API tokens or secrets are never committed to code or logs. HungryCall reads the process environment or a machine-local `.env` file outside the repository.
@@ -458,7 +458,7 @@ success result. A real cascade additionally requires both live gates:
 
 ```bash
 # WARNING: real calls cost money. This is syntax documentation, not an instruction to call.
-hungrycall delivery ... --requester-callback-number +441632960090 --live --confirm-live
+hungrycall delivery ... --requester-callback-number +447700900090 --live --confirm-live
 ```
 
 ---

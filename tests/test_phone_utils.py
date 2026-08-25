@@ -10,11 +10,11 @@ from hungrycall.phone_utils import (
 
 # Fictional throughout this file (AGENTS.md: examples only with fictional
 # numbers) - never the operator's real callback number.
-FICTIONAL_CALLBACK = "+4910004069000"
+FICTIONAL_CALLBACK = "+447700900200"
 
 
 def test_validate_e164_valid():
-    assert validate_e164("+441632960090") is True
+    assert validate_e164("+447700900090") is True
     assert validate_e164("+12025550123") is True
     assert validate_e164("+442079460999") is True
 
@@ -27,25 +27,25 @@ def test_validate_e164_invalid():
 
 
 def test_normalize_e164():
-    assert normalize_e164("07700900090") == "+441632960090"
-    assert normalize_e164("00441632960090") == "+441632960090"
-    assert normalize_e164("+44 1632 960090") == "+441632960090"
+    assert normalize_e164("01000000090") == "+491000000090"
+    assert normalize_e164("00447700900090") == "+447700900090"
+    assert normalize_e164("+44 7700 900090") == "+447700900090"
 
 
 def test_mask_phone():
-    masked = mask_phone("+441632960090")
+    masked = mask_phone("+491000000090")
     assert "+49" in masked
-    assert "3920" not in masked  # Middle numbers masked
+    assert "0000000" not in masked  # Middle numbers masked
     assert "090" in masked       # Suffix kept for callback reference
     assert "•••" in masked
 
 
 def test_mask_phone_inside_api_text():
-    text = "Callback +441632960090; second +44 20 79460090."
+    text = "Callback +447700900090; second +44 20 79460090."
     masked = mask_phones_in_text(text)
-    assert "+441632960090" not in masked
+    assert "+447700900090" not in masked
     assert "+44 20 79460090" not in masked
-    assert masked.endswith("••• ••••090; second +493 ••• ••••090.")
+    assert masked.endswith("••• ••••090; second +442 ••• ••••090.")
 
 
 def test_national_format_numbers_are_masked_in_text():
@@ -70,7 +70,7 @@ def test_spelled_out_digit_words_of_a_known_number_are_redacted():
     callback number aloud as individual German digit words, which neither
     PHONE_CANDIDATE_REGEX (redact_specific_phone) nor mask_phones_in_text
     (no contiguous digit run) recognised as the same number."""
-    text = "Die Rückrufnummer ist plus vier neun, eins null null, null vier null, sechs neun null, null null."
+    text = "Die Rückrufnummer ist plus vier vier, sieben sieben null null, neun null null, zwei null null."
     redacted = redact_specific_phone(text, FICTIONAL_CALLBACK)
     assert "vier" not in redacted
     assert "neun" not in redacted
@@ -83,8 +83,8 @@ def test_spelled_out_digit_words_split_across_a_transcript_turn_header():
     each carrying its own "[mm:ss] SPEAKER: " header in between the digit
     words."""
     text = (
-        "[01:10] BOT: Die direkte Rückrufnummer ist plus vier neun,\n"
-        "[01:15] BOT: eins null null, null vier null, sechs neun null, null null."
+        "[01:10] BOT: Die direkte Rückrufnummer ist plus vier vier,\n"
+        "[01:15] BOT: sieben sieben null null, neun null null, zwei null null."
     )
     redacted = redact_specific_phone(text, FICTIONAL_CALLBACK)
     assert "[REDACTED-REQUESTER-CALLBACK]" in redacted

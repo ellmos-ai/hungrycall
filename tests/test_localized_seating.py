@@ -18,7 +18,7 @@ from hungrycall.templates import localized_seating, render_result_card, render_r
 RESTAURANT = Restaurant(
     id="rest_zum_falken",
     name="Zum Falken",
-    phone="+441632960090",
+    phone="+447700900090",
     cuisines=["German"],
     opening_hours=OpeningHours(
         days=["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
@@ -53,7 +53,7 @@ def test_empty_or_missing_seating_is_the_empty_string():
 
 def test_reservation_sentence_never_leaks_a_raw_translation_key():
     structured = {
-        "callback_number": "+441632960090",
+        "callback_number": "+447700900090",
         "seating_confirmed": "draußen unter dem Kirschbaum",
     }
     sentence = render_result_sentence(
@@ -72,7 +72,7 @@ def test_reservation_sentence_never_leaks_a_raw_translation_key():
 
 def test_result_card_facts_table_never_leaks_a_raw_translation_key():
     structured = {
-        "callback_number": "+441632960090",
+        "callback_number": "+447700900090",
         "reservation_confirmed": True,
         "reservation_time_confirmed": "19:00",
         "party_size_confirmed": 2,

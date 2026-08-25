@@ -26,7 +26,7 @@ def test_verify_content_safety_prohibited_keywords():
 
 
 def test_verify_phone_safety():
-    verify_phone_safety("+441632960090")
+    verify_phone_safety("+447700900090")
 
     with pytest.raises(SafetyError):
         verify_phone_safety("07700900090")
