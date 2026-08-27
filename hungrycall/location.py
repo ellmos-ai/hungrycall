@@ -130,6 +130,9 @@ OFFLINE_LOCATIONS: dict[str, tuple[float, float]] = {
 
 # Rich offline fixtures per location for offline demo presentation
 OFFLINE_RESTAURANTS_BY_LOC: dict[str, list[Restaurant]] = {
+    # Singapore uses eight-digit subscriber numbers. IMDA reserves leading 0
+    # for short international/trunk prefixes, so these +65 0xxxxxxx fixtures
+    # are structurally unusable as full subscriber numbers.
     "singapore": [
         Restaurant(
             id="rest_sg_hawker",
@@ -171,6 +174,7 @@ OFFLINE_RESTAURANTS_BY_LOC: dict[str, list[Restaurant]] = {
             lon=103.8820
         )
     ],
+    # Ofcom reserves +44 20 7946 0000-0999 for drama use.
     "london": [
         Restaurant(
             id="rest_uk_dishoom",

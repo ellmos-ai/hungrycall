@@ -126,13 +126,26 @@ def test_db_order_and_save_result(setup_test_db):
 def test_location_geocoding_and_fixtures():
     sg_lat, _ = geocode_location("730123", "Singapore", "Singapore", test_mode=True)
     assert abs(sg_lat - 1.3521) < 0.1
-    assert any("Hawker" in r.name for r in get_offline_restaurants("Singapore"))
+    singapore = get_offline_restaurants("Singapore")
+    assert any("Hawker" in r.name for r in singapore)
+
+    # IMDA assigns Singapore subscriber numbers as eight-digit numbers in
+    # service ranges; a full eight-digit fixture beginning with 0 is therefore
+    # structurally unusable as a subscriber number.
+    assert all(len(r.phone) == 11 and r.phone.startswith("+650") for r in singapore)
+
+    # Ofcom reserves +44 20 7946 0000-0999 for drama and documentation use.
+    london = get_offline_restaurants("London")
+    assert {r.phone for r in london} == {"+442079460930", "+442079460931"}
 
     lat, lon = geocode_location("12345", "Dorfstadt", "Deutschland", test_mode=True)
     found = search_overpass_restaurants(lat, lon, test_mode=True, city="Dorfstadt")
     assert len(found) >= 5
     # Every candidate knows how far away it is; pickup ranking depends on it.
     assert all(r.distance_km is not None for r in found)
+    emails = {r.email for r in found if r.email}
+    assert emails
+    assert all(email.endswith(".example") for email in emails)
 
 
 def test_offline_pool_is_copied_not_shared():
