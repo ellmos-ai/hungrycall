@@ -45,3 +45,7 @@ python -m ruff check .
 - [`BLUEPRINT-BESTELLKETTEN.md`](BLUEPRINT-BESTELLKETTEN.md): Order-chain architecture specification.
 - [`BLUEPRINT-SERVERMODI.md`](BLUEPRINT-SERVERMODI.md): Server deployment modes and storage isolation.
 - [`AI-ACT-STATEMENT.md`](AI-ACT-STATEMENT.md): EU AI Act compliance statement.
+
+## Documented external consumer
+
+- FolderHome source revision [`51d5dc7`](https://github.com/ellmos-ai/FolderHome/tree/51d5dc71ec11f1cde4598c528323483a50f6e52c) pins this repository at [`9ae58c4`](https://github.com/ellmos-ai/hungrycall/tree/9ae58c4acb31070dcf2e3fc468cff1c80c9a7e9c) in its [HungryCall manifest](https://github.com/ellmos-ai/FolderHome/blob/51d5dc71ec11f1cde4598c528323483a50f6e52c/manifests/components/hungrycall.toml). The manifest declares `calls.hungry_cascade`, dry-run mode, and `live_enabled = false`; the [bridge probe](https://github.com/ellmos-ai/FolderHome/blob/51d5dc71ec11f1cde4598c528323483a50f6e52c/src/folderhome/bridges/call_plugins.py) imports `hungrycall.engine` and `hungrycall.call_client` and constructs `DryRunCallClient`. This documents a local provider probe, not a live CALL-E request or compatibility with current `main`.
