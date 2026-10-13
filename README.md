@@ -97,6 +97,12 @@ Nothing about the five steps above is specific to food, restaurants, or even to 
 
 ---
 
+## Documented external consumer
+
+At FolderHome source revision [51d5dc7](https://github.com/ellmos-ai/FolderHome/tree/51d5dc71ec11f1cde4598c528323483a50f6e52c), the [HungryCall manifest](https://github.com/ellmos-ai/FolderHome/blob/51d5dc71ec11f1cde4598c528323483a50f6e52c/manifests/components/hungrycall.toml) pins this repository to [revision 9ae58c4](https://github.com/ellmos-ai/hungrycall/tree/9ae58c4acb31070dcf2e3fc468cff1c80c9a7e9c) and declares `calls.hungry_cascade` in dry-run mode with live use disabled. Its [bridge probe](https://github.com/ellmos-ai/FolderHome/blob/51d5dc71ec11f1cde4598c528323483a50f6e52c/src/folderhome/bridges/call_plugins.py) imports `hungrycall.engine` and `hungrycall.call_client` and constructs `DryRunCallClient`. This is a local provider probe; it does not make a live CALL-E request or establish compatibility with the current `main` branch.
+
+---
+
 ## ❓ Why Not Just Use the CALL-E App?
 
 The official CALL-E chat / app is designed to solve **a single phone call to a single pre-known target for a single goal**.

@@ -158,6 +158,12 @@ nächster Schritt geplant, liegt aber vorerst außerhalb dieses Repositories.
 
 ---
 
+## Dokumentierter externer Verbraucher
+
+Der FolderHome-Quellstand [51d5dc7](https://github.com/ellmos-ai/FolderHome/tree/51d5dc71ec11f1cde4598c528323483a50f6e52c) führt dieses Repository im [HungryCall-Manifest](https://github.com/ellmos-ai/FolderHome/blob/51d5dc71ec11f1cde4598c528323483a50f6e52c/manifests/components/hungrycall.toml) mit dem Pin [9ae58c4](https://github.com/ellmos-ai/hungrycall/tree/9ae58c4acb31070dcf2e3fc468cff1c80c9a7e9c), deklariert `calls.hungry_cascade` im Dry-Run-Modus und lässt Live-Nutzung deaktiviert. Die [Bridge-Probe](https://github.com/ellmos-ai/FolderHome/blob/51d5dc71ec11f1cde4598c528323483a50f6e52c/src/folderhome/bridges/call_plugins.py) importiert `hungrycall.engine` und `hungrycall.call_client` und erzeugt `DryRunCallClient`. Das ist eine lokale Providerprüfung; sie führt keinen Live-CALL-E-Aufruf aus und belegt keine Kompatibilität mit dem aktuellen `main`-Zweig.
+
+---
+
 ## ❓ Warum nicht einfach die CALL-E-App?
 
 Benutz sie. Für **einen** Anruf ist der CALL-E-Chat schneller als alles, was man hier bauen
